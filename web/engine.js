@@ -292,10 +292,12 @@ export function normalizeAndValidate(raw, ctx = {}) {
   const hold = [];
   if (c.coupon_price === null) hold.push('쿠폰가 계산 불가');
   if (c.discount_rate !== null && c.discount_rate > RULES.maxRate) hold.push('할인율 90% 초과');
-  if (!c.end_date) hold.push('종료일 미상');
   if (c.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
+  // 종료일을 적지 않는 상시·시즌 프로모션이 많다(예: 맥도날드 공식 프로모션). 보류하면 아무것도 게시되지 않으므로
+  // 게시하되 표시만 남긴다. 공식 페이지에서 사라지면 다음 수집에서 gone 처리돼 화면에서 빠진다.
+  const notes = c.end_date ? [] : ['종료일 미정 (매일 재확인)'];
 
-  issues.push(...reject, ...hold);
+  issues.push(...reject, ...hold, ...notes);
   c.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
   return c;
 }

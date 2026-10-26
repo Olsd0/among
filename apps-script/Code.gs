@@ -463,33 +463,33 @@ const SAMPLE_SOURCES_ = [
     "url": "https://www.mcdonalds.co.kr/kor/promotion/list",
     "selector": "",
     "exclude": "header; footer",
-    "follow": "a[href*='/kor/promotion/']",
+    "follow": "a[href*='/kor/promotion/detail/']",
     "detail_selector": "",
     "max_follow": 6,
     "max_shots": 4,
     "wait_ms": 1500,
     "official_link": "https://www.mcdonalds.co.kr/kor/promotion/list",
-    "notes": "목록이 JS로 그려지는 것으로 보임. 상세 링크 형식은 점검 실행 후 follow 수정"
+    "notes": "10/26 점검: 수집 가능. 상세 페이지에 정상가·행사가가 글자로 있음(종료일은 대부분 없음)"
   },
   {
-    "id": "bk-home",
+    "id": "bk-event",
     "active": "TRUE",
     "brand": "버거킹",
     "category": "햄버거",
-    "url": "https://www.burgerking.co.kr/",
+    "url": "https://www.burgerking.co.kr/event/ongoing",
     "selector": "",
     "exclude": "header; footer",
-    "follow": "a[href*='event.burgerking.co.kr']",
+    "follow": "",
     "detail_selector": "",
-    "max_follow": 6,
+    "max_follow": 0,
     "max_shots": 4,
-    "wait_ms": 2000,
-    "official_link": "https://www.burgerking.co.kr/",
-    "notes": "메인 사이트 이벤트 목록 URL 미확인. 행사는 event.burgerking.co.kr 하위 페이지(이미지 위주)로 공개됨"
+    "wait_ms": 2500,
+    "official_link": "https://www.burgerking.co.kr/event/ongoing",
+    "notes": "10/26: 이벤트 목록 주소 확인. 상세는 클릭으로만 열려 목록 배너(이미지)만 읽음. 신메뉴 소개 위주"
   },
   {
     "id": "lotte-coupon",
-    "active": "TRUE",
+    "active": "FALSE",
     "brand": "롯데리아",
     "category": "햄버거",
     "url": "https://www.lotteeatz.com/coupon/main",
@@ -501,11 +501,11 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 4,
     "wait_ms": 1500,
     "official_link": "https://www.lotteeatz.com/coupon/main",
-    "notes": "공개 쿠폰 목록 페이지. 웹 수집 도구 점검 시 robots.txt 거부 → AMONGbot 기준 재확인 필요"
+    "notes": "10/26 점검: robots.txt가 수집 차단 → 자동 수집 불가. 제휴·점주 등록 대상"
   },
   {
     "id": "lotte-event",
-    "active": "TRUE",
+    "active": "FALSE",
     "brand": "롯데리아",
     "category": "햄버거",
     "url": "https://www.lotteeatz.com/event/main",
@@ -517,7 +517,7 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 4,
     "wait_ms": 1500,
     "official_link": "https://www.lotteeatz.com/event/main",
-    "notes": "롯데잇츠 통합 이벤트(롯데리아 외 브랜드 포함). robots.txt 재확인 필요"
+    "notes": "10/26 점검: robots.txt가 수집 차단 → 자동 수집 불가"
   },
   {
     "id": "moms-promo",
@@ -533,7 +533,7 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 4,
     "wait_ms": 1000,
     "official_link": "https://momstouch.co.kr/promotion/list.php",
-    "notes": "상세는 view.php?idx=숫자. 웹 수집 도구 점검 시 robots.txt 거부 → AMONGbot 기준 재확인 필요"
+    "notes": "10/26 점검: robots.txt 응답 없음(해외 서버에서 접속 지연 추정) → 대기시간 늘려 재시도"
   }
 ];
 

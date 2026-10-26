@@ -113,8 +113,11 @@ test('검증: 보류(pending) 규칙', () => {
   const st = (o) => normalizeAndValidate({ ...base, ...o }, ctx);
   assert.equal(st({ coupon_price: null }).status, 'pending');
   assert.equal(st({ coupon_price: 700, regular_price: 8000 }).status, 'pending'); // 91%
-  assert.equal(st({ end_date: '' }).status, 'pending');
   assert.equal(st({ confidence: 0.6 }).status, 'pending');
+  // 종료일 없는 상시·시즌 프로모션은 게시하되 표시를 남긴다 (공식 페이지에서 사라지면 gone)
+  const noEnd = st({ end_date: '' });
+  assert.equal(noEnd.status, 'published');
+  assert.ok(noEnd.issues.includes('종료일 미정 (매일 재확인)'));
   // 오늘 종료는 게시 (종료일 포함)
   assert.equal(st({ end_date: '2026-10-25' }).status, 'published');
 });

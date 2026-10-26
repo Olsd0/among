@@ -59,7 +59,7 @@ const cache = new Map();
  * URL 수집 허용 여부. robots.txt가 없으면(4xx) 허용, 서버 오류·연결 실패면 보수적으로 불허.
  * @returns {Promise<{ allowed: boolean, reason: string }>}
  */
-export async function robotsAllows(url, { ua = BOT_NAME, fetchImpl = fetch, timeoutMs = 10000 } = {}) {
+export async function robotsAllows(url, { ua = BOT_NAME, fetchImpl = fetch, timeoutMs = 20000 } = {}) {
   const origin = new URL(url).origin;
   if (!cache.has(origin)) {
     cache.set(origin, (async () => {
