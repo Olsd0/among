@@ -207,7 +207,14 @@ function squash(s) { return String(s || '').replace(/[\s,·•\-–—~()\[\]"'�
 
 function priceVariants(n) {
   if (n === null || n === undefined) return [];
-  return [String(n), n.toLocaleString('en-US')].map(squash);
+  const v = [String(n), n.toLocaleString('en-US')];
+  // 한글 단위 표기: 10000 → "1만", 4000 → "4천", 15000 → "1만5천", 1.5만
+  if (n >= 10000 && n % 1000 === 0) {
+    const man = Math.floor(n / 10000), cheon = (n % 10000) / 1000;
+    v.push(cheon ? `${man}만${cheon}천` : `${man}만`);
+    if (cheon) v.push(`${man}.${cheon}만`);
+  } else if (n >= 1000 && n < 10000 && n % 1000 === 0) v.push(`${n / 1000}천`);
+  return v.map(squash);
 }
 
 /**
@@ -297,7 +304,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
   // ---- pending: 사람이 보기 전엔 게시하지 않을 것 ----
   const hold = [];
   // 쿠폰가·할인율·할인액 중 하나라도 있으면 비교 가능 (주문 전체 할인 포함). 아무것도 없으면 보류
-  if (c.coupon_price === null && c.discount_rate === null && !(c.discount_type === 'amount' && c.discount_value > 0)) hold.push('쿠폰가 계산 불가');
+  if (c.coupon_price === null && c.discount_rate === null && !(c.discount_type === 'amount' && c.discount_value > 0) && c.discount_type !== 'free_item') hold.push('쿠폰가 계산 불가');
   if (c.discount_rate !== null && c.discount_rate > RULES.maxRate) hold.push('할인율 90% 초과');
   if (c.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
   // 종료일을 적지 않는 상시·시즌 프로모션이 많다(예: 맥도날드 공식 프로모션). 보류하면 아무것도 게시되지 않으므로

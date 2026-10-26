@@ -99,6 +99,8 @@ test('주문 전체 할인: 정률은 할인율만, 정액은 할인액만 (쿠�
   const amt = normalizeAndValidate({ menu: '크루아상 피자', discount_type: 'amount', discount_value: 10000, end_date: '2026-12-31', confidence: 0.9 }, ctx);
   assert.equal(amt.status, 'published');
   assert.equal(amt.discount_value, 10000);
+  // 1+1·증정은 가격 없이도 게시
+  assert.equal(normalizeAndValidate({ menu: '치킨 1+1 (밤 9~10시)', discount_type: 'free_item', end_date: '2026-12-31', confidence: 0.9 }, ctx).status, 'published');
   // 수치가 하나도 없으면 보류
   assert.equal(normalizeAndValidate({ menu: '이벤트', discount_type: 'percent', end_date: '2026-12-31', confidence: 0.9 }, ctx).status, 'pending');
 });
@@ -145,6 +147,13 @@ test('근거 대조: 페이지에 없는 숫자는 감점 → 보류', () => {
   assert.ok(bad.issues.some((i) => i.includes('4500')));
   // 이미지에서 읽은 항목은 텍스트 대조 생략
   assert.deepEqual(checkEvidence({ ...base, evidence_source: 'image', evidence: '없는 문구' }, page).issues, []);
+});
+
+test('근거 대조: 한글 단위 금액(1만원·4천원·1만5천원)도 인정', () => {
+  assert.deepEqual(checkEvidence({ discount_type: 'amount', discount_value: 10000, evidence: '크루아상 1만원 할인' }, '크루아상 1만원 할인').issues, []);
+  assert.deepEqual(checkEvidence({ discount_type: 'amount', discount_value: 4000, evidence: '포장 주문 시 4천원 할인' }, '포장 주문 시 4천원 할인').issues, []);
+  assert.deepEqual(checkEvidence({ discount_type: 'amount', discount_value: 15000, evidence: '1만5천원 할인' }, '세트 1만5천원 할인').issues, []);
+  assert.ok(checkEvidence({ discount_type: 'amount', discount_value: 5000, evidence: '4천원 할인' }, '4천원 할인').issues.length > 0);
 });
 
 test('적용 조건 판단: 채널·최소주문·회원구분·기간', () => {

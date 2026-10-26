@@ -409,6 +409,7 @@ function priceRow(c) {
   }
   if (c.discount_type === 'percent' && c.discount_rate) return `<div class="prow cp"><span class="lbl">주문 할인</span><b>${c.discount_rate}<em>%</em></b></div>`;
   if (c.discount_type === 'amount' && c.discount_value) return `<div class="prow cp"><span class="lbl">주문 할인</span><b>${won(c.discount_value)}<em>원</em></b></div>`;
+  if (c.discount_type === 'free_item') return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">1+1 · 증정</b></div>';
   return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">공식 앱에서 확인</b></div>';
 }
 
