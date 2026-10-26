@@ -57,7 +57,7 @@ const SHEETS = {
   reports: ['ts', 'sid', 'coupon_id', 'brand', 'menu', 'reason', 'memo', 'status'],
 };
 const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate',
-  'discount_type', 'max_discount', 'min_order', 'channels', 'audience', 'app_only', 'start_date', 'end_date',
+  'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only', 'start_date', 'end_date',
   'conditions', 'source_url', 'official_link', 'first_seen', 'checked_at'];
 const NUM_FIELDS = ['regular_price', 'coupon_price', 'discount_rate', 'discount_value', 'max_discount', 'min_order', 'confidence'];
 const EVENT_TYPES = ['visit', 'click', 'detail', 'refresh', 'share', 'filter'];

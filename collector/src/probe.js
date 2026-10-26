@@ -28,9 +28,9 @@ async function visit(ctx, url, { links = false, shot } = {}) {
   }
   const page = await ctx.context.newPage();
   try {
-    const res = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 40000 });
-    await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => {});
-    await sleep(1200);
+    const res = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
+    await sleep(800);
     const data = await page.evaluate((wantLinks) => {
       const text = document.body ? document.body.innerText : '';
       const imgs = [...document.images].filter((i) => i.naturalWidth >= 200).length;
@@ -56,15 +56,22 @@ function verdict(r) {
   const ok = r.pages.filter((p) => !p.error && !p.blocked);
   if (!r.pages.length) return '후보없음';
   if (!ok.length) return r.pages.some((p) => p.blocked) ? 'robots차단' : '접속실패';
-  const best = ok.reduce((a, b) => (b.prices > a.prices ? b : a));
-  if (best.prices >= 3) return '수집가능';
+  const best = ok.reduce((a, b) => (b.prices + b.pcts > a.prices + a.pcts ? b : a));
+  if (best.prices >= 3 || best.pcts >= 2) return '수집가능';
   if (best.imgs >= 3) return '이미지위주';
   return '정보적음';
 }
 
 const ctx = await openBrowser();
 const results = [];
-for (const b of brands) {
+const emit = (list, tag) => {
+  if (!process.env.GITHUB_ACTIONS || !list.length) return;
+  const lines = list.map(line);
+  console.log(`::notice title=브랜드 탐색 ${tag}::${lines.join('\n').replace(/[\r]/g, ' ').replace(/%/g, '%25').replace(/\n/g, '%0A')}`);
+};
+const line = (r) => `${r.verdict}|${r.category}|${r.brand}|${r.best ? `${r.best.url}|가격${r.best.prices}|%${r.best.pcts}|img${r.best.imgs}|${(r.best.label || '').replace(/\|/g, '/')}` : (r.homeError || r.homeBlocked || (r.candidates || []).slice(0, 2).join(' ; ') || '-')}`;
+
+async function probeBrand(b) {
   const r = { ...b, pages: [] };
   const home = await visit(ctx, b.home, { links: true, shot: join(outDir, 'probe', `${b.id}_home.jpg`) });
   if (home.blocked) r.homeBlocked = home.blocked;
@@ -78,11 +85,10 @@ for (const b of brands) {
       if (/login|member|join|cart|order|faq|recruit|franchise|store|map/i.test(l.h)) continue;
       if (!cands.find((c) => c.h === l.h)) cands.push(l);
     }
-    // 글자 신호가 강한 링크(쿠폰·이벤트·프로모션)를 앞으로
-    cands.sort((a, b) => (/쿠폰|coupon/i.test(b.t + b.h) - /쿠폰|coupon/i.test(a.t + a.h)) || (LINK_RE.test(b.t) - LINK_RE.test(a.t)));
+    cands.sort((a, b2) => (/쿠폰|coupon/i.test(b2.t + b2.h) - /쿠폰|coupon/i.test(a.t + a.h)) || (LINK_RE.test(b2.t) - LINK_RE.test(a.t)));
     r.candidates = cands.slice(0, 8).map((c) => `${c.t}|${c.h}`);
     for (const c of cands.slice(0, 3)) {
-      await sleep(1000);
+      await sleep(800);
       const p = await visit(ctx, c.h, { shot: join(outDir, 'probe', `${b.id}_${r.pages.length + 1}.jpg`) });
       p.label = c.t;
       delete p.links;
@@ -90,23 +96,25 @@ for (const b of brands) {
     }
   }
   r.verdict = verdict(r);
-  const best = r.pages.filter((p) => !p.error && !p.blocked).sort((a, b) => b.prices - a.prices)[0];
+  const best = r.pages.filter((p) => !p.error && !p.blocked).sort((a, b2) => (b2.prices + b2.pcts) - (a.prices + a.pcts))[0];
   r.best = best ? { url: best.final || best.url, label: best.label, prices: best.prices, pcts: best.pcts, imgs: best.imgs, chars: best.chars } : null;
-  results.push(r);
-  console.log(`${r.verdict.padEnd(6)} ${b.brand} ${r.best ? `→ ${r.best.url} (가격 ${r.best.prices}, % ${r.best.pcts}, 이미지 ${r.best.imgs})` : (r.homeError || r.homeBlocked || '')}`);
+  console.log(line(r));
+  return r;
+}
+
+// 4개씩 병렬, 한 묶음(8개)이 끝날 때마다 주석으로 남겨 중간에 끊겨도 결과가 보이게
+const CONC = +(process.env.PROBE_CONCURRENCY || 4);
+const batches = [];
+for (let i = 0; i < brands.length; i += 8) batches.push(brands.slice(i, i + 8));
+for (const [bi, batch] of batches.entries()) {
+  const done = [];
+  for (let i = 0; i < batch.length; i += CONC) {
+    done.push(...(await Promise.all(batch.slice(i, i + CONC).map((b) => probeBrand(b).catch((e) => ({ ...b, pages: [], verdict: '오류', homeError: e.message.slice(0, 100) }))))));
+  }
+  results.push(...done);
+  writeFileSync(join(outDir, 'probe.json'), JSON.stringify(results, null, 2));
+  emit(done, `${bi + 1}/${batches.length}`);
 }
 await ctx.close();
 writeFileSync(join(outDir, 'probe.json'), JSON.stringify(results, null, 2));
 
-// GitHub Actions 주석 (단계당 notice 10개 제한 → 여러 줄을 묶어서 남김, 줄바꿈은 %0A)
-if (process.env.GITHUB_ACTIONS) {
-  const lines = results.map((r) => `${r.verdict}|${r.category}|${r.brand}|${r.best ? `${r.best.url}|가격${r.best.prices}|%${r.best.pcts}|img${r.best.imgs}|${(r.best.label || '').replace(/\|/g, '/')}` : (r.homeError || r.homeBlocked || (r.candidates || []).slice(0, 2).join(' ; ') || '-')}`);
-  const chunks = [];
-  let cur = '';
-  for (const l of lines) {
-    if ((cur + l).length > 3500) { chunks.push(cur); cur = ''; }
-    cur += (cur ? '\n' : '') + l.replace(/[\r\n]/g, ' ');
-  }
-  if (cur) chunks.push(cur);
-  chunks.slice(0, 9).forEach((c, i) => console.log(`::notice title=브랜드 탐색 ${i + 1}/${chunks.length}::${c.replace(/%/g, '%25').replace(/\n/g, '%0A')}`));
-}

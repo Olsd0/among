@@ -169,6 +169,8 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
     case 'amount':
       if (reg !== null && val !== null) { saved = Math.round(val); price = reg - saved; }
       else if (toInt(coupon_price) !== null) price = toInt(coupon_price);
+      // 주문 전체 정액 할인 (예: "신규가입 3,000원 할인") — 결제액은 주문에 따라 달라 쿠폰가 없이 할인액만
+      else if (val !== null && val > 0) saved = Math.round(val);
       break;
     case 'percent':
       if (reg !== null && val !== null && val > 0 && val < 100) {
@@ -177,6 +179,8 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
         if (cap !== null && cap > 0) saved = Math.min(saved, cap);
         price = reg - saved;
       } else if (toInt(coupon_price) !== null) price = toInt(coupon_price);
+      // 주문 전체 정률 할인 (예: "앱 첫 주문 25% 할인") — 쿠폰가 없이 할인율만
+      else if (val !== null && val > 0 && val < 100) return { coupon_price: null, discount_rate: Math.round(val), saved: null, scope: 'order' };
       break;
     case 'free_item':
       price = reg !== null ? reg : toInt(coupon_price);
@@ -194,7 +198,7 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
     saved = reg - price;
     rate = Math.round((saved / reg) * 100);
   }
-  return { coupon_price: price, discount_rate: rate, saved };
+  return { coupon_price: price, discount_rate: rate, saved, scope: price === null && saved !== null ? 'order' : 'item' };
 }
 
 // ---------- 근거 대조 (AI 환각 방지) ----------
@@ -275,6 +279,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
   const calc = computeCouponPrice({ ...raw, discount_type });
   c.coupon_price = calc.coupon_price;
   c.discount_rate = calc.discount_rate;
+  // 주문 전체 할인(쿠폰가 없음): 정액이면 할인액을 discount_value에 둔다 (화면 표시용)
+  if (calc.coupon_price === null && calc.saved !== null && c.discount_value === null) c.discount_value = calc.saved;
 
   const ev = checkEvidence({ ...raw, discount_type }, ctx.pageText);
   issues.push(...ev.issues);
@@ -290,7 +296,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
 
   // ---- pending: 사람이 보기 전엔 게시하지 않을 것 ----
   const hold = [];
-  if (c.coupon_price === null) hold.push('쿠폰가 계산 불가');
+  // 쿠폰가·할인율·할인액 중 하나라도 있으면 비교 가능 (주문 전체 할인 포함). 아무것도 없으면 보류
+  if (c.coupon_price === null && c.discount_rate === null && !(c.discount_type === 'amount' && c.discount_value > 0)) hold.push('쿠폰가 계산 불가');
   if (c.discount_rate !== null && c.discount_rate > RULES.maxRate) hold.push('할인율 90% 초과');
   if (c.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
   // 종료일을 적지 않는 상시·시즌 프로모션이 많다(예: 맥도날드 공식 프로모션). 보류하면 아무것도 게시되지 않으므로

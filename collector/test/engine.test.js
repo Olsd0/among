@@ -67,9 +67,9 @@ test('대상 · 구성 정규화', () => {
 
 test('적용가: 정가 / 정액 할인', () => {
   assert.deepEqual(computeCouponPrice({ regular_price: 8000, coupon_price: 5500, discount_type: 'price' }),
-    { coupon_price: 5500, discount_rate: 31, saved: 2500 });
+    { coupon_price: 5500, discount_rate: 31, saved: 2500, scope: 'item' });
   assert.deepEqual(computeCouponPrice({ regular_price: 8100, discount_type: 'amount', discount_value: 2200 }),
-    { coupon_price: 5900, discount_rate: 27, saved: 2200 });
+    { coupon_price: 5900, discount_rate: 27, saved: 2200, scope: 'item' });
 });
 
 test('적용가: 정률 할인은 10원 단위 내림, 상한 적용', () => {
@@ -87,6 +87,20 @@ test('적용가: 증정(1+1)은 결제액 유지, 체감 할인율', () => {
   const r = computeCouponPrice({ regular_price: 6000, discount_type: 'free_item', discount_value: 2000 });
   assert.equal(r.coupon_price, 6000);
   assert.equal(r.discount_rate, 25);
+});
+
+test('주문 전체 할인: 정률은 할인율만, 정액은 할인액만 (쿠폰가 없음) → 게시', () => {
+  assert.deepEqual(computeCouponPrice({ discount_type: 'percent', discount_value: 25 }), { coupon_price: null, discount_rate: 25, saved: null, scope: 'order' });
+  assert.deepEqual(computeCouponPrice({ discount_type: 'amount', discount_value: 3000 }), { coupon_price: null, discount_rate: null, saved: 3000, scope: 'order' });
+  const pct = normalizeAndValidate({ menu: '전 메뉴 (앱 첫 주문)', discount_type: 'percent', discount_value: 25, audience: '신규회원', channels: ['배달', '픽업'], end_date: '2026-12-31', confidence: 0.9 }, ctx);
+  assert.equal(pct.status, 'published');
+  assert.equal(pct.coupon_price, null);
+  assert.equal(pct.discount_rate, 25);
+  const amt = normalizeAndValidate({ menu: '크루아상 피자', discount_type: 'amount', discount_value: 10000, end_date: '2026-12-31', confidence: 0.9 }, ctx);
+  assert.equal(amt.status, 'published');
+  assert.equal(amt.discount_value, 10000);
+  // 수치가 하나도 없으면 보류
+  assert.equal(normalizeAndValidate({ menu: '이벤트', discount_type: 'percent', end_date: '2026-12-31', confidence: 0.9 }, ctx).status, 'pending');
 });
 
 test('검증: 정상 쿠폰은 게시', () => {
