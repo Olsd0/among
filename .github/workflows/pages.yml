@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   deploy:
+    # 비공개 저장소에서는 무료 플랜 Pages를 쓸 수 없어 건너뛴다 (공개로 바꾸면 자동으로 동작)
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
