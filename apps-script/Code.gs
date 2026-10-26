@@ -521,7 +521,7 @@ const SAMPLE_SOURCES_ = [
   },
   {
     "id": "moms-promo",
-    "active": "TRUE",
+    "active": "FALSE",
     "brand": "맘스터치",
     "category": "햄버거",
     "url": "https://momstouch.co.kr/promotion/list.php",
@@ -533,7 +533,7 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 4,
     "wait_ms": 1000,
     "official_link": "https://momstouch.co.kr/promotion/list.php",
-    "notes": "10/26 점검: robots.txt 응답 없음(해외 서버에서 접속 지연 추정) → 대기시간 늘려 재시도"
+    "notes": "10/26 점검 3회: GitHub(해외 서버)에서 사이트 접속 자체가 안 됨(해외 IP 차단 추정) → 비활성. 국내 서버에서 돌리거나 제휴로 해결"
   }
 ];
 
