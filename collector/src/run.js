@@ -9,6 +9,8 @@ import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
 import { SheetClient } from './sheet.js';
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export function loadLocalSources(file) {
   const list = JSON.parse(readFileSync(file, 'utf8'));
   return Array.isArray(list) ? list : list.sources;
@@ -114,7 +116,33 @@ export async function runCollector(o = {}) {
       }
       if (sr.ok) log(`  ✓ ${source.id}: 페이지 ${sr.pages}, 후보 ${sr.found}`);
     };
-    await pool(sources, +(env.COLLECT_CONCURRENCY || (llm.provider === 'gemini' ? 2 : 4)), one);  // Gemini 무료 한도는 분당 요청 수가 작아 2개씩
+    // 출처 하나가 멈춰도(브라우저·네트워크) 전체가 25분 제한에 걸리지 않게: 출처별 제한 + 전체 예산 뒤 강제 마무리
+    const srcLimit = +(env.SOURCE_TIMEOUT_S || 300) * 1000;
+    const guarded = (source) => {
+      let timer;
+      return Promise.race([
+        one(source),
+        new Promise((res) => { timer = setTimeout(() => {
+          const sr = report.sources.find((x) => x.id === source.id);
+          if (sr && !sr.ok) sr.error = sr.error || `출처 처리 시간 초과 (${srcLimit / 1000}s)`;
+          report.errors.push(`${source.id}: 출처 처리 시간 초과`);
+          res();
+        }, srcLimit); }),
+      ]).finally(() => clearTimeout(timer));
+    };
+    const all_done = pool(sources, +(env.COLLECT_CONCURRENCY || (llm.provider === 'gemini' ? 2 : 4)), guarded);  // Gemini 무료 한도는 분당 요청 수가 작아 2개씩
+    const hard = Math.max(30000, deadline - Date.now() + 120000);
+    let hardTimer;
+    const finishedInTime = await Promise.race([all_done.then(() => true), new Promise((r) => { hardTimer = setTimeout(() => r(false), hard); })]);
+    clearTimeout(hardTimer);
+    if (!finishedInTime) {
+      stopReason = stopReason || '실행 시간 예산 초과';
+      report.errors.push('전체 실행 시간 초과로 남은 출처를 실패 처리');
+      for (const x of report.sources) if (!x.ok && !x.error) x.error = '시간 초과';
+      for (const src of sources) if (!report.sources.find((x) => x.id === src.id)) report.sources.push({ id: src.id, brand: src.brand, ok: false, pages: 0, found: 0, published: 0, error: '시간 초과로 시작 못 함' });
+    }
+    // 시간 초과로 끝난 출처가 나중에 ok가 되지 않도록 지금 상태를 고정
+    for (const x of report.sources) x.ok = x.ok && !/시간 초과/.test(x.error || '');
 
     const merged = groupFreeItems(mergeSimilar(dedupe(all, couponId))).map((c) => ({ ...c, id: couponId(c), hash: contentHash(c) }));
     for (const sr of report.sources) sr.published = merged.filter((c) => c.source_id === sr.id && c.status === 'published').length;
@@ -137,7 +165,7 @@ export async function runCollector(o = {}) {
     report.errors.push(e.message);
     log(`✗ 실행 실패: ${e.stack || e.message}`);
   } finally {
-    if (ctx && !o.browser) await ctx.close().catch(() => {});
+    if (ctx && !o.browser) { let t; await Promise.race([ctx.close().catch(() => {}), new Promise((r) => { t = setTimeout(r, 15000); })]); clearTimeout(t); }
     report.finished_at = new Date().toISOString();
     report.duration_s = Math.round((Date.now() - started) / 1000);
     writeFileSync(join(outDir, 'run_log.json'), JSON.stringify(report, null, 2));
@@ -173,5 +201,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
     process.env.SOURCES_FILE = 'sources.example.json';
   }
   const report = await runCollector();
-  process.exitCode = report.state === 'failed' ? 1 : 0;
+  // 멈춘 브라우저·요청이 남아 있어도 프로세스를 끝낸다
+  process.exit(report.state === 'failed' ? 1 : 0);
 }
