@@ -33,7 +33,7 @@ permissions:
 # 실제 시트 반영 승인 스위치: AI 추출 정확도를 확인하기 전까지 00시 예약 실행은 시트에 쓰지 않는다(dry).
 # 수동 실행(mode=collect)은 항상 반영. 확인이 끝나면 'true'로 바꿔 커밋.
 env:
-  PUBLISH_APPROVED: 'false'
+  PUBLISH_APPROVED: 'true'
 
 jobs:
   collect:
