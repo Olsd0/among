@@ -308,6 +308,10 @@ const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 // 브랜드 아이콘: 공식 사이트 주소의 사이트 아이콘(파비콘)을 그대로 불러와 표시만 한다 (저장·가공 안 함). 실패하면 카테고리 아이콘
 const siteDomain = (u) => { const h = host(u).split('.'); return h.slice(/\.(co|or|go|ne)\.kr$/.test(host(u)) ? -3 : -2).join('.'); };
 const logoUrl = (c) => { const d = siteDomain(safeUrl(c.source_url) || safeUrl(c.official_link)); return d ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : ''; };
+const logoAlt = (c) => { const u = safeUrl(c.source_url) || safeUrl(c.official_link); try { return u ? `${new URL(u).origin}/favicon.ico` : ''; } catch { return ''; } };
+// 구글 아이콘 서비스는 아이콘이 없으면 16px 지구본을 준다 → 공식 사이트 favicon.ico로 한 번 더, 그래도 없으면 카테고리 아이콘
+window.logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; } else img.remove(); };
+window.logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
 const md = (iso) => (iso ? `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 
 function fmtChecked(iso) {
@@ -435,7 +439,7 @@ function card(c, today) {
   <article class="card" data-id="${esc(c.id)}">
     <div class="card-main" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
       <div class="tile" aria-hidden="true">
-        ${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="32" height="32" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+        ${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="32" height="32" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}" onload="logoCheck(this)" onerror="logoFail(this)">` : ''}
         <svg class="cat-ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${(CATS.find((x) => x.id === c.category) || CATS[0]).icon}</svg>
         <span>${esc(c.brand)}</span>
       </div>
