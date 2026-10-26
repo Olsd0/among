@@ -203,6 +203,7 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
 
 // ---------- 근거 대조 (AI 환각 방지) ----------
 
+const PROMO_WORDS = /할인|특가|쿠폰|이벤트|프로모션|행사|세일|반값|단돈|딜|해피|스낵|1\s*\+\s*1|증정|무료|%|원에|인하|혜택|한정|기념|오픈|첫\s*주문|신규|멤버십|데이|타임/;
 function squash(s) { return String(s || '').replace(/[\s,·•\-–—~()\[\]"'“”‘’]/g, '').toLowerCase(); }
 
 function priceVariants(n) {
@@ -245,14 +246,6 @@ export function checkEvidence(raw, pageText) {
   if (evMissing) {
     issues.push(numsOk && nums.length ? '근거 문구 요약됨 (숫자는 확인)' : '근거 문구가 페이지에 없음');
     penalty += numsOk && nums.length ? RULES.evidencePenalty / 3 : RULES.evidencePenalty;
-  }
-  // 날짜의 연도(2026년, 2026.10.)를 가격으로 읽은 경우
-  for (const n of nums) {
-    if (n >= 2000 && n <= 2099 && raw.discount_type === 'price'
-      && new RegExp(`${n}\\s*[년./-]\\s*\\d`).test(pageText) && !new RegExp(`${n}\\s*원`).test(pageText)) {
-      issues.push(`가격 ${n}이(가) 연도일 수 있음`);
-      penalty += 1;
-    }
   }
   return { issues, penalty };
 }
@@ -319,6 +312,12 @@ export function normalizeAndValidate(raw, ctx = {}) {
   if (c.coupon_price === null && c.discount_rate === null && !(c.discount_type === 'amount' && c.discount_value > 0) && c.discount_type !== 'free_item') hold.push('쿠폰가 계산 불가');
   if (c.discount_rate !== null && c.discount_rate > RULES.maxRate) hold.push('할인율 90% 초과');
   if (c.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
+  // 연도(2025~2027)를 가격으로 읽은 경우: 페이지에 'N원'으로 적혀 있지 않으면 보류
+  const yr = +today.slice(0, 4);
+  if (c.coupon_price !== null && Math.abs(c.coupon_price - yr) <= 1
+    && !priceVariants(c.coupon_price).some((v) => squash(ctx.pageText || '').includes(`${v}원`))) hold.push(`가격 ${c.coupon_price}이(가) 연도일 수 있음`);
+  // 정상가 없이 가격만 있는 항목은 메뉴판 가격·신메뉴 출시가일 수 있다 → 근거에 행사 표현이 있어야 게시
+  if (c.discount_type === 'price' && c.regular_price === null && !PROMO_WORDS.test(`${raw.evidence || ''} ${c.conditions || ''} ${c.menu || ''}`)) hold.push('할인 행사인지 불명확 (정상가 없음)');
   // 종료일을 적지 않는 상시·시즌 프로모션이 많다(예: 맥도날드 공식 프로모션). 보류하면 아무것도 게시되지 않으므로
   // 게시하되 표시만 남긴다. 공식 페이지에서 사라지면 다음 수집에서 gone 처리돼 화면에서 빠진다.
   const notes = c.end_date ? [] : ['종료일 미정 (매일 재확인)'];
@@ -356,10 +355,10 @@ export function similarMenu(a, b, minContain = 2) {
   return inter / (A.size + B.size - inter) >= 0.5;
 }
 export function mergeSimilar(list) {
-  const rank = (c) => (c.status === 'published' ? 4 : c.status === 'pending' ? 2 : 0) + (c.end_date ? 1 : 0) + (c.confidence || 0) / 10;
+  const rank = (c) => (c.status === 'published' ? 4 : c.status === 'pending' ? 2 : 0) + (c.end_date ? 1 : 0) + (c.regular_price ? 0.5 : 0) + (c.confidence || 0) / 10;
   const out = [];
   for (const c of [...list].sort((p, q) => rank(q) - rank(p))) {
-    const sig = (z) => [z.brand, z.discount_type, z.coupon_price ?? '', z.discount_type === 'price' ? '' : (z.discount_value ?? ''), z.audience].join('|');
+    const sig = (z) => [z.brand, z.discount_type, z.discount_type === 'price' ? (z.coupon_price ?? '') : '', z.discount_type === 'price' ? '' : (z.discount_value ?? ''), z.audience].join('|');
     const dup = c.status !== 'rejected' && out.find((o) => o.status !== 'rejected' && sig(o) === sig(c)
       && (!o.end_date || !c.end_date || o.end_date === c.end_date)
       && similarMenu(o.menu, c.menu, c.discount_type === 'free_item' ? 3 : 2));
@@ -371,6 +370,31 @@ export function mergeSimilar(list) {
     out.push(c);
   }
   return out;
+}
+
+/** 한 행사(예: 치킨 1+1)가 메뉴별로 4건 이상 잡히면 카드 하나로: '갓양념치킨 외 8종' (D18) */
+export function groupFreeItems(list, min = 4) {
+  const key = (c) => [c.brand, c.audience, c.start_date || '', c.end_date || '', c.status].join('|');
+  const groups = new Map();
+  for (const c of list) {
+    if (c.discount_type !== 'free_item' || c.status === 'rejected' || c.regular_price || c.coupon_price) continue;
+    const k = key(c);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(c);
+  }
+  const drop = new Set();
+  const out = [];
+  for (const g of groups.values()) {
+    if (g.length < min) continue;
+    const head = { ...g[0] };
+    const names = g.map((x) => x.menu);
+    head.menu = `${names[0]} 외 ${names.length - 1}종`;
+    head.conditions = [`대상: ${names.join(', ')}`, head.conditions].filter(Boolean).join(' · ').slice(0, 300);
+    head.source_url = [...new Set(g.flatMap((x) => String(x.source_url).split(' ')).filter(Boolean))].join(' ');
+    g.forEach((x) => drop.add(x));
+    out.push(head);
+  }
+  return list.filter((c) => !drop.has(c)).concat(out);
 }
 
 export function menuKey(menu) {

@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, summarize } from './engine.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize } from './engine.js';
 import { couponId, contentHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
@@ -116,7 +116,7 @@ export async function runCollector(o = {}) {
     };
     await pool(sources, +(env.COLLECT_CONCURRENCY || (llm.provider === 'gemini' ? 2 : 4)), one);  // Gemini 무료 한도는 분당 요청 수가 작아 2개씩
 
-    const merged = mergeSimilar(dedupe(all, couponId)).map((c) => ({ ...c, hash: contentHash(c) }));
+    const merged = groupFreeItems(mergeSimilar(dedupe(all, couponId))).map((c) => ({ ...c, id: couponId(c), hash: contentHash(c) }));
     for (const sr of report.sources) sr.published = merged.filter((c) => c.source_id === sr.id && c.status === 'published').length;
     report.summary = summarize(merged);
 

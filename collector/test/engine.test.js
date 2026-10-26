@@ -248,3 +248,15 @@ test('근거 요약은 작은 감점, 연도를 가격으로 읽으면 보류', 
     evidence: '20주년 2026', evidence_source: 'text', confidence: 0.95, end_date: '2026-10-28' }, { ...ctx, pageText: page });
   assert.notEqual(bad.status, 'published');
 });
+
+test('D18 한 행사의 메뉴별 1+1이 4건 이상이면 카드 하나로, 정상가 없는 단순 가격은 보류', async () => {
+  const { groupFreeItems } = await import('../src/engine.js');
+  const b = { brand: 'KFC', status: 'published', audience: '전체', discount_type: 'free_item', source_url: 'u' };
+  const g = groupFreeItems([{ ...b, menu: 'A치킨' }, { ...b, menu: 'B치킨' }, { ...b, menu: 'C치킨' }, { ...b, menu: 'D치킨' }, { ...b, brand: '파파이스', menu: '치킨' }]);
+  assert.equal(g.length, 2);
+  assert.equal(g.find((c) => c.brand === 'KFC').menu, 'A치킨 외 3종');
+  const menuPrice = normalizeAndValidate({ menu: '한근 치즈 클래식', discount_type: 'price', coupon_price: 15900, channels: [], audience: '전체', app_only: false,
+    evidence: '한근 치즈 클래식 15,900원', evidence_source: 'image', confidence: 0.9 }, ctx);
+  assert.equal(menuPrice.status, 'pending');
+  assert.ok(menuPrice.issues.includes('할인 행사인지 불명확 (정상가 없음)'));
+});
