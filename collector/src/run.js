@@ -74,9 +74,9 @@ export async function runCollector(o = {}) {
     const all = [];
 
     // 출처 여러 개를 동시에 (기본 4) — 출처 수가 늘어도 작업 제한 시간(25분) 안에 끝나게. 같은 사이트 안에서는 여전히 1.5초 간격
-    // 실행 시간 예산(기본 15분): 작업 제한 25분 전에 스스로 마무리해 결과·기록을 남긴다.
+    // 실행 시간 예산(기본 35분): 작업 제한 25분 전에 스스로 마무리해 결과·기록을 남긴다.
     // 예산을 넘기거나 AI 한도가 끝나면 남은 출처는 '실패'로 두어 시트의 기존 쿠폰을 건드리지 않는다.
-    const deadline = started + (+(env.RUN_BUDGET_S || 900)) * 1000;
+    const deadline = started + (+(env.RUN_BUDGET_S || 2100)) * 1000;
     let stopReason = '';
     const one = async (source) => {
       const sr = { id: source.id, brand: source.brand, ok: false, pages: 0, found: 0, published: 0, error: '' };
@@ -117,7 +117,7 @@ export async function runCollector(o = {}) {
       if (sr.ok) log(`  ✓ ${source.id}: 페이지 ${sr.pages}, 후보 ${sr.found}`);
     };
     // 출처 하나가 멈춰도(브라우저·네트워크) 전체가 25분 제한에 걸리지 않게: 출처별 제한 + 전체 예산 뒤 강제 마무리
-    const srcLimit = +(env.SOURCE_TIMEOUT_S || 300) * 1000;
+    const srcLimit = +(env.SOURCE_TIMEOUT_S || 480) * 1000;
     const guarded = (source) => {
       let timer;
       return Promise.race([
