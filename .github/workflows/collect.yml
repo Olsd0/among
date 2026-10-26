@@ -30,6 +30,11 @@ concurrency:
 permissions:
   contents: read
 
+# 실제 시트 반영 승인 스위치: AI 추출 정확도를 확인하기 전까지 00시 예약 실행은 시트에 쓰지 않는다(dry).
+# 수동 실행(mode=collect)은 항상 반영. 확인이 끝나면 'true'로 바꿔 커밋.
+env:
+  PUBLISH_APPROVED: 'false'
+
 jobs:
   collect:
     runs-on: ubuntu-latest
@@ -105,7 +110,7 @@ jobs:
           BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
           ONLY: ${{ inputs.only }}
-          DRY_RUN: ${{ inputs.mode == 'dry' && '1' || '' }}
+          DRY_RUN: ${{ (inputs.mode == 'dry' || (github.event_name == 'schedule' && env.PUBLISH_APPROVED != 'true')) && '1' || '' }}
           SAVE_SHOTS: '1'
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$GEMINI_API_KEY" ]; then

@@ -72,13 +72,20 @@ export async function runCollector(o = {}) {
     const all = [];
 
     // 출처 여러 개를 동시에 (기본 4) — 출처 수가 늘어도 작업 제한 시간(25분) 안에 끝나게. 같은 사이트 안에서는 여전히 1.5초 간격
+    // 실행 시간 예산(기본 15분): 작업 제한 25분 전에 스스로 마무리해 결과·기록을 남긴다.
+    // 예산을 넘기거나 AI 한도가 끝나면 남은 출처는 '실패'로 두어 시트의 기존 쿠폰을 건드리지 않는다.
+    const deadline = started + (+(env.RUN_BUDGET_S || 900)) * 1000;
+    let stopReason = '';
     const one = async (source) => {
       const sr = { id: source.id, brand: source.brand, ok: false, pages: 0, found: 0, published: 0, error: '' };
       report.sources.push(sr);
       try {
+        if (stopReason) throw new Error(`건너뜀: ${stopReason}`);
         const pages = await collectSource(ctx, source, { outDir: env.SAVE_SHOTS === '1' ? join(outDir, 'shots') : undefined });
         for (const page of pages) {
           if (page.error) { report.errors.push(`${source.id} 상세: ${page.error}`); continue; }
+          if (stopReason) throw new Error(`중단: ${stopReason}`);
+          if (Date.now() > deadline) { stopReason = '실행 시간 예산 초과'; throw new Error(stopReason); }
           sr.pages++; report.pages++;
           const ext = await extractCoupons(page, {
             brand: source.brand, category: source.category, now,
@@ -100,6 +107,7 @@ export async function runCollector(o = {}) {
         }
         sr.ok = true;
       } catch (e) {
+        if (e.code === 'AI_QUOTA') stopReason = 'AI 하루 한도 소진';
         sr.error = e.message;
         report.errors.push(`${source.id}: ${e.message}`);
         log(`  ✗ ${source.id}: ${e.message}`);

@@ -149,7 +149,7 @@ export async function extractCoupons(page, { brand, category, now = new Date(), 
 
 // ---------- Gemini (무료 한도 실험용, 나중에 Claude로 전환) ----------
 // 같은 프롬프트·같은 출력 형식(save_coupons의 input)을 JSON으로 받는다. 계산·검증은 똑같이 engine.js
-export async function callGemini(model, body, { apiKey = process.env.GEMINI_API_KEY, retries = 6, fetchImpl = fetch } = {}) {
+export async function callGemini(model, body, { apiKey = process.env.GEMINI_API_KEY, retries = 4, fetchImpl = fetch } = {}) {
   if (!apiKey) throw new Error('GEMINI_API_KEY가 없습니다');
   let lastErr;
   for (let i = 0; i <= retries; i++) {
@@ -157,15 +157,17 @@ export async function callGemini(model, body, { apiKey = process.env.GEMINI_API_
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(180000),
+      signal: AbortSignal.timeout(120000),
     });
     if (res.ok) return res.json();
     const text = await res.text();
     lastErr = Object.assign(new Error(`Gemini API ${res.status}: ${text.slice(0, 300)}`), { status: res.status, body: text });
+    // 하루 무료 한도 소진: 기다려도 소용없으니 바로 멈춘다 (수집기가 남은 출처를 건너뜀)
+    if (res.status === 429 && /PerDay|per day|daily/i.test(text)) throw Object.assign(lastErr, { code: 'AI_QUOTA', message: `Gemini 하루 무료 한도 소진: ${text.slice(0, 200)}` });
     if (![408, 429, 500, 502, 503, 504].includes(res.status)) throw lastErr;
     const m = text.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/);
     const wait = (m ? +m[1] + 1 : 2 ** i * 3) * 1000;
-    await sleep(Math.min(wait, 65000));
+    await sleep(Math.min(wait, 40000));
   }
   throw lastErr;
 }
