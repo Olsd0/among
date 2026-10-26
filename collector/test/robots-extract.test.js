@@ -96,3 +96,42 @@ test('AI 수집 거부(ClaudeBot 등)도 따른다 · 같은 사이트 판정', 
   assert.equal(sameSite('https://m.mcdonalds.co.kr/x', 'https://www.mcdonalds.co.kr/'), true);
   assert.equal(sameSite('javascript:void(0)', 'https://www.mcdonalds.co.kr/'), false);
 });
+
+test('Gemini 추출: 요청 형식·JSON 응답·토큰 집계, 키에 따라 공급자 선택', async () => {
+  const { pickProvider } = await import('../src/extract.js');
+  assert.equal(pickProvider({ GEMINI_API_KEY: 'g' }).provider, 'gemini');
+  assert.equal(pickProvider({ GEMINI_API_KEY: 'g', ANTHROPIC_API_KEY: 'a' }).provider, 'claude');
+  assert.equal(pickProvider({ GEMINI_API_KEY: 'g', ANTHROPIC_API_KEY: 'a', LLM_PROVIDER: 'gemini' }).provider, 'gemini');
+  assert.equal(pickProvider({ MOCK_CLAUDE: '1' }).provider, 'mock');
+
+  let sent;
+  const fake = async (url, init) => {
+    sent = { url: String(url), headers: init.headers, body: JSON.parse(init.body) };
+    return new Response(JSON.stringify({
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '```json\n{"page_kind":"promotion_detail","coupons":[{"menu":"불고기버거 세트","discount_type":"price","coupon_price":5500}]}\n```' }] } }],
+      usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 80, thoughtsTokenCount: 20 }, modelVersion: 'gemini-test',
+    }), { status: 200 });
+  };
+  const page = { url: 'https://x.kr/p/1', text: '불고기버거 세트 5,500원', screenshots: [{ media_type: 'image/jpeg', data: 'AAAA' }] };
+  const r = await extractCoupons(page, { provider: 'gemini', apiKey: 'g-test', model: 'gemini-test', brand: '맥도날드', category: '햄버거', now: new Date('2026-10-25T03:00:00Z'), fetchImpl: fake });
+  assert.equal(r.coupons[0].coupon_price, 5500);
+  assert.equal(r.usage.input_tokens, 900);
+  assert.equal(r.usage.output_tokens, 100);
+  assert.ok(sent.url.endsWith('/v1beta/models/gemini-test:generateContent'));
+  assert.equal(sent.headers['x-goog-api-key'], 'g-test');
+  assert.equal(sent.body.contents[0].parts[0].inlineData.mimeType, 'image/jpeg');
+  assert.equal(sent.body.generationConfig.responseMimeType, 'application/json');
+  assert.ok(sent.body.generationConfig.responseJsonSchema.properties.coupons);
+
+  // 스키마 방식 거부(400) → 스키마를 프롬프트에 넣어 재시도
+  let n = 0;
+  const reject = async (url, init) => {
+    n++;
+    const b = JSON.parse(init.body);
+    if (b.generationConfig.responseJsonSchema) return new Response('{"error":{"message":"Invalid JSON payload received. Unknown name \"responseJsonSchema\""}}', { status: 400 });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"page_kind":"other","coupons":[]}' }] } }] }), { status: 200 });
+  };
+  const r2 = await extractCoupons({ text: 'x' }, { provider: 'gemini', apiKey: 'g', model: 'm', brand: 'A', category: '햄버거', fetchImpl: reject });
+  assert.equal(n, 2);
+  assert.deepEqual(r2.coupons, []);
+});

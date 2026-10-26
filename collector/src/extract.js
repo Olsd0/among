@@ -4,6 +4,16 @@ import { CHANNELS, AUDIENCES, ITEM_TYPES, DISCOUNT_TYPES, todayKST } from './eng
 
 export const DEFAULT_MODEL = process.env.CLAUDE_MODEL || 'claude-haiku-5-5';
 const API_URL = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+export const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+const GEMINI_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com';
+
+/** 어느 AI를 쓸지: LLM_PROVIDER가 있으면 그대로, 없으면 Claude 키 → Gemini 키 순 */
+export function pickProvider(env = process.env) {
+  if (env.MOCK_CLAUDE === '1') return { provider: 'mock', model: 'mock' };
+  const p = (env.LLM_PROVIDER || (env.ANTHROPIC_API_KEY ? 'claude' : env.GEMINI_API_KEY ? 'gemini' : 'claude')).toLowerCase();
+  if (p === 'gemini') return { provider: 'gemini', model: env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL, apiKey: env.GEMINI_API_KEY };
+  return { provider: 'claude', model: env.CLAUDE_MODEL || DEFAULT_MODEL, apiKey: env.ANTHROPIC_API_KEY };
+}
 
 const nullable = (type) => ({ type: [type, 'null'] });
 
@@ -110,8 +120,9 @@ export async function callClaude(body, { apiKey = process.env.ANTHROPIC_API_KEY,
  * 페이지 1개 → 쿠폰 후보 목록
  * @returns {Promise<{ coupons: object[], page_kind: string, notes: string, usage: { input_tokens, output_tokens }, model: string }>}
  */
-export async function extractCoupons(page, { brand, category, now = new Date(), model = DEFAULT_MODEL, apiKey, mock = process.env.MOCK_CLAUDE === '1', fetchImpl } = {}) {
-  if (mock) return mockExtract(page);
+export async function extractCoupons(page, { brand, category, now = new Date(), model = DEFAULT_MODEL, apiKey, mock = process.env.MOCK_CLAUDE === '1', fetchImpl, provider = 'claude' } = {}) {
+  if (mock || provider === 'mock') return mockExtract(page);
+  if (provider === 'gemini') return extractWithGemini(page, { brand, category, now, model, apiKey, fetchImpl });
   const today = todayKST(now);
   const body = {
     model,
@@ -133,6 +144,79 @@ export async function extractCoupons(page, { brand, category, now = new Date(), 
     usage: { input_tokens: res.usage?.input_tokens || 0, output_tokens: res.usage?.output_tokens || 0 },
     model: res.model || model,
     truncated: res.stop_reason === 'max_tokens',
+  };
+}
+
+// ---------- Gemini (무료 한도 실험용, 나중에 Claude로 전환) ----------
+// 같은 프롬프트·같은 출력 형식(save_coupons의 input)을 JSON으로 받는다. 계산·검증은 똑같이 engine.js
+export async function callGemini(model, body, { apiKey = process.env.GEMINI_API_KEY, retries = 6, fetchImpl = fetch } = {}) {
+  if (!apiKey) throw new Error('GEMINI_API_KEY가 없습니다');
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    const res = await fetchImpl(`${GEMINI_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(180000),
+    });
+    if (res.ok) return res.json();
+    const text = await res.text();
+    lastErr = Object.assign(new Error(`Gemini API ${res.status}: ${text.slice(0, 300)}`), { status: res.status, body: text });
+    if (![408, 429, 500, 502, 503, 504].includes(res.status)) throw lastErr;
+    const m = text.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/);
+    const wait = (m ? +m[1] + 1 : 2 ** i * 3) * 1000;
+    await sleep(Math.min(wait, 65000));
+  }
+  throw lastErr;
+}
+
+export function buildGeminiBody(page, { brand, category, today, withSchema = true }) {
+  const parts = [];
+  for (const c of buildUserContent(page, { brand, category, today })) {
+    if (c.type === 'image') parts.push({ inlineData: { mimeType: c.source.media_type, data: c.source.data } });
+    else parts.push({ text: c.text.replace('save_coupons로 저장하세요', 'JSON으로 답하세요') });
+  }
+  if (!withSchema) parts.push({ text: `답은 다음 JSON 스키마를 따르는 JSON 객체 하나만:\n${JSON.stringify(TOOL.input_schema)}` });
+  const generationConfig = { temperature: 0, maxOutputTokens: 16384, responseMimeType: 'application/json' };
+  if (withSchema) generationConfig.responseJsonSchema = TOOL.input_schema;
+  return {
+    systemInstruction: { parts: [{ text: systemPrompt() }] },
+    contents: [{ role: 'user', parts }],
+    generationConfig,
+  };
+}
+
+export function parseJsonLoose(text) {
+  const t = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  try { return JSON.parse(t); } catch { /* 앞뒤 잡문 제거 후 재시도 */ }
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a >= 0 && b > a) return JSON.parse(t.slice(a, b + 1));
+  throw new Error(`Gemini 응답이 JSON이 아님: ${t.slice(0, 120)}`);
+}
+
+async function extractWithGemini(page, { brand, category, now, model, apiKey, fetchImpl }) {
+  const today = todayKST(now);
+  const opts = { fetchImpl, apiKey: apiKey || process.env.GEMINI_API_KEY };
+  let res;
+  try {
+    res = await callGemini(model, buildGeminiBody(page, { brand, category, today }), opts);
+  } catch (e) {
+    // 스키마 지정 방식을 모델이 거부하면 스키마를 프롬프트에 넣어 한 번 더
+    if (e.status !== 400 || !/schema|Unknown name|Invalid JSON payload/i.test(e.body || '')) throw e;
+    res = await callGemini(model, buildGeminiBody(page, { brand, category, today, withSchema: false }), opts);
+  }
+  const cand = (res.candidates || [])[0];
+  if (!cand) throw new Error(`Gemini 응답에 후보가 없음 (${JSON.stringify(res.promptFeedback || {}).slice(0, 200)})`);
+  const text = (cand.content?.parts || []).filter((p) => p.text && !p.thought).map((p) => p.text).join('');
+  const input = parseJsonLoose(text);
+  const u = res.usageMetadata || {};
+  return {
+    coupons: Array.isArray(input.coupons) ? input.coupons : [],
+    page_kind: input.page_kind || 'other',
+    notes: input.notes || '',
+    usage: { input_tokens: u.promptTokenCount || 0, output_tokens: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0) },
+    model: res.modelVersion || model,
+    truncated: cand.finishReason === 'MAX_TOKENS',
   };
 }
 

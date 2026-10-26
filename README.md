@@ -60,7 +60,8 @@ npm run sync-web            # engine.js 수정 후 web/engine.js 갱신 (안 하
 
 | 위치 | 이름 | 값 |
 |---|---|---|
-| Settings → Secrets → Actions | `ANTHROPIC_API_KEY` | Claude API 키 |
+| Settings → Secrets → Actions | `ANTHROPIC_API_KEY` | Claude API 키 (있으면 Claude 우선) |
+| Settings → Secrets → Actions | `GEMINI_API_KEY` | Google AI Studio 키 — 무료 한도 실험용. Claude 키가 없을 때 사용 (모델 기본 `gemini-3.5-flash-lite`, 변수 `GEMINI_MODEL`로 변경) |
 | | `APPS_SCRIPT_URL` | 1-4의 웹앱 URL |
 | | `COLLECTOR_TOKEN` | 스크립트 속성의 같은 값 |
 | Settings → Variables → Actions | `APPS_SCRIPT_URL` | 같은 URL (화면 배포용, 공개돼도 되는 값) |

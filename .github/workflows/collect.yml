@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       mode:
-        description: 'collect = 수집 / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 (check·probe·e2e는 Claude 호출 없음)'
+        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 (check·probe·e2e는 Claude 호출 없음)'
         required: false
         default: collect
         type: choice
-        options: [collect, check, probe, e2e]
+        options: [collect, dry, check, probe, e2e]
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
@@ -96,16 +96,20 @@ jobs:
         if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
           COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
           CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
           BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
           ONLY: ${{ inputs.only }}
+          DRY_RUN: ${{ inputs.mode == 'dry' && '1' || '' }}
           SAVE_SHOTS: '1'
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::notice title=수집 건너뜀::ANTHROPIC_API_KEY가 아직 등록되지 않아 수집을 건너뜁니다. 키를 등록하면 다음 실행부터 자동으로 수집합니다."
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$GEMINI_API_KEY" ]; then
+            echo "::notice title=수집 건너뜀::AI 키(ANTHROPIC_API_KEY 또는 GEMINI_API_KEY)가 아직 등록되지 않아 수집을 건너뜁니다. 키를 등록하면 다음 실행부터 자동으로 수집합니다."
             exit 0
           fi
           node src/run.js

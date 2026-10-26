@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeAndValidate, dedupe, summarize } from './engine.js';
 import { couponId, contentHash, runId as makeRunId } from './ids.js';
-import { extractCoupons, DEFAULT_MODEL } from './extract.js';
+import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
 import { SheetClient } from './sheet.js';
 
@@ -44,12 +44,15 @@ export async function runCollector(o = {}) {
   const outDir = resolve(env.OUT_DIR || 'out');
   mkdirSync(outDir, { recursive: true });
 
-  const sheet = o.sheet || (env.APPS_SCRIPT_URL ? new SheetClient(env.APPS_SCRIPT_URL, env.COLLECTOR_TOKEN) : null);
+  // DRY_RUN=1: 출처는 시트(없으면 파일)에서 읽되 결과는 시트에 쓰지 않는다 (AI 추출 시험용)
+  const sheetRead = env.APPS_SCRIPT_URL ? new SheetClient(env.APPS_SCRIPT_URL, env.COLLECTOR_TOKEN) : null;
+  const sheet = o.sheet || (env.DRY_RUN === '1' ? null : sheetRead);
   const log = (...a) => { if (!o.quiet) console.log(...a); };
 
+  const llm = pickProvider(env);
   const report = {
     run_id, trigger, started_at: now.toISOString(), finished_at: null, duration_s: null,
-    model: env.MOCK_CLAUDE === '1' ? 'mock' : (env.CLAUDE_MODEL || DEFAULT_MODEL),
+    model: llm.provider === 'mock' ? 'mock' : `${llm.provider}:${llm.model}`,
     sources: [], pages: 0, input_tokens: 0, output_tokens: 0, summary: null, ingest: null, errors: [], state: 'running',
   };
 
@@ -59,7 +62,7 @@ export async function runCollector(o = {}) {
 
     let sources = o.sources;
     if (!sources && env.LOCAL_SOURCES === '1') sources = loadLocalSources(env.SOURCES_FILE);  // 전체 경로 점검용
-    if (!sources && sheet) sources = (await sheet.post('sources')).sources;
+    if (!sources && (sheet || sheetRead)) sources = (await (sheet || sheetRead).post('sources')).sources;
     if (!sources) sources = loadLocalSources(env.SOURCES_FILE || 'sources.json');
     const only = env.ONLY ? env.ONLY.split(',').map((s) => s.trim()) : null;
     sources = sources.filter(isActive).filter((s) => !only || only.includes(s.id));
@@ -79,7 +82,7 @@ export async function runCollector(o = {}) {
           sr.pages++; report.pages++;
           const ext = await extractCoupons(page, {
             brand: source.brand, category: source.category, now,
-            mock: env.MOCK_CLAUDE === '1', apiKey: env.ANTHROPIC_API_KEY, model: env.CLAUDE_MODEL || DEFAULT_MODEL,
+            provider: llm.provider, apiKey: llm.apiKey, model: llm.model,
           });
           report.input_tokens += ext.usage.input_tokens;
           report.output_tokens += ext.usage.output_tokens;
@@ -103,7 +106,7 @@ export async function runCollector(o = {}) {
       }
       if (sr.ok) log(`  ✓ ${source.id}: 페이지 ${sr.pages}, 후보 ${sr.found}`);
     };
-    await pool(sources, +(env.COLLECT_CONCURRENCY || 4), one);
+    await pool(sources, +(env.COLLECT_CONCURRENCY || (llm.provider === 'gemini' ? 2 : 4)), one);  // Gemini 무료 한도는 분당 요청 수가 작아 2개씩
 
     const merged = dedupe(all, couponId).map((c) => ({ ...c, hash: contentHash(c) }));
     for (const sr of report.sources) sr.published = merged.filter((c) => c.source_id === sr.id && c.status === 'published').length;
@@ -141,9 +144,16 @@ export async function runCollector(o = {}) {
     if (process.env.GITHUB_ACTIONS && !o.quiet) {
       const one = (t) => String(t).replace(/\r?\n/g, ' ').slice(0, 900);
       console.log(`::notice title=수집 결과::${one(`${report.state} · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`)}`);
-      for (const x of report.sources || []) {
-        console.log(`::${x.ok ? 'notice' : 'warning'} title=출처 ${x.id}::${one(x.ok ? `페이지 ${x.pages ?? ''} · 쿠폰 ${x.found ?? ''}` : x.error)}`);
-      }
+      // 주석은 단계당 10개까지만 보이므로 여러 줄을 묶어서 남긴다 (%0A = 줄바꿈)
+      const block = (t) => String(t).replace(/\r?\n/g, ' ').replace(/%/g, '%25');
+      const groups = (lines, n) => Array.from({ length: Math.ceil(lines.length / n) }, (_, i) => lines.slice(i * n, i * n + n));
+      const srcLines = (report.sources || []).map((x) => `${x.ok ? '✓' : '✗'}|${x.id}|페이지${x.pages}|후보${x.found}|게시${x.published}${x.ok ? '' : `|${x.error}`}`.slice(0, 300));
+      groups(srcLines, 12).slice(0, 2).forEach((g, i) => console.log(`::notice title=출처 ${i + 1}::${g.map(block).join('%0A')}`));
+      if (report.errors.length) console.log(`::warning title=오류 ${report.errors.length}건::${report.errors.slice(0, 15).map((e) => block(e).slice(0, 200)).join('%0A')}`);
+      let cs = [];
+      try { cs = JSON.parse(readFileSync(join(outDir, 'coupons.json'), 'utf8')); } catch { /* 없음 */ }
+      const cLines = cs.map((c) => [c.status, c.brand, c.menu, c.regular_price ?? '', c.coupon_price ?? '', c.discount_rate ?? '', c.discount_type, c.discount_value ?? '', c.audience, c.start_date || '', c.end_date || '', (c.issues || []).join('/')].join('|').slice(0, 260));
+      groups(cLines, 25).slice(0, 5).forEach((g, i) => console.log(`::notice title=쿠폰 ${i + 1}::${g.map(block).join('%0A')}`));
     }
   }
   return report;
