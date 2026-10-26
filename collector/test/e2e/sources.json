@@ -1,0 +1,3 @@
+[{ "id": "e2e-test", "active": "TRUE", "brand": "AMONG점검", "category": "햄버거",
+   "url": "http://127.0.0.1:8765/promo.html", "selector": "", "exclude": "", "follow": "", "detail_selector": "",
+   "max_follow": 0, "max_shots": 1, "wait_ms": 300, "official_link": "http://127.0.0.1:8765/promo.html", "notes": "자동 점검 전용" }]

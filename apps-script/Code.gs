@@ -341,7 +341,7 @@ function runFinish_(rep) {
 
   setState_(p, 'idle');
   p.setProperties({ LAST_FINISHED_AT: rep.finished_at || nowIso_(), LAST_STATE: rep.state || '' });
-  if (rep.state === 'success' || rep.state === 'partial') p.setProperty('LAST_SUCCESS_AT', rep.finished_at || nowIso_());
+  if ((rep.state === 'success' || rep.state === 'partial') && rep.trigger !== 'e2e') p.setProperty('LAST_SUCCESS_AT', rep.finished_at || nowIso_());
   CacheService.getScriptCache().remove(CACHE_KEY);
   return { ok: true };
 }

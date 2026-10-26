@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       mode:
-        description: 'collect = 수집 / check = 출처 점검 / probe = 브랜드 탐색 (check·probe는 Claude 호출 없음)'
+        description: 'collect = 수집 / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 (check·probe·e2e는 Claude 호출 없음)'
         required: false
         default: collect
         type: choice
-        options: [collect, check, probe]
+        options: [collect, check, probe, e2e]
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
@@ -72,8 +72,28 @@ jobs:
           ONLY: ${{ inputs.only }}
         run: node src/probe.js
 
+      - name: 전체 경로 점검 (Claude 호출 없음 · 점검용 가짜 행사 → 실제 시트 반영 → 공개 API 확인 → 자동 내림)
+        if: inputs.mode == 'e2e'
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          MOCK_CLAUDE: '1'
+          LOCAL_SOURCES: '1'
+          SOURCES_FILE: test/e2e/sources.json
+          TRIGGER: e2e
+        run: |
+          mkdir -p out/site && cp test/e2e/promo-on.html out/site/promo.html
+          nohup python3 -m http.server 8765 --bind 127.0.0.1 --directory out/site >/dev/null 2>&1 &
+          sleep 2
+          node src/e2e-verify.js base
+          node src/run.js
+          node src/e2e-verify.js expect-on
+          cp test/e2e/promo-off.html out/site/promo.html
+          node src/run.js
+          node src/e2e-verify.js expect-off
+
       - name: 수집
-        if: inputs.mode != 'check' && inputs.mode != 'probe'
+        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}

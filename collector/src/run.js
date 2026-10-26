@@ -58,6 +58,7 @@ export async function runCollector(o = {}) {
     if (sheet) await sheet.post('run_start', { run_id, trigger, started_at: report.started_at });
 
     let sources = o.sources;
+    if (!sources && env.LOCAL_SOURCES === '1') sources = loadLocalSources(env.SOURCES_FILE);  // 전체 경로 점검용
     if (!sources && sheet) sources = (await sheet.post('sources')).sources;
     if (!sources) sources = loadLocalSources(env.SOURCES_FILE || 'sources.json');
     const only = env.ONLY ? env.ONLY.split(',').map((s) => s.trim()) : null;
