@@ -227,19 +227,31 @@ export function checkEvidence(raw, pageText) {
   if (!pageText || raw.evidence_source === 'image') return { issues, penalty };
   const text = squash(pageText);
   const ev = squash(raw.evidence);
-  if (ev && ev.length >= 4 && !text.includes(ev)) {
-    issues.push('근거 문구가 페이지에 없음');
-    penalty += RULES.evidencePenalty;
-  }
+  const evMissing = ev && ev.length >= 4 && !text.includes(ev);
   const nums = [];
   const type = raw.discount_type;
   if ((type === 'price' || !type) && toInt(raw.coupon_price) !== null) nums.push(toInt(raw.coupon_price));
   if ((type === 'amount' || type === 'percent') && toNumber(raw.discount_value) !== null) nums.push(Math.round(toNumber(raw.discount_value)));
+  let numsOk = true;
   for (const n of nums) {
     if (!priceVariants(n).some((p) => text.includes(p))) {
       issues.push(`숫자 ${n}이(가) 페이지에 없음`);
       penalty += RULES.pricePenalty;
+      numsOk = false;
       break;
+    }
+  }
+  // 근거 문장을 그대로 옮기지 않고 요약한 경우: 숫자가 페이지에 있으면 감점을 작게 (AI마다 인용 습관이 다름)
+  if (evMissing) {
+    issues.push(numsOk && nums.length ? '근거 문구 요약됨 (숫자는 확인)' : '근거 문구가 페이지에 없음');
+    penalty += numsOk && nums.length ? RULES.evidencePenalty / 3 : RULES.evidencePenalty;
+  }
+  // 날짜의 연도(2026년, 2026.10.)를 가격으로 읽은 경우
+  for (const n of nums) {
+    if (n >= 2000 && n <= 2099 && raw.discount_type === 'price'
+      && new RegExp(`${n}\\s*[년./-]\\s*\\d`).test(pageText) && !new RegExp(`${n}\\s*원`).test(pageText)) {
+      issues.push(`가격 ${n}이(가) 연도일 수 있음`);
+      penalty += 1;
     }
   }
   return { issues, penalty };
@@ -329,6 +341,36 @@ export function dedupe(list, idFn) {
     byId.set(id, hi);
   }
   return [...byId.values()];
+}
+
+/** 같은 행사가 목록·상세 페이지에서 메뉴 표기만 조금 달리 두 번 잡힌 것을 하나로 (D17) */
+function bigrams(s) { const a = new Set(); for (let i = 0; i < s.length - 1; i++) a.add(s.slice(i, i + 2)); return a; }
+export function similarMenu(a, b, minContain = 2) {
+  const x = menuKey(a).replace(/^new/, ''), y = menuKey(b).replace(/^new/, '');
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+  if (s.length >= minContain && l.includes(s)) return true;
+  const A = bigrams(x), B = bigrams(y);
+  const inter = [...A].filter((g) => B.has(g)).length;
+  return inter / (A.size + B.size - inter) >= 0.5;
+}
+export function mergeSimilar(list) {
+  const rank = (c) => (c.status === 'published' ? 4 : c.status === 'pending' ? 2 : 0) + (c.end_date ? 1 : 0) + (c.confidence || 0) / 10;
+  const out = [];
+  for (const c of [...list].sort((p, q) => rank(q) - rank(p))) {
+    const sig = (z) => [z.brand, z.discount_type, z.coupon_price ?? '', z.discount_type === 'price' ? '' : (z.discount_value ?? ''), z.audience].join('|');
+    const dup = c.status !== 'rejected' && out.find((o) => o.status !== 'rejected' && sig(o) === sig(c)
+      && (!o.end_date || !c.end_date || o.end_date === c.end_date)
+      && similarMenu(o.menu, c.menu, c.discount_type === 'free_item' ? 3 : 2));
+    if (dup) {
+      const urls = new Set(String(dup.source_url).split(' ').concat(String(c.source_url).split(' ')).filter(Boolean));
+      dup.source_url = [...urls].join(' ');
+      continue;
+    }
+    out.push(c);
+  }
+  return out;
 }
 
 export function menuKey(menu) {

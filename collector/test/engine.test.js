@@ -216,3 +216,35 @@ test('web/engine.js 사본이 원본과 같다 (npm run sync-web)', () => {
   const web = readFileSync(new URL('../../web/engine.js', import.meta.url), 'utf8');
   assert.equal(web, src, 'web/engine.js가 오래됐습니다. collector에서 `npm run sync-web` 실행');
 });
+
+test('D17 비슷한 쿠폰 합치기: 표기만 다른 같은 행사는 하나로, 다른 메뉴는 그대로', async () => {
+  const { mergeSimilar, similarMenu } = await import('../src/engine.js');
+  assert.ok(similarMenu('버터비스킷', '버터 비스켓'));
+  assert.ok(similarMenu('징거버거', '징거'));
+  assert.ok(similarMenu('NEW불닭 까르보 치킨', '불닭 까르보 치킨'));
+  assert.ok(!similarMenu('핫크리스피치킨', '핫크리스피통다리'));
+  assert.ok(!similarMenu('치킨', '핫크리스피치킨', 3));
+  const base = { brand: 'K', status: 'published', audience: '신규회원', confidence: 0.9, source_url: 'a' };
+  const out = mergeSimilar([
+    { ...base, id: '1', menu: '징거버거', discount_type: 'price', coupon_price: 1000 },
+    { ...base, id: '2', menu: '징거', discount_type: 'price', coupon_price: 1000, end_date: '2026-12-31', source_url: 'b' },
+    { ...base, id: '3', menu: '징거버거', discount_type: 'price', coupon_price: 2000 },
+    { ...base, id: '4', menu: '핫크리스피치킨', discount_type: 'free_item', audience: '전체' },
+    { ...base, id: '5', menu: '오리지널치킨', discount_type: 'free_item', audience: '전체' },
+  ]);
+  assert.equal(out.length, 4);
+  const kept = out.find((c) => c.coupon_price === 1000);
+  assert.equal(kept.id, '2');                 // 종료일이 있는 쪽을 남김
+  assert.equal(kept.source_url, 'b a');
+});
+
+test('근거 요약은 작은 감점, 연도를 가격으로 읽으면 보류', () => {
+  const page = '빽다방 20주년 이벤트 2026.10.20 ~ 2026.10.28 아이스 아메리카노 1,000원';
+  const ok = normalizeAndValidate({ menu: '아이스 아메리카노', discount_type: 'price', coupon_price: 1000, channels: [], audience: '전체', app_only: false,
+    evidence: '아메리카노를 천원에 판매', evidence_source: 'text', confidence: 0.95, end_date: '2026-10-28' }, { ...ctx, pageText: page });
+  assert.equal(ok.status, 'published');
+  assert.ok(ok.issues.includes('근거 문구 요약됨 (숫자는 확인)'));
+  const bad = normalizeAndValidate({ menu: '말차 전 메뉴', discount_type: 'price', coupon_price: 2026, channels: [], audience: '전체', app_only: false,
+    evidence: '20주년 2026', evidence_source: 'text', confidence: 0.95, end_date: '2026-10-28' }, { ...ctx, pageText: page });
+  assert.notEqual(bad.status, 'published');
+});
