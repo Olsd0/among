@@ -76,7 +76,12 @@ jobs:
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
           ONLY: ${{ inputs.only }}
           SAVE_SHOTS: '1'
-        run: node src/run.js
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice title=수집 건너뜀::ANTHROPIC_API_KEY가 아직 등록되지 않아 수집을 건너뜁니다. 키를 등록하면 다음 실행부터 자동으로 수집합니다."
+            exit 0
+          fi
+          node src/run.js
 
       - name: 실행 결과 보관 (스크린샷·추출 결과, 7일)
         if: always()
