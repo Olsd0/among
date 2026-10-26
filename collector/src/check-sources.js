@@ -33,6 +33,11 @@ for (const s of sources) {
   rows.push(row);
   console.log(`${row.ok ? '✓' : '✗'} ${s.id}  페이지 ${row.pages} · 텍스트 ${row.text_chars}자 · 상세링크 ${row.detail_links}  ${row.error}`);
   if (row.sample) console.log(`    ${row.sample}`);
+  // GitHub Actions 주석으로도 남긴다 (로그를 열지 않고 API·요약 화면에서 확인 가능)
+  if (process.env.GITHUB_ACTIONS) {
+    const msg = `${s.id}: ${row.ok ? '수집 가능' : '실패'} · 페이지 ${row.pages} · 텍스트 ${row.text_chars}자 · 상세링크 ${row.detail_links}${row.error ? ' · ' + row.error : ''}${row.sample ? ' · ' + row.sample.slice(0, 120) : ''}`;
+    console.log(`::${row.ok ? 'notice' : 'warning'} title=출처 점검 ${s.id}::${msg.replace(/\r?\n/g, ' ')}`);
+  }
 }
 await ctx.close();
 writeFileSync(join(outDir, 'check-sources.json'), JSON.stringify(rows, null, 2));

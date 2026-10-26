@@ -125,6 +125,14 @@ export async function runCollector(o = {}) {
     const s = report.summary;
     log(`[${run_id}] ${report.state} · ${report.duration_s}s · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`);
     if (report.ingest) log(`  시트: 신규 ${report.ingest.inserted} · 변경 ${report.ingest.updated} · 유지 ${report.ingest.unchanged} · 사라짐 ${report.ingest.gone} · 만료 ${report.ingest.expired}`);
+    // GitHub Actions 주석: 로그를 열지 않고 API·요약 화면에서 결과 확인
+    if (process.env.GITHUB_ACTIONS && !o.quiet) {
+      const one = (t) => String(t).replace(/\r?\n/g, ' ').slice(0, 900);
+      console.log(`::notice title=수집 결과::${one(`${report.state} · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`)}`);
+      for (const x of report.sources || []) {
+        console.log(`::${x.ok ? 'notice' : 'warning'} title=출처 ${x.id}::${one(x.ok ? `페이지 ${x.pages ?? ''} · 쿠폰 ${x.found ?? ''}` : x.error)}`);
+      }
+    }
   }
   return report;
 }
