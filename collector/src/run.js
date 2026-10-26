@@ -14,6 +14,15 @@ export function loadLocalSources(file) {
   return Array.isArray(list) ? list : list.sources;
 }
 
+/** 최대 n개씩 동시에 실행 */
+export async function pool(items, n, fn) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.max(1, Math.min(n, queue.length)) }, async () => {
+    while (queue.length) await fn(queue.shift());
+  });
+  await Promise.all(workers);
+}
+
 function isActive(s) {
   return s && s.url && !/^(false|0|n|no|off|중지)$/i.test(String(s.active ?? 'true'));
 }
@@ -58,7 +67,8 @@ export async function runCollector(o = {}) {
     ctx = o.browser || (await openBrowser());
     const all = [];
 
-    for (const source of sources) {
+    // 출처 여러 개를 동시에 (기본 4) — 출처 수가 늘어도 작업 제한 시간(25분) 안에 끝나게. 같은 사이트 안에서는 여전히 1.5초 간격
+    const one = async (source) => {
       const sr = { id: source.id, brand: source.brand, ok: false, pages: 0, found: 0, published: 0, error: '' };
       report.sources.push(sr);
       try {
@@ -91,7 +101,8 @@ export async function runCollector(o = {}) {
         log(`  ✗ ${source.id}: ${e.message}`);
       }
       if (sr.ok) log(`  ✓ ${source.id}: 페이지 ${sr.pages}, 후보 ${sr.found}`);
-    }
+    };
+    await pool(sources, +(env.COLLECT_CONCURRENCY || 4), one);
 
     const merged = dedupe(all, couponId).map((c) => ({ ...c, hash: contentHash(c) }));
     for (const sr of report.sources) sr.published = merged.filter((c) => c.source_id === sr.id && c.status === 'published').length;

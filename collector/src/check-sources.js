@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { openBrowser, collectSource } from './fetch.js';
-import { loadLocalSources } from './run.js';
+import { loadLocalSources, pool } from './run.js';
 import { SheetClient } from './sheet.js';
 
 const only = process.env.ONLY ? process.env.ONLY.split(',').map((x) => x.trim()).filter(Boolean) : null;
@@ -16,7 +16,7 @@ mkdirSync(outDir, { recursive: true });
 
 const ctx = await openBrowser();
 const rows = [];
-for (const s of sources) {
+await pool(sources, +(process.env.COLLECT_CONCURRENCY || 4), async (s) => {
   const row = { id: s.id, url: s.url, ok: false, pages: 0, text_chars: 0, detail_links: 0, sample: '', error: '' };
   try {
     const pages = await collectSource(ctx, s, { outDir: join(outDir, 'shots') });
@@ -33,12 +33,12 @@ for (const s of sources) {
   rows.push(row);
   console.log(`${row.ok ? '✓' : '✗'} ${s.id}  페이지 ${row.pages} · 텍스트 ${row.text_chars}자 · 상세링크 ${row.detail_links}  ${row.error}`);
   if (row.sample) console.log(`    ${row.sample}`);
-  // GitHub Actions 주석으로도 남긴다 (로그를 열지 않고 API·요약 화면에서 확인 가능)
-  if (process.env.GITHUB_ACTIONS) {
-    const msg = `${s.id}: ${row.ok ? '수집 가능' : '실패'} · 페이지 ${row.pages} · 텍스트 ${row.text_chars}자 · 상세링크 ${row.detail_links}${row.error ? ' · ' + row.error : ''}${row.sample ? ' · ' + row.sample.slice(0, 120) : ''}`;
-    console.log(`::${row.ok ? 'notice' : 'warning'} title=출처 점검 ${s.id}::${msg.replace(/\r?\n/g, ' ')}`);
-  }
-}
+});
 await ctx.close();
+// GitHub Actions 주석 (단계당 notice 10개 제한 → 묶어서, 줄바꿈 %0A)
+if (process.env.GITHUB_ACTIONS) {
+  const lines = rows.map((r) => `${r.ok ? '✓' : '✗'}|${r.id}|페이지${r.pages}|글자${r.text_chars}|상세${r.detail_links}${r.error ? '|' + r.error : ''}${r.errors && r.errors.length ? '|상세오류' + r.errors.length : ''}|${(r.sample || '').slice(0, 70)}`.replace(/[\r\n]+/g, ' '));
+  for (let i = 0; i < lines.length; i += 8) console.log(`::notice title=출처 점검 ${i / 8 + 1}::${lines.slice(i, i + 8).join('\n').replace(/%/g, '%25').replace(/\n/g, '%0A')}`);
+}
 writeFileSync(join(outDir, 'check-sources.json'), JSON.stringify(rows, null, 2));
 console.log(`\n스크린샷: ${join(outDir, 'shots')}  결과: ${join(outDir, 'check-sources.json')}`);
