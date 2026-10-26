@@ -1,0 +1,41 @@
+name: pages
+
+# web/ 폴더를 GitHub Pages로 배포 (main에 web/ 또는 엔진이 바뀌면)
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'collector/src/engine.js']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 엔진 사본 확인
+        run: cmp collector/src/engine.js web/engine.js || (echo "web/engine.js가 오래됐습니다. collector에서 npm run sync-web 실행 후 커밋하세요." && exit 1)
+      - name: 화면 설정 주입 (APPS_SCRIPT_URL)
+        env:
+          APPS_SCRIPT_URL: ${{ vars.APPS_SCRIPT_URL }}
+        run: |
+          if [ -n "$APPS_SCRIPT_URL" ]; then
+            printf 'window.AMONG_CONFIG = { apiUrl: "%s" };\n' "$APPS_SCRIPT_URL" > web/config.js
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4

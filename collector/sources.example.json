@@ -1,0 +1,45 @@
+{
+  "_comment": "출처 초기값 (2026-10-25 웹 검색으로 URL만 확인, 실제 렌더링·selector는 첫 점검 실행에서 확정). robots.txt가 막으면 수집기가 자동으로 건너뛴다.",
+  "sources": [
+    {
+      "id": "mcd-promo", "active": "TRUE", "brand": "맥도날드", "category": "햄버거",
+      "url": "https://www.mcdonalds.co.kr/kor/promotion/list",
+      "selector": "", "exclude": "header; footer", "follow": "a[href*='/kor/promotion/']", "detail_selector": "",
+      "max_follow": 6, "max_shots": 4, "wait_ms": 1500,
+      "official_link": "https://www.mcdonalds.co.kr/kor/promotion/list",
+      "notes": "목록이 JS로 그려지는 것으로 보임. 상세 링크 형식은 점검 실행 후 follow 수정"
+    },
+    {
+      "id": "bk-home", "active": "TRUE", "brand": "버거킹", "category": "햄버거",
+      "url": "https://www.burgerking.co.kr/",
+      "selector": "", "exclude": "header; footer", "follow": "a[href*='event.burgerking.co.kr']", "detail_selector": "",
+      "max_follow": 6, "max_shots": 4, "wait_ms": 2000,
+      "official_link": "https://www.burgerking.co.kr/",
+      "notes": "메인 사이트 이벤트 목록 URL 미확인. 행사는 event.burgerking.co.kr 하위 페이지(이미지 위주)로 공개됨"
+    },
+    {
+      "id": "lotte-coupon", "active": "TRUE", "brand": "롯데리아", "category": "햄버거",
+      "url": "https://www.lotteeatz.com/coupon/main",
+      "selector": "", "exclude": "header; footer", "follow": "", "detail_selector": "",
+      "max_follow": 0, "max_shots": 4, "wait_ms": 1500,
+      "official_link": "https://www.lotteeatz.com/coupon/main",
+      "notes": "공개 쿠폰 목록 페이지. 웹 수집 도구 점검 시 robots.txt 거부 → AMONGbot 기준 재확인 필요"
+    },
+    {
+      "id": "lotte-event", "active": "TRUE", "brand": "롯데리아", "category": "햄버거",
+      "url": "https://www.lotteeatz.com/event/main",
+      "selector": "", "exclude": "header; footer", "follow": "a[href*='/event/main/selectEvent/']", "detail_selector": "",
+      "max_follow": 6, "max_shots": 4, "wait_ms": 1500,
+      "official_link": "https://www.lotteeatz.com/event/main",
+      "notes": "롯데잇츠 통합 이벤트(롯데리아 외 브랜드 포함). robots.txt 재확인 필요"
+    },
+    {
+      "id": "moms-promo", "active": "TRUE", "brand": "맘스터치", "category": "햄버거",
+      "url": "https://momstouch.co.kr/promotion/list.php",
+      "selector": "", "exclude": "header; footer", "follow": "a[href*='promotion/view.php']", "detail_selector": "",
+      "max_follow": 6, "max_shots": 4, "wait_ms": 1000,
+      "official_link": "https://momstouch.co.kr/promotion/list.php",
+      "notes": "상세는 view.php?idx=숫자. 웹 수집 도구 점검 시 robots.txt 거부 → AMONGbot 기준 재확인 필요"
+    }
+  ]
+}

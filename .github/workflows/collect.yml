@@ -1,0 +1,87 @@
+name: collect
+
+# 매일 00:00 KST(= 15:00 UTC) 자동 수집 + 수동/버튼 실행
+# GitHub 예약 실행은 부하에 따라 수 분~수십 분 늦어질 수 있다.
+on:
+  schedule:
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: '실행 주체 (manual | button)'
+        required: false
+        default: manual
+      only:
+        description: '특정 출처 id만 (쉼표 구분, 비우면 전체)'
+        required: false
+        default: ''
+      mode:
+        description: 'collect = 수집 / check = 출처 점검만 (Claude 호출 없음, 스크린샷 저장)'
+        required: false
+        default: collect
+        type: choice
+        options: [collect, check]
+
+# 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 의존성 설치
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+
+      - name: 브라우저 · 한글 글꼴 설치
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+
+      - name: 테스트
+        run: npm test
+
+      - name: 출처 점검 (Claude 호출 없음)
+        if: inputs.mode == 'check'
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
+          ONLY: ${{ inputs.only }}
+        run: node src/check-sources.js
+
+      - name: 수집
+        if: inputs.mode != 'check'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+          BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
+          TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
+          ONLY: ${{ inputs.only }}
+          SAVE_SHOTS: '1'
+        run: node src/run.js
+
+      - name: 실행 결과 보관 (스크린샷·추출 결과, 7일)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-${{ github.run_id }}
+          path: collector/out/
+          retention-days: 7

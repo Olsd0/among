@@ -1,0 +1,20 @@
+{
+  "name": "among-collector",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "AMONG 쿠폰 자동 수집기: 공개 공식 페이지 → Claude 추출 → 규칙 엔진 검증 → 구글시트",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/run.js",
+    "test": "node --test test/*.test.js",
+    "e2e": "node --test test/e2e.test.js",
+    "sync-web": "node scripts/sync-web.js",
+    "check-sources": "node src/check-sources.js"
+  },
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}
