@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       mode:
-        description: 'collect = 수집 / check = 출처 점검만 (Claude 호출 없음, 스크린샷 저장)'
+        description: 'collect = 수집 / check = 출처 점검 / probe = 브랜드 탐색 (check·probe는 Claude 호출 없음)'
         required: false
         default: collect
         type: choice
-        options: [collect, check]
+        options: [collect, check, probe]
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
@@ -65,8 +65,15 @@ jobs:
           ONLY: ${{ inputs.only }}
         run: node src/check-sources.js
 
+      - name: 브랜드 탐색 (Claude 호출 없음)
+        if: inputs.mode == 'probe'
+        env:
+          BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
+          ONLY: ${{ inputs.only }}
+        run: node src/probe.js
+
       - name: 수집
-        if: inputs.mode != 'check'
+        if: inputs.mode != 'check' && inputs.mode != 'probe'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
