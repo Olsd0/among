@@ -275,6 +275,7 @@
     <div class="group"><span>자주 쓰는 결제·포인트 (여러 개 선택)</span><div class="seg" data-me="pays">
       <button type="button" class="chip-btn" data-v="네이버페이">네이버페이</button><button type="button" class="chip-btn" data-v="카카오페이">카카오페이</button><button type="button" class="chip-btn" data-v="토스페이">토스페이</button><button type="button" class="chip-btn" data-v="해피포인트">해피포인트</button><button type="button" class="chip-btn" data-v="CJ ONE">CJ ONE</button>
     </div></div>
+    <p class="lead" id="meNote" role="status" hidden></p>
     <label class="switch"><span>앱 신규 가입 혜택도 보기<br><small style="color:var(--muted)">이미 가입한 앱이 많다면 꺼 두세요</small></span><input type="checkbox" id="meNew" checked></label>
     <div class="btns"><button type="button" class="btn ghost" id="meReset">설정 지우기</button><button class="btn primary" value="ok">저장</button></div>
   </form>
@@ -879,10 +880,22 @@ $('#refreshBtn').addEventListener('click', refresh);
 const meSheet = $('#meSheet');
 let meDraft = null;
 let meTurnOnMine = false;
+// 수단별로 지금 모은 혜택 수 (0이면 고른 사람이 '왜 없지?' 하지 않게 이유를 알려 줌)
+const programCount = (v) => state.coupons.filter((c) => (c.programs || []).includes(v)).length;
 function paintMe() {
-  meSheet.querySelectorAll('[data-me="telecom"] [data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === (meDraft.telecom || ''))));
-  meSheet.querySelectorAll('[data-me="pays"] [data-v]').forEach((b) => b.setAttribute('aria-pressed', String(meDraft.pays.includes(b.dataset.v))));
+  const loaded = state.coupons.length > 0;
+  meSheet.querySelectorAll('[data-me] [data-v]').forEach((b) => {
+    const v = b.dataset.v;
+    const on = b.closest('[data-me]').dataset.me === 'telecom' ? v === (meDraft.telecom || '') : meDraft.pays.includes(v);
+    b.setAttribute('aria-pressed', String(on));
+    if (!b.dataset.label) b.dataset.label = b.textContent;
+    b.innerHTML = esc(b.dataset.label) + (v && loaded ? ` <span class="n">${programCount(v)}</span>` : '');
+  });
   $('#meNew').checked = meDraft.newMember !== false;
+  const empty = loaded ? [meDraft.telecom, ...meDraft.pays].filter((v) => v && !programCount(v)) : [];
+  const note = $('#meNote');
+  note.hidden = !empty.length;
+  note.textContent = empty.length ? `${empty.map((v) => (v === 'LGU+' ? 'LG U+' : v)).join('·')} 혜택은 아직 모으지 못했어요. 공식 페이지를 읽을 수 있게 되면 자동으로 보여드려요. 그동안은 조건 없는 쿠폰이 먼저 보여요.` : '';
 }
 function openMe(turnOnMine = false) {
   meTurnOnMine = turnOnMine;
