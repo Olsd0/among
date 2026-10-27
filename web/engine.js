@@ -151,6 +151,37 @@ export function isUpTo(text, value) {
   return new RegExp(`최대\\s*(${v}\\s*%|${v}\\s*원${k ? `|${k}` : ''})`).test(s);
 }
 
+/** 등급별로 적힌 서로 다른 % 목록 (작은 순). 등급 표기가 없으면 [] */
+export function tierPercents(text) {
+  const s = String(text || '');
+  if (!TIER_WORDS.test(s)) return [];
+  return [...new Set([...s.matchAll(/(\d{1,2}(?:\.\d)?)\s*%/g)].map((m) => +m[1]).filter((n) => n > 0 && n < 100))].sort((a, b) => a - b);
+}
+
+// 우리가 다루지 않는 결제수단 (D20과 같은 이유: 가진 사람이 적고, 쓰면 누구나 받는 할인처럼 보임)
+// 10/27 실제 수집: '페이코인 앱 결제 시 20% 추가 할인'이 조건 없는 전 메뉴 20%로 게시됨
+const OTHER_PAY = /페이코인|페이코|payco|애플\s*페이|apple\s*pay|삼성\s*페이|samsung\s*pay|ssg\s*pay|쓱\s*페이|\bL\.?\s*pay\b|엘\s*페이|스마일\s*페이|제로\s*페이|하나\s*페이|kb\s*pay|페이북|paybooc|우리\s*won\s*페이/i;
+/** 특정 결제수단(우리 목록 밖)으로 결제해야 받는 할인인가. 제외 문맥("삼성페이 사용 불가")은 조건으로 보지 않음 */
+export function needsOtherPayment(text) {
+  return String(text || '').split(/[,;\n!·]|\.(?!\d)|\s\/\s/)
+    .some((x) => OTHER_PAY.test(x) && /결제|이용\s*시|사용\s*시|로\s*구매/.test(x) && !EXCLUDE_CONTEXT.test(x));
+}
+
+/**
+ * 'N% 적립'처럼 적립 안내에만 나온 프로그램 — 할인을 받는 데 필요한 조건이 아니다.
+ * 10/27 실제 수집: '블록팩 4개 12,000원'이 '해피포인트 0.1% 적립' 문구 때문에 해피포인트 전용으로 분류됨
+ */
+export function accrualOnlyPrograms(text) {
+  const acc = new Set(), other = new Set();
+  // 소수점('0.1%')은 나누지 않는다
+  for (const x of String(text || '').split(/[,;\n·]|\.(?!\d)|\s\/\s/)) {
+    if (EXCLUDE_CONTEXT.test(x)) continue;
+    const accrual = /적립/.test(x) && !/결제\s*시|전용|대상|할인|OFF|회원\s*(가입|전용|한정)/i.test(x);
+    for (const [p, re] of PROGRAM_PATTERNS) if (re.test(x)) (accrual ? acc : other).add(p);
+  }
+  return [...acc].filter((p) => !other.has(p));
+}
+
 /** 다른 할인과 같이 쓸 수 있는지: 'no' | 'yes' | '' (모름) */
 export function detectStackable(text) {
   const s = String(text || '');
@@ -234,6 +265,51 @@ export function parseDate(v, now = new Date()) {
   const t = new Date(iso + 'T00:00:00Z');
   if (Number.isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== iso) return null;
   return iso;
+}
+
+/**
+ * 근거 문구에 적힌 기간 읽기 — AI가 날짜 칸을 비워 둔 경우의 보완.
+ * "(8/19~8/21)", "10.20~10.31", "2026.10.20 ~ 2026.10.31", "(~12/31)". 구분자는 물결표만 (전화번호·범위와 혼동 방지)
+ * 연도가 없으면: 시작일이 오늘 기준 300일 전 ~ 60일 뒤 안에 들도록, 끝만 있으면 parseDate 규칙(180일 넘게 지났으면 내년)
+ * 10/27 실제 수집에서 '빽다방 20주년 아메리카노 1천원 (8/19~8/21)'이 종료일 없이 게시된 문제로 추가
+ * @returns {{start: string|null, end: string|null}|null}
+ */
+const PERIOD_DATE = '(?:(20\\d{2}|\\d{2})\\s*[./년-]\\s*)?(\\d{1,2})\\s*[./월]\\s*(\\d{1,2})\\s*일?\\.?(?:\\s*\\([월화수목금토일]\\))?';
+const PERIOD_RANGE = new RegExp(`(?:^|[^\\d.,/])${PERIOD_DATE}\\s*[~∼〜]\\s*(?:${PERIOD_DATE}|(\\d{1,2})\\s*일?(?![\\d.,/]))`);
+const PERIOD_END = new RegExp(`(?:^|[^\\d.,/\\s]|\\s)[~∼〜]\\s*${PERIOD_DATE}`);
+export function inferPeriod(text, now = new Date()) {
+  const s = String(text || '').replace(/\s+/g, ' ');
+  const today = todayKST(now);
+  const iso = (y, m, d) => {
+    const v = `${y}-${pad(m)}-${pad(d)}`;
+    const t = new Date(v + 'T00:00:00Z');
+    return m >= 1 && m <= 12 && !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === v ? v : null;
+  };
+  const fullYear = (y) => (y ? (+y < 100 ? 2000 + +y : +y) : null);
+  let m = s.match(PERIOD_RANGE);
+  if (m) {
+    const [, y1, m1, d1, y2, m2, d2, dOnly] = m;
+    let sy = fullYear(y1) || +today.slice(0, 4);
+    let start = iso(sy, +m1, +d1);
+    if (!start) return null;
+    if (!y1) {
+      if (diffDays(start, today) > 60) start = iso(--sy, +m1, +d1);
+      else if (diffDays(start, today) < -300) start = iso(++sy, +m1, +d1);
+    }
+    const em = m2 ? +m2 : +m1;
+    const ed = m2 ? +d2 : +dOnly;
+    let ey = fullYear(y2) || sy;
+    let end = iso(ey, em, ed);
+    if (end && m2 && !y2 && end < start) end = iso(++ey, em, ed); // 12/20~1/10 → 해를 넘김 ('1.5~2'처럼 일만 있으면 넘기지 않음)
+    return end && end >= start ? { start, end } : null;
+  }
+  m = s.match(PERIOD_END);
+  if (m) {
+    const [, y, mo, d] = m;
+    const end = y ? iso(fullYear(y), +mo, +d) : parseDate(`${mo}/${d}`, now);
+    return end ? { start: null, end } : null;
+  }
+  return null;
 }
 
 /** a - b (일). 둘 다 'YYYY-MM-DD'. */
@@ -437,12 +513,18 @@ export function normalizeAndValidate(raw, ctx = {}) {
     discount_type = 'percent';
     discount_value = perK;
   }
+  let programs = normPrograms([...normPrograms(raw.programs), ...(ctx.programs || []), ...detectPrograms(allText)]);
   // 등급별 할인: 가장 낮은 등급 값으로 (과장 방지)
-  const tierMin = discount_type === 'percent' ? lowestTierPercent([raw.program_note, raw.evidence, raw.conditions].map(clean).join(' ')) : null;
-  const tierAmt = discount_type === 'amount' ? lowestTierAmount([raw.program_note, raw.evidence, raw.conditions].map(clean).join(' ')) : null;
-  const tierLowered = (tierMin !== null && discount_value !== null && tierMin < discount_value)
+  const tierText = [raw.program_note, raw.evidence, raw.conditions].map(clean).join(' ');
+  // 통신사 등급별 '가격'(VIP 50% 할인 2,150원 · GOLD/SILVER 30%)은 VIP 가격이라 → 가장 낮은 등급 %로 바꾼다
+  const tiers = tierPercents(tierText);
+  const priceTier = discount_type === 'price' && tiers.length >= 2 && programs.some((p) => ['SKT', 'KT', 'LGU+'].includes(p));
+  if (priceTier) { discount_type = 'percent'; discount_value = tiers[0]; }
+  const tierMin = discount_type === 'percent' ? lowestTierPercent(tierText) : null;
+  const tierAmt = discount_type === 'amount' ? lowestTierAmount(tierText) : null;
+  const tierLowered = priceTier || (tierMin !== null && discount_value !== null && tierMin < discount_value)
     || (tierAmt !== null && discount_value !== null && tierAmt < discount_value);
-  if (tierLowered) discount_value = discount_type === 'amount' ? tierAmt : tierMin;
+  if (tierLowered && !priceTier) discount_value = discount_type === 'amount' ? tierAmt : tierMin;
   // '3천 머니 지급', '2,000포인트 적립'은 할인이 아니라 적립 (결제액이 줄지 않음)
   if (discount_type === 'amount' && toInt(raw.coupon_price) === null && /(머니|포인트|\bP\b|캐시)\s*(을|를)?\s*(지급|적립|증정|드려|드립니다|충전)|적립금/.test(allText)) discount_type = 'point_back';
   const upTo = (discount_type === 'percent' || discount_type === 'amount' || discount_type === 'point_back') && isUpTo(allText, discount_value);
@@ -450,7 +532,13 @@ export function normalizeAndValidate(raw, ctx = {}) {
   const discount_unit = discount_type !== 'point_back' ? ''
     : (raw.discount_unit === 'percent' || raw.discount_unit === 'won') ? raw.discount_unit
       : (discount_value !== null && discount_value < 100 && new RegExp(`${discount_value}\\s*%`).test(allText)) ? 'percent' : 'won';
-  const programs = normPrograms([...normPrograms(raw.programs), ...(ctx.programs || []), ...detectPrograms(allText)]);
+  // 할인·가격 쿠폰에서 '해피포인트 0.1% 적립'처럼 적립 안내에만 나온 이름은 필요 조건이 아니다 (출처가 정한 프로그램은 유지)
+  if (discount_type !== 'point_back') {
+    const acc = accrualOnlyPrograms(allText);
+    programs = programs.filter((p) => !acc.includes(p) || (ctx.programs || []).includes(p));
+  }
+  // AI가 기간을 비워 두었으면 근거 문구의 '(8/19~8/21)' 같은 표기에서 읽는다
+  const period = (!raw.end_date || !raw.start_date) ? inferPeriod([raw.evidence, raw.conditions, raw.menu, raw.program_note].map(clean).join(' '), now) : null;
 
   // 메뉴 자리에 프로그램 이름만 적힌 경우('해피포인트 적립', '네이버페이 결제') → '전 메뉴'
   let menu = clean(raw.menu);
@@ -471,8 +559,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
     channels: normChannels(raw.channels),
     audience: normAudience(raw.audience),
     app_only: toBool(raw.app_only),
-    start_date: parseDate(raw.start_date, now),
-    end_date: parseDate(raw.end_date, now),
+    start_date: parseDate(raw.start_date, now) || period?.start || null,
+    end_date: parseDate(raw.end_date, now) || period?.end || null,
     conditions: clean(raw.conditions),
     confidence: Math.max(0, Math.min(1, toNumber(raw.confidence) ?? 0.5)),
     issues,
@@ -490,7 +578,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
   // 통신사 멤버십이 필요한데 대상이 '전체'로 읽혔으면 멤버십으로 (누구나 쓰는 쿠폰과 구분)
   if (programs.some((p) => ['SKT', 'KT', 'LGU+', 'CJ ONE'].includes(p)) && c.audience === '전체') c.audience = '멤버십';
 
-  const calc = computeCouponPrice({ ...raw, discount_type, discount_value, discount_unit });
+  // 등급 %로 바꾼 가격(priceTier)은 AI가 읽은 VIP 가격을 쓰지 않는다
+  const calc = computeCouponPrice({ ...raw, discount_type, discount_value, discount_unit, ...(priceTier ? { coupon_price: null } : {}) });
   c.coupon_price = calc.coupon_price;
   c.discount_rate = calc.discount_rate;
   // 주문 전체 할인(쿠폰가 없음): 정액이면 할인액을 discount_value에 둔다 (화면 표시용)
@@ -510,6 +599,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
   if (!fixed && !known) reject.push('지원하지 않는 브랜드');
   if (isDeliveryAppOnly(allText)) reject.push('외부 배달앱 전용 행사');
   if (programs.includes('카드')) reject.push('특정 카드 결제 할인');
+  else if (!programs.length && needsOtherPayment(allText)) reject.push('특정 결제수단 할인');
 
   // ---- pending: 사람이 보기 전엔 게시하지 않을 것 ----
   const hold = [];
@@ -528,6 +618,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
   const notes = c.end_date ? [] : ['종료일 미정 (매일 재확인)'];
 
   if (tierLowered) notes.push('등급별 할인 중 가장 낮은 값으로 표시');
+  if (period?.end && !parseDate(raw.end_date, now)) notes.push('기간은 근거 문구에서 읽음');
   issues.push(...reject, ...hold, ...notes);
   c.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
   return c;
@@ -585,7 +676,20 @@ export function mergeSimilar(list) {
     }
     out.push(c);
   }
-  return out;
+  // '통신사 최대 30%' 홍보 문구와 실제 등급 값('일반 15%')이 같은 행사로 따로 잡히면 낮은 값 하나만 남긴다 (D21 과장 방지)
+  // 10/27 실제 수집: 파파존스 불닭 까르보 치킨이 '최대 30%'와 '15%' 두 장으로 나옴
+  const isUp = (z) => /^최대/.test(z.program_note || '');
+  const progKey = (z) => (z.programs || []).join(',');
+  return out.filter((u) => {
+    if (u.status === 'rejected' || !isUp(u) || u.discount_value === null) return true;
+    const n = out.find((o) => o !== u && o.status !== 'rejected' && !isUp(o) && (o.status === 'published' || u.status !== 'published')
+      && o.brand === u.brand && o.discount_type === u.discount_type && o.audience === u.audience && progKey(o) === progKey(u)
+      && o.discount_value !== null && o.discount_value <= u.discount_value
+      && (!o.end_date || !u.end_date || o.end_date === u.end_date) && similarMenu(o.menu, u.menu));
+    if (!n) return true;
+    n.source_url = [...new Set(String(n.source_url).split(' ').concat(String(u.source_url).split(' ')).filter(Boolean))].join(' ');
+    return false;
+  });
 }
 
 /**

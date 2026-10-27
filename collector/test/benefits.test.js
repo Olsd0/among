@@ -266,3 +266,63 @@ test('과장 방지 (2차 시험 실행에서 발견): 최대 표기, 등급별 
   assert.equal(money.discount_type, 'point_back');
   assert.equal(money.discount_value, 3000);
 });
+
+test('실제 수집 검토 (10/27 저녁 전체 실행에서 발견): 지난 기간, 다른 결제수단, 적립 안내 이름, 등급별 가격, 최대 홍보 중복', async () => {
+  const { inferPeriod, needsOtherPayment, accrualOnlyPrograms, tierPercents } = await import('../src/engine.js');
+  // 1) 근거 문구의 '(8/19~8/21)' → 이미 끝난 행사는 버림
+  assert.deepEqual(inferPeriod('빽다방 20주년 기념 아메리카노(ICED) 1천원에 만나보세요! (8/19~8/21)', NOW), { start: '2026-08-19', end: '2026-08-21' });
+  assert.deepEqual(inferPeriod('가입하고 아메리카노(ICED) 500원에!(~12/31)', NOW), { start: null, end: '2026-12-31' });
+  assert.deepEqual(inferPeriod('12/20~1/10 겨울 한정', NOW), { start: '2026-12-20', end: '2027-01-10' });
+  assert.deepEqual(inferPeriod('10/30(목)~11/2(일)', NOW), { start: '2026-10-30', end: '2026-11-02' });
+  assert.equal(inferPeriod('말차 전 메뉴 2,026원 프로모션(1/2~)', NOW), null, '시작만 있으면 모름');
+  assert.equal(inferPeriod('정상가 4,900원~5,900원', NOW), null);
+  assert.equal(inferPeriod('1.5~2배 적립', NOW), null, '일만 있는 범위는 해를 넘기지 않음');
+  const paik = v({ menu: '아메리카노(ICED)', regular_price: null, coupon_price: 1000, end_date: null, evidence: '빽다방 20주년 기념 아메리카노(ICED) 1천원에 만나보세요! (8/19~8/21)' }, { brand: '빽다방', category: '카페' });
+  assert.equal(paik.status, 'rejected');
+  assert.ok(paik.issues.includes('이미 종료'));
+  const paikNew = v({ menu: '아메리카노(ICED)', regular_price: null, coupon_price: 500, end_date: null, audience: '신규회원', evidence: '[빽다방 앱 신규가입 이벤트] 가입하고 아메리카노(ICED) 500원에 만나보세요!(~12/31)' }, { brand: '빽다방', category: '카페' });
+  assert.equal(paikNew.end_date, '2026-12-31');
+  assert.ok(paikNew.issues.includes('기간은 근거 문구에서 읽음'));
+  assert.equal(v({ end_date: '2026-11-10', evidence: '불고기 버거 2,500원 (8/19~8/21)' }).end_date, '2026-11-10', 'AI가 읽은 날짜가 있으면 그대로');
+
+  // 2) 우리 목록 밖 결제수단 할인은 버림 (조건 없는 쿠폰처럼 보이므로)
+  assert.equal(needsOtherPayment('페이코인 앱 결제 시 20% 추가 할인!'), true);
+  assert.equal(needsOtherPayment('삼성페이 결제 불가'), false);
+  assert.equal(needsOtherPayment('앱 쿠폰 3천원 할인'), false);
+  const payco = v({ menu: '전 메뉴', regular_price: null, coupon_price: null, discount_type: 'percent', discount_value: 20, conditions: '페이코인 앱 결제 시', evidence: '페이코인 앱 결제 시 20% 추가 할인!' }, { brand: '도미노피자', category: '피자' });
+  assert.equal(payco.status, 'rejected');
+  assert.ok(payco.issues.includes('특정 결제수단 할인'));
+
+  // 3) '해피포인트 0.1% 적립' 안내만 있는 가격 행사는 해피포인트 전용이 아님 (적립형 쿠폰은 그대로)
+  assert.deepEqual(accrualOnlyPrograms('1인당 2세트 한정 · 해피포인트 0.1%적립'), ['해피포인트']);
+  assert.deepEqual(accrualOnlyPrograms('해피포인트플러스 결제 시 50% OFF'), []);
+  const block = v({ menu: '블록팩 4개', regular_price: 17600, coupon_price: 12000, programs: ['해피포인트'], program_note: '해피포인트 0.1%적립', evidence: '블록팩 4개 17,600원 12,000원' }, { brand: '배스킨라빈스', category: '디저트' });
+  assert.deepEqual(block.programs, []);
+  const half = v({ menu: '배라 전 제품', regular_price: null, coupon_price: null, discount_type: 'percent', discount_value: 50, programs: ['해피포인트'], evidence: '해피포인트플러스 결제 시, 배라 전 제품 50% OFF' }, { brand: '배스킨라빈스', category: '디저트' });
+  assert.deepEqual(half.programs, ['해피포인트']);
+  const pb = v({ menu: '전 메뉴', regular_price: null, coupon_price: null, discount_type: 'point_back', discount_value: 5, discount_unit: 'percent', evidence: '해피포인트 적립 대상으로 결제금액의 5% 적립됩니다.' }, { brand: '배스킨라빈스', category: '디저트' });
+  assert.deepEqual(pb.programs, ['해피포인트']);
+
+  // 4) 통신사 등급별 '가격'은 VIP 가격 → 가장 낮은 등급 %로
+  assert.deepEqual(tierPercents('VIP 50% 할인 (2,150원), GOLD/SILVER 30% 할인 (1,290원)'), [30, 50]);
+  const single = v({ menu: '싱글레귤러', regular_price: null, coupon_price: 2150, audience: '멤버십', programs: ['SKT'], program_note: 'VIP 50% 할인 (2,150원), GOLD/SILVER 30% 할인 (1,290원)', evidence: 'VIP 50% 할인 (2,150원)' }, { brand: '배스킨라빈스', category: '디저트', programs: ['SKT'] });
+  assert.equal(single.discount_type, 'percent');
+  assert.equal(single.discount_value, 30);
+  assert.equal(single.coupon_price, null);
+  assert.ok(single.issues.includes('등급별 할인 중 가장 낮은 값으로 표시'));
+  const sameTier = v({ menu: '싱글레귤러', regular_price: null, coupon_price: 2150, audience: '멤버십', programs: ['SKT'], program_note: '전 등급 50% (2,150원)', evidence: '싱글레귤러 50% 할인 2,150원' }, { brand: '배스킨라빈스', category: '디저트', programs: ['SKT'] });
+  assert.equal(sameTier.discount_type, 'price', '등급 차이가 없으면 가격 그대로');
+
+  // 5) '통신사 최대 30%'와 '일반 15%'가 같은 행사로 따로 잡히면 낮은 값 하나만
+  const ctx = { brand: '파파존스', category: '피자' };
+  const up = { ...v({ menu: 'NEW불닭 까르보 치킨', regular_price: null, coupon_price: null, discount_type: 'percent', discount_value: 30, audience: '멤버십', programs: ['SKT', 'KT', 'LGU+'], evidence: '불닭 까르보 치킨 통신사 최대 30% 할인 이벤트', source_url: 'https://a' }, ctx), id: 'u' };
+  const low = { ...v({ menu: '불닭 까르보 치킨', regular_price: null, coupon_price: null, discount_type: 'percent', discount_value: 30, audience: '멤버십', programs: ['SKT', 'KT', 'LGU+'], evidence: 'T Membership VIP 30% 일반 15% kt membership VIP 30% 일반 15%', source_url: 'https://b' }, ctx), id: 'l' };
+  assert.match(up.program_note, /^최대/);
+  assert.equal(low.discount_value, 15);
+  const merged = mergeSimilar([up, low]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].discount_value, 15);
+  assert.match(merged[0].source_url, /https:\/\/a/);
+  const other = { ...v({ menu: '전 메뉴', regular_price: null, coupon_price: null, discount_type: 'percent', discount_value: 10, audience: '멤버십', programs: ['SKT'], evidence: 'SKT 10% 할인' }, ctx), id: 'o' };
+  assert.equal(mergeSimilar([up, other]).length, 2, '프로그램이 다르면 다른 행사');
+});
