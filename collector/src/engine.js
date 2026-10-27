@@ -107,6 +107,7 @@ export function normPrograms(list) {
   return PROGRAMS.filter((p) => out.has(p));
 }
 
+const PROGRAM_NAME_WORDS = /SKT|SK\s*텔레콤|T\s*멤버십|KT|LG\s*U\s*\+|U\s*\+|유플러스|네이버\s*페이|N\s*pay|카카오\s*페이|토스\s*페이|해피\s*포인트\s*(플러스)?|CJ\s*ONE/gi;
 const DELIVERY_APPS = /쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|위메프오|먹깨비/;
 const DELIVERY_EXCLUDED = /(쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|배달\s*앱)[^.·\n]{0,20}(제외|불가|미적용|적용\s*(안|않|불가)|사용\s*(안|불가))/;
 /** 외부 배달앱 전용 행사인가 (경쟁 서비스가 이미 다루는 영역이라 제외, D7·HANDOFF 4장) */
@@ -119,6 +120,18 @@ export function isDeliveryAppOnly(text) {
 export function perThousandRate(text) {
   const all = [...String(text || '').matchAll(/(?:1\s*천|1,?000|천)\s*원\s*당\s*(?:최대\s*)?(\d{1,3})\s*원/g)].map((m) => +m[1] / 10);
   return all.length ? Math.min(...all) : null;
+}
+
+const TIER_WORDS = /vvip|vip|gold|골드|silver|실버|lite|라이트|우수|일반|등급|diamond|다이아/i;
+/**
+ * 등급별 할인율이 적힌 문장에서 가장 낮은 % ("VIP 30% · GOLD/SILVER 20%" → 20). 등급 표기가 없으면 null
+ * AI가 '가장 낮은 등급 값'을 지키지 않는 경우가 많아(10/27 시험: T멤버십 11건 중 5건이 VIP 값) 엔진이 강제한다 (D21)
+ */
+export function lowestTierPercent(text) {
+  const s = String(text || '');
+  if (!TIER_WORDS.test(s)) return null;
+  const all = [...s.matchAll(/(\d{1,2}(?:\.\d)?)\s*%/g)].map((m) => +m[1]).filter((n) => n > 0 && n < 100);
+  return all.length >= 2 ? Math.min(...all) : null;
 }
 
 /** 다른 할인과 같이 쓸 수 있는지: 'no' | 'yes' | '' (모름) */
@@ -407,16 +420,24 @@ export function normalizeAndValidate(raw, ctx = {}) {
     discount_type = 'percent';
     discount_value = perK;
   }
+  // 등급별 할인: 가장 낮은 등급 값으로 (과장 방지)
+  const tierMin = discount_type === 'percent' ? lowestTierPercent([raw.program_note, raw.evidence, raw.conditions].map(clean).join(' ')) : null;
+  const tierLowered = tierMin !== null && discount_value !== null && tierMin < discount_value;
+  if (tierLowered) discount_value = tierMin;
   // 적립 단위: 원 / % (AI가 알려주지 않으면 근거 문장에 'N%'가 있는지로 판단)
   const discount_unit = discount_type !== 'point_back' ? ''
     : (raw.discount_unit === 'percent' || raw.discount_unit === 'won') ? raw.discount_unit
       : (discount_value !== null && discount_value < 100 && new RegExp(`${discount_value}\\s*%`).test(allText)) ? 'percent' : 'won';
   const programs = normPrograms([...normPrograms(raw.programs), ...(ctx.programs || []), ...detectPrograms(allText)]);
 
+  // 메뉴 자리에 프로그램 이름만 적힌 경우('해피포인트 적립', '네이버페이 결제') → '전 메뉴'
+  let menu = clean(raw.menu);
+  if (menu && detectPrograms(menu).length && !menu.replace(PROGRAM_NAME_WORDS, '').replace(/적립|할인|결제|혜택|이벤트|쿠폰|회원|멤버십|앱|\s|[+·,/()]/g, '')) menu = '전 메뉴';
+
   const c = {
     brand,
     category,
-    menu: clean(raw.menu),
+    menu,
     item_type: normItemType(raw.item_type, raw.menu),
     regular_price: toInt(raw.regular_price),
     coupon_price: null,
@@ -439,7 +460,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
     official_link: clean(ctx.officialLink || raw.official_link),
     // 이용자에게 필요한 정보: 무엇이 있어야 쓰는지 · 어떻게 쓰는지 · 다른 할인과 같이 되는지
     programs,
-    program_note: clean(raw.program_note).slice(0, 120),
+    program_note: clean(raw.program_note).slice(0, 120) || (tierLowered ? '등급에 따라 더 큰 할인' : ''),
     how_to_use: clean(raw.how_to_use).slice(0, 160),
     stackable: raw.stackable === true ? 'yes' : raw.stackable === false ? 'no' : detectStackable(allText),
   };
@@ -483,6 +504,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
   // 게시하되 표시만 남긴다. 공식 페이지에서 사라지면 다음 수집에서 gone 처리돼 화면에서 빠진다.
   const notes = c.end_date ? [] : ['종료일 미정 (매일 재확인)'];
 
+  if (tierLowered) notes.push('등급별 할인 중 가장 낮은 값으로 표시');
   issues.push(...reject, ...hold, ...notes);
   c.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
   return c;
@@ -541,6 +563,33 @@ export function mergeSimilar(list) {
     out.push(c);
   }
   return out;
+}
+
+/**
+ * 쿠폰 id 안정화: AI가 같은 행사를 날마다 조금씩 다르게 적어(메뉴 표기·구성 구분) id가 바뀌면
+ * 예전 행은 '사라짐', 새 행은 '새로 생김'이 되어 이력이 끊긴다. 지금 게시 중인 쿠폰과
+ * 브랜드·할인 종류·할인 크기·대상이 같고 메뉴가 비슷하며 종료일이 다르지 않으면 예전 id를 그대로 쓴다.
+ * @param list     이번 수집 결과 (id 있음)
+ * @param existing 지금 게시 중인 쿠폰 (공개 API 형식)
+ * @returns { list, reused } — reused = 예전 id로 바꾼 개수
+ */
+export function stabilizeIds(list, existing) {
+  const pool = (existing || []).filter((e) => e && e.id);
+  const taken = new Set(list.map((c) => c.id));
+  const byId = new Set(pool.map((e) => e.id));
+  const sig = (z) => [z.discount_type, z.discount_type === 'price' ? (toInt(z.coupon_price) ?? '') : (toNumber(z.discount_value) ?? ''), z.audience].join('|');
+  let reused = 0;
+  const out = list.map((c) => {
+    if (c.status === 'rejected' || byId.has(c.id)) return c;
+    const hit = pool.find((e) => !taken.has(e.id) && e.brand === c.brand && sig(e) === sig(c)
+      && (!e.end_date || !c.end_date || e.end_date === c.end_date)
+      && similarMenu(e.menu, c.menu, c.discount_type === 'free_item' ? 3 : 2));
+    if (!hit) return c;
+    taken.add(hit.id);
+    reused++;
+    return { ...c, id: hit.id };
+  });
+  return { list: out, reused };
 }
 
 /** 한 행사(예: 치킨 1+1)가 메뉴별로 4건 이상 잡히면 카드 하나로: '갓양념치킨 외 8종' (D18) */

@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST } from './engine.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds } from './engine.js';
 import { couponId, contentHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
@@ -162,7 +162,15 @@ export async function runCollector(o = {}) {
     // 시간 초과로 끝난 출처가 나중에 ok가 되지 않도록 지금 상태를 고정
     for (const x of report.sources) x.ok = x.ok && !/시간 초과/.test(x.error || '');
 
-    const merged = groupFreeItems(mergeSimilar(dedupe(all, couponId))).map((c) => ({ ...c, id: couponId(c), hash: contentHash(c) }));
+    let merged = groupFreeItems(mergeSimilar(dedupe(all, couponId))).map((c) => ({ ...c, id: couponId(c), hash: contentHash(c) }));
+    // 같은 행사인데 AI 표기 차이로 id가 바뀌는 것을 막는다 (지금 게시 중인 쿠폰의 id를 이어 씀)
+    if (statusReader && env.STABILIZE_IDS !== '0') {
+      try {
+        const st = stabilizeIds(merged, (await statusReader.get('coupons')).coupons);
+        merged = st.list;
+        report.ids_reused = st.reused;
+      } catch (e) { report.errors.push(`id 안정화 건너뜀: ${e.message}`); }
+    }
     for (const sr of report.sources) sr.published = merged.filter((c) => c.source_id === sr.id && c.status === 'published').length;
     report.summary = summarize(merged);
 
@@ -197,7 +205,7 @@ export async function runCollector(o = {}) {
     // GitHub Actions 주석: 로그를 열지 않고 API·요약 화면에서 결과 확인
     if (process.env.GITHUB_ACTIONS && !o.quiet) {
       const one = (t) => String(t).replace(/\r?\n/g, ' ').slice(0, 900);
-      console.log(`::notice title=수집 결과::${one(`${report.state} · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`)}`);
+      console.log(`::notice title=수집 결과::${one(`${report.state} · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · id 이어 씀 ${report.ids_reused ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`)}`);
       // 주석은 단계당 10개까지만 보이므로 여러 줄을 묶어서 남긴다 (%0A = 줄바꿈)
       const block = (t) => String(t).replace(/\r?\n/g, ' ').replace(/%/g, '%25');
       const groups = (lines, n) => Array.from({ length: Math.ceil(lines.length / n) }, (_, i) => lines.slice(i * n, i * n + n));
@@ -206,7 +214,7 @@ export async function runCollector(o = {}) {
       if (report.errors.length) console.log(`::warning title=오류 ${report.errors.length}건::${report.errors.slice(0, 15).map((e) => block(e).slice(0, 200)).join('%0A')}`);
       let cs = [];
       try { cs = JSON.parse(readFileSync(join(outDir, 'coupons.json'), 'utf8')); } catch { /* 없음 */ }
-      const cLines = cs.map((c) => [c.status, c.brand, c.menu, c.regular_price ?? '', c.coupon_price ?? '', c.discount_rate ?? '', c.discount_type, c.discount_value ?? '', c.audience, c.start_date || '', c.end_date || '', (c.issues || []).join('/')].join('|').slice(0, 260));
+      const cLines = cs.map((c) => [c.status, c.source_id, c.brand, c.menu, c.regular_price ?? '', c.coupon_price ?? '', c.discount_rate ?? '', c.discount_type, c.discount_value ?? '', c.audience, (c.programs || []).join('+'), c.start_date || '', c.end_date || '', (c.issues || []).join('/'), String(c.evidence || '').slice(0, 50)].join('|').slice(0, 300));
       groups(cLines, 25).slice(0, 5).forEach((g, i) => console.log(`::notice title=쿠폰 ${i + 1}::${g.map(block).join('%0A')}`));
     }
   }

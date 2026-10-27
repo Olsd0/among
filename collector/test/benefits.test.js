@@ -209,3 +209,41 @@ test('검토 보완: 제외 문맥의 통신사·카드 이름은 조건이 아�
     { now: NOW, category: '카페', programs: ['네이버페이'] });
   assert.equal(pb.category, '디저트', '네이버페이 카페 캠페인에 나온 베이커리는 디저트로');
 });
+
+test('id 안정화: AI 표기가 달라도 같은 행사면 예전 id를 이어 씀, 다른 행사·기간·크기는 새 id', async () => {
+  const { stabilizeIds } = await import('../src/engine.js');
+  const existing = [
+    { id: 'c_old_zinger', brand: 'KFC', menu: '징거', discount_type: 'price', coupon_price: 1000, audience: '신규회원', end_date: '' },
+    { id: 'c_old_all', brand: '반올림피자', menu: '전체 메뉴', discount_type: 'amount', discount_value: 4000, audience: '전체', end_date: '2027-08-03' },
+    { id: 'c_old_dom', brand: '도미노피자', menu: '모든 피자', discount_type: 'percent', discount_value: 40, audience: '전체', end_date: '' },
+  ];
+  const today = [
+    { id: 'c_new1', status: 'published', brand: 'KFC', menu: '징거 단품', discount_type: 'price', coupon_price: 1000, audience: '신규회원', end_date: null },
+    { id: 'c_new2', status: 'published', brand: '반올림피자', menu: '전체', discount_type: 'amount', discount_value: 4000, audience: '전체', end_date: '2027-08-03' },
+    { id: 'c_new3', status: 'published', brand: '도미노피자', menu: '모든 피자', discount_type: 'percent', discount_value: 50, audience: '전체', end_date: null },
+    { id: 'c_new4', status: 'published', brand: '반올림피자', menu: '전체 메뉴', discount_type: 'amount', discount_value: 4000, audience: '전체', end_date: '2026-11-30' },
+    { id: 'c_new5', status: 'rejected', brand: 'KFC', menu: '징거', discount_type: 'price', coupon_price: 1000, audience: '신규회원' },
+  ];
+  const r = stabilizeIds(today, existing);
+  assert.deepEqual(r.list.map((c) => c.id), ['c_old_zinger', 'c_old_all', 'c_new3', 'c_new4', 'c_new5']);
+  assert.equal(r.reused, 2);
+  // 같은 예전 쿠폰을 두 번 쓰지 않음
+  const twice = stabilizeIds([today[0], { ...today[0], id: 'c_new9', menu: '징거 버거' }], existing);
+  assert.deepEqual(twice.list.map((c) => c.id), ['c_old_zinger', 'c_new9']);
+});
+
+test('등급별 할인은 가장 낮은 등급 값으로 · 메뉴 자리에 프로그램 이름만 있으면 전 메뉴 (10/27 시험 실행에서 발견)', async () => {
+  const { lowestTierPercent } = await import('../src/engine.js');
+  assert.equal(lowestTierPercent('VIP 30%, GOLD·SILVER 20% 할인'), 20);
+  assert.equal(lowestTierPercent('VIP·GOLD 15%(1일 1회), SILVER 5%(1일 1회)'), 5);
+  assert.equal(lowestTierPercent('전 메뉴 30% 할인, 2잔 이상 10% 추가'), null, '등급 표기 없으면 건드리지 않음');
+  const mega = normalizeAndValidate({ brand: '메가MGC커피', menu: '전 메뉴', discount_type: 'percent', discount_value: 20, program_note: 'VIP 20%, GOLD·SILVER 10%', evidence: '메가MGC커피 VIP 20% GOLD·SILVER 10%', evidence_source: 'text', confidence: 0.9 },
+    { now: NOW, programs: ['SKT'], pageText: '메가MGC커피 VIP 20% GOLD·SILVER 10% 할인' });
+  assert.equal(mega.discount_rate, 10);
+  assert.equal(mega.status, 'published', mega.issues.join('/'));
+  assert.ok(mega.issues.includes('등급별 할인 중 가장 낮은 값으로 표시'));
+  const hp = v({ menu: '해피포인트 적립', regular_price: null, coupon_price: null, discount_type: 'point_back', discount_value: 5, evidence: '해피포인트 5% 적립' }, { brand: '배스킨라빈스', category: '디저트' });
+  assert.equal(hp.menu, '전 메뉴');
+  assert.deepEqual(hp.programs, ['해피포인트']);
+  assert.equal(v({ menu: '해피포인트 블록팩' }, { brand: '배스킨라빈스', category: '디저트' }).menu, '해피포인트 블록팩', '실제 메뉴 이름은 그대로');
+});

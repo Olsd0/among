@@ -92,7 +92,10 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
 4. (선택) `DATA_GO_KR_KEY` 등록 → Actions → collect → mode `nutrition` 1회 실행 → 주석에서 브랜드별 메뉴 수 확인
 5. Actions → collect → mode `check`, only `tmembership-brand,kt-membership-food,uplus-membership,npay-cafe,baskin-event,paris-promo` → robots 판정·글자 확인. 막힌 출처는 sources 탭에서 `active=FALSE`
 
-알아둘 점: 통신사 조건이 붙은 쿠폰(현재 7건)은 id가 바뀌어 첫 수집 때 예전 행은 `gone`, 새 행이 추가된다. 특정 카드사 결제 할인·외부 배달앱 전용 행사는 이제 엔진이 버린다(현재 4건).
+알아둘 점
+- **id 안정화**: 수집기가 저장 전에 지금 게시 중인 쿠폰과 비교해, 브랜드·할인 종류·할인 크기·대상이 같고 메뉴가 비슷하면 예전 id를 이어 쓴다 (AI가 날마다 표기를 조금씩 바꿔 '사라짐/새로 생김'이 반복되던 문제. 10/27 아침 실행 기준 34건 중 15건이 이 경우). 끄려면 변수 `STABILIZE_IDS=0`
+- 특정 카드사 결제 할인·외부 배달앱 전용 행사는 엔진이 버린다 (10/27 기준 4건). "T멤버십 할인과 중복 불가"처럼 제외 문맥에 나온 통신사 이름은 필요 조건으로 보지 않는다
+- `check`·`dry` 모드는 `only`에 시트에 아직 없는 출처 id를 넣으면 `sources.example.json`에서 가져와 시험한다 (시트에 넣기 전 확인용)
 
 ## 운영
 

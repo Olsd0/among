@@ -447,13 +447,13 @@
       "max_shots": 6,
       "wait_ms": 2500,
       "official_link": "https://m.tworld.co.kr/membership/benefit/brand",
-      "notes": "[v4 추가] SKT T멤버십 혜택 브랜드 한 페이지(등급별 할인율이 글자로 있음, 10/27 확인). 여러 브랜드 → brand 비움",
+      "notes": "[v4] 10/27 점검·시험: 글자 3.5천자, 11건 추출(파리바게뜨·뚜레쥬르·공차·도미노·롯데리아·폴바셋·던킨·메가·피자헛·파파존스)",
       "program": "SKT",
       "follow_text": ""
     },
     {
       "id": "kt-membership-food",
-      "active": "TRUE",
+      "active": "FALSE",
       "brand": "",
       "category": "",
       "url": "https://membership.kt.com/discount/partner/PartnerList.do",
@@ -465,13 +465,13 @@
       "max_shots": 3,
       "wait_ms": 2000,
       "official_link": "https://membership.kt.com/discount/partner/PartnerList.do",
-      "notes": "[v4 추가] KT 멤버십 제휴 브랜드 목록 → 우리가 다루는 브랜드 상세만 따라감(상세 예: /discount/partner/C21/68/PartnerDetail.do = 도미노, 10/27 확인)",
+      "notes": "[v4] 10/27 점검: 해외(GitHub) 서버에서 robots.txt 응답 없음(시간 초과) → 국내 수집기 필요. 상세 예: /discount/partner/C21/68/PartnerDetail.do = 도미노",
       "program": "KT",
       "follow_text": "맥도날드|버거킹|롯데리아|맘스터치|KFC|파파이스|스타벅스|이디야|메가|빽다방|할리스|폴바셋|투썸|컴포즈|공차|파스쿠찌|BBQ|bhc|교촌|굽네|푸라닭|도미노|피자헛|파파존스|미스터피자|반올림|파리바게|뚜레쥬르|배스킨|던킨"
     },
     {
       "id": "uplus-membership",
-      "active": "TRUE",
+      "active": "FALSE",
       "brand": "",
       "category": "",
       "url": "https://m.lguplus.com/benefit-membership?urcMbspDivsCd=01&urcMbspBnftDivsCd=02",
@@ -483,7 +483,7 @@
       "max_shots": 6,
       "wait_ms": 3000,
       "official_link": "https://m.lguplus.com/membership/intro",
-      "notes": "[v4 추가] U+ 멤버십 전체 제휴사 목록(첫 화면에 파리바게뜨·배스킨라빈스 혜택 글자 확인). 목록이 JS로 그려질 수 있음 → check 모드로 확인",
+      "notes": "[v4] 10/27 점검: 글자 105자만 보임(목록을 스크립트로 그림) → 다른 주소 찾기 전까지 꺼둠",
       "program": "LGU+",
       "follow_text": ""
     },
@@ -501,7 +501,7 @@
       "max_shots": 4,
       "wait_ms": 2000,
       "official_link": "https://campaign2.naver.com/npay/cafe/",
-      "notes": "[v4 추가] 네이버페이 카페 결제 적립 캠페인(예: 2천원 이상 결제 시 500원 적립). robots에서 막히면 자동으로 건너뜀",
+      "notes": "[v4] 10/27 점검: robots 허용, 캠페인 글자 확인(카페 결제 최대 5천원 혜택 10/26~11/1)",
       "program": "네이버페이",
       "follow_text": ""
     },
@@ -519,7 +519,7 @@
       "max_shots": 4,
       "wait_ms": 1500,
       "official_link": "https://www.baskinrobbins.co.kr/play/event/list.php",
-      "notes": "[v4 추가] 해피포인트 앱 할인·제휴 혜택이 글자로 공지됨(10/27 확인: 해피포인트플러스 결제 시 50% 등)",
+      "notes": "[v4] 10/27 시험: 상세 24개 중 4개, 9건 게시(해피포인트 결제·적립 혜택 포함)",
       "program": "",
       "follow_text": ""
     },
@@ -537,7 +537,7 @@
       "max_shots": 4,
       "wait_ms": 1500,
       "official_link": "https://www.paris.co.kr/promotion/",
-      "notes": "[v4 추가] 파리바게뜨 프로모션 목록(상세 /promotion/슬러그/, 기간은 글자·혜택 일부는 이미지)",
+      "notes": "[v4] 10/27 시험: 상세 17개 중 4개, 3건 게시",
       "program": "",
       "follow_text": ""
     },
@@ -555,7 +555,7 @@
       "max_shots": 4,
       "wait_ms": 1500,
       "official_link": "https://www.dunkindonuts.co.kr/",
-      "notes": "[v4 추가·꺼둠] 상세는 /event/view?id= 형식. 목록 주소 미확인 → probe/check 모드로 확인 후 켜기",
+      "notes": "[v4] 10/27 점검: 목록이 이미지뿐(글자 160자), 상세 링크 0개 → 꺼둠",
       "program": "",
       "follow_text": ""
     }
