@@ -538,7 +538,9 @@ export function normalizeAndValidate(raw, ctx = {}) {
     programs = programs.filter((p) => !acc.includes(p) || (ctx.programs || []).includes(p));
   }
   // AI가 기간을 비워 두었으면 근거 문구의 '(8/19~8/21)' 같은 표기에서 읽는다
-  const period = (!raw.end_date || !raw.start_date) ? inferPeriod([raw.evidence, raw.conditions, raw.menu, raw.program_note].map(clean).join(' '), now) : null;
+  // (AI가 '상시'·'null'처럼 날짜가 아닌 글자를 넣은 경우도 비운 것으로 본다 — 10/27 재실행에서 확인)
+  const sd0 = parseDate(raw.start_date, now), ed0 = parseDate(raw.end_date, now);
+  const period = (!sd0 || !ed0) ? inferPeriod([raw.evidence, raw.conditions, raw.menu, raw.program_note].map(clean).join(' '), now) : null;
 
   // 메뉴 자리에 프로그램 이름만 적힌 경우('해피포인트 적립', '네이버페이 결제') → '전 메뉴'
   let menu = clean(raw.menu);
@@ -559,8 +561,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
     channels: normChannels(raw.channels),
     audience: normAudience(raw.audience),
     app_only: toBool(raw.app_only),
-    start_date: parseDate(raw.start_date, now) || period?.start || null,
-    end_date: parseDate(raw.end_date, now) || period?.end || null,
+    start_date: sd0 || period?.start || null,
+    end_date: ed0 || period?.end || null,
     conditions: clean(raw.conditions),
     confidence: Math.max(0, Math.min(1, toNumber(raw.confidence) ?? 0.5)),
     issues,
@@ -618,7 +620,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
   const notes = c.end_date ? [] : ['종료일 미정 (매일 재확인)'];
 
   if (tierLowered) notes.push('등급별 할인 중 가장 낮은 값으로 표시');
-  if (period?.end && !parseDate(raw.end_date, now)) notes.push('기간은 근거 문구에서 읽음');
+  if (period?.end && !ed0) notes.push('기간은 근거 문구에서 읽음');
   issues.push(...reject, ...hold, ...notes);
   c.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
   return c;

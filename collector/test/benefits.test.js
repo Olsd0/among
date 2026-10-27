@@ -280,6 +280,8 @@ test('실제 수집 검토 (10/27 저녁 전체 실행에서 발견): 지난 기
   const paik = v({ menu: '아메리카노(ICED)', regular_price: null, coupon_price: 1000, end_date: null, evidence: '빽다방 20주년 기념 아메리카노(ICED) 1천원에 만나보세요! (8/19~8/21)' }, { brand: '빽다방', category: '카페' });
   assert.equal(paik.status, 'rejected');
   assert.ok(paik.issues.includes('이미 종료'));
+  const paik2 = v({ menu: '아메리카노(ICED)', regular_price: null, coupon_price: 1000, start_date: '상시', end_date: 'null', evidence: '빽다방 20주년 기념 아메리카노(ICED) 1천원에 만나보세요! (8/19~8/21)' }, { brand: '빽다방', category: '카페' });
+  assert.equal(paik2.status, 'rejected', '날짜 칸에 날짜가 아닌 글자가 있어도 문구에서 읽음 (재실행에서 발견)');
   const paikNew = v({ menu: '아메리카노(ICED)', regular_price: null, coupon_price: 500, end_date: null, audience: '신규회원', evidence: '[빽다방 앱 신규가입 이벤트] 가입하고 아메리카노(ICED) 500원에 만나보세요!(~12/31)' }, { brand: '빽다방', category: '카페' });
   assert.equal(paikNew.end_date, '2026-12-31');
   assert.ok(paikNew.issues.includes('기간은 근거 문구에서 읽음'));
