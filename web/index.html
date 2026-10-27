@@ -876,6 +876,18 @@ $('#searchBtn').addEventListener('click', () => {
 $('#q').addEventListener('input', (e) => { state.q = e.target.value.trim(); render(); });
 $('#refreshBtn').addEventListener('click', refresh);
 
+// 시트 저장은 form의 submit에서 처리한다. dialog의 'close' 이벤트에 기대지 않는다:
+// 앱 속 브라우저(웹뷰) 중에는 close 이벤트를 보내지 않아 설정이 저장되지 않는 곳이 있었다 (10/27 확인)
+function onSheetSubmit(sheet, fn) {
+  const form = sheet.querySelector('form');
+  form.addEventListener('submit', (e) => {
+    const v = (e.submitter && e.submitter.value) || form.querySelector('button:not([type="button"])')?.value || 'ok';
+    e.preventDefault();
+    sheet.close(v);
+    fn(v);
+  });
+}
+
 // 내 할인 수단 시트
 const meSheet = $('#meSheet');
 let meDraft = null;
@@ -923,8 +935,8 @@ $('#meReset').addEventListener('click', () => {
   state.profile = null; store.set('among_profile', null); state.quick.mine = false; savePrefs();
   meSheet.close('cancel'); render(); toast('설정을 지웠어요.');
 });
-meSheet.addEventListener('close', () => {
-  if (meSheet.returnValue !== 'ok' || !meDraft) return;
+onSheetSubmit(meSheet, (v) => {
+  if (v !== 'ok' || !meDraft) return;
   state.profile = meDraft; store.set('among_profile', meDraft);
   if (meTurnOnMine || !state.quick.mine) state.quick.mine = true;
   state.sort = 'best'; savePrefs(); render();
@@ -948,8 +960,8 @@ fSheet.addEventListener('click', (e) => {
 });
 $('#everyoneOnly').addEventListener('change', (e) => { draft.everyoneOnly = e.target.checked; });
 $('#filterReset').addEventListener('click', () => { draft = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' }; paintFilter(); });
-fSheet.addEventListener('close', () => {
-  if (fSheet.returnValue === 'ok' && draft) { state.filters = draft; savePrefs(); render(); track('filter', { value: JSON.stringify(draft) }); }
+onSheetSubmit(fSheet, (v) => {
+  if (v === 'ok' && draft) { state.filters = draft; savePrefs(); render(); track('filter', { value: JSON.stringify(draft) }); }
 });
 
 // 제보 시트
@@ -964,8 +976,8 @@ function openReport(id) {
 }
 $('#reportCancel').addEventListener('click', () => rSheet.close('cancel'));
 rSheet.addEventListener('click', (e) => { if (e.target === rSheet) rSheet.close('cancel'); });
-rSheet.addEventListener('close', async () => {
-  if (rSheet.returnValue !== 'send' || !reportId) return;
+onSheetSubmit(rSheet, async (v) => {
+  if (v !== 'send' || !reportId) return;
   const c = state.coupons.find((x) => x.id === reportId);
   const fd = new FormData($('#reportForm'));
   if (DEMO) { toast('예시 모드라 제보가 전송되지 않았어요.'); return; }
