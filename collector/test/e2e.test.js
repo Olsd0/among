@@ -79,3 +79,42 @@ test('출처 실패 시: 실패로 기록되고 sources_ok에서 빠진다 (기�
   assert.deepEqual(sheet.calls.find((c) => c.action === 'ingest').payload.sources_ok, ['ok']);
   assert.ok(report.sources.find((s) => s.id === 'broken').error.includes('404'));
 });
+
+test('여러 브랜드가 섞인 멤버십 페이지: 다루는 브랜드 링크만 따라가고(글자·이미지 대체텍스트), 브랜드·카테고리·통신사를 붙임', { timeout: 120000 }, async () => {
+  clearRobotsCache();
+  const outDir = mkdtempSync(join(tmpdir(), 'among-e2e-'));
+  const sheet = recordingSheet();
+  const sources = [{
+    id: 'tmem', brand: '', category: '', program: 'SKT', url: `${site.base}/membership/list.html`,
+    selector: 'main', follow: 'a.p', follow_text: '도미노|버거킹|파리바게', max_follow: 5, active: 'TRUE',
+  }];
+  const report = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir }, now: NOW, sources, sheet, quiet: true });
+  assert.equal(report.state, 'success');
+  assert.ok(!site.hits.includes('/membership/gs.html'), '다루지 않는 브랜드 링크는 열지 않음');
+  assert.ok(site.hits.includes('/membership/bk.html'), '이미지 링크는 대체텍스트로 판단');
+  const coupons = JSON.parse(readFileSync(join(outDir, 'coupons.json'), 'utf8'));
+  const by = Object.fromEntries(coupons.map((c) => [c.brand, c]));
+  assert.equal(by['파리바게뜨'].category, '디저트');
+  assert.deepEqual(by['파리바게뜨'].programs, ['SKT']);
+  assert.equal(by['파리바게뜨'].status, 'published');
+  assert.equal(by['도미노피자'].category, '피자');
+  assert.equal(by['도미노피자'].discount_rate, 20);
+  assert.equal(by['버거킹'].coupon_price, 5900);
+  assert.equal(by.GS25.status, 'rejected');
+  const ingested = sheet.calls.find((c) => c.action === 'ingest').payload.coupons;
+  assert.deepEqual(ingested.map((c) => c.brand).sort(), ['도미노피자', '버거킹', '파리바게뜨']);
+});
+
+test('예약 실행: 00시 트리거가 오늘 이미 수집했으면 GitHub 예약 실행은 건너뜀', async () => {
+  const outDir = mkdtempSync(join(tmpdir(), 'among-e2e-'));
+  const sheet = recordingSheet();
+  const now = new Date('2026-10-26T20:19:00Z');  // KST 10/27 05:19 (GitHub 지연 도착)
+  const status = (last, state = 'idle') => ({ get: async () => ({ ok: true, state, last_checked_at: last }) });
+  const skip = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'schedule' }, now, sheet, sheetRead: status('2026-10-26T15:12:00Z'), sources: [], quiet: true });
+  assert.equal(skip.state, 'skipped');
+  assert.equal(sheet.calls.length, 0, '시트에 아무것도 쓰지 않음');
+  const run = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'schedule' }, now, sheet, sheetRead: status('2026-10-25T15:12:00Z'), sources: [], quiet: true, browser: { close: async () => {} } });
+  assert.notEqual(run.state, 'skipped', '어제 수집이 마지막이면 실행');
+  const manual = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'button' }, now, sheet, sheetRead: status('2026-10-26T15:12:00Z'), sources: [], quiet: true, browser: { close: async () => {} } });
+  assert.notEqual(manual.state, 'skipped', '갱신 버튼은 항상 실행');
+});

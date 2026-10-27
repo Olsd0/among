@@ -60,6 +60,7 @@ export function loadAppsScript(path, { now = Date.parse('2026-10-25T03:00:00Z') 
   const props = new Map();
   const cache = new Map();
   const fetches = [];
+  const triggers = [];
   let fetchResponse = { code: 204, body: '' };
 
   const RealDate = Date;
@@ -112,13 +113,26 @@ export function loadAppsScript(path, { now = Date.parse('2026-10-25T03:00:00Z') 
       },
     },
     Logger: { log: () => {} },
+    ScriptApp: {
+      getProjectTriggers: () => [...triggers],
+      deleteTrigger: (t) => { const i = triggers.indexOf(t); if (i >= 0) triggers.splice(i, 1); },
+      newTrigger: (fn) => {
+        const spec = { fn };
+        const b = {
+          timeBased: () => b, atHour: (h) => { spec.hour = h; return b; }, nearMinute: (m) => { spec.minute = m; return b; },
+          everyDays: (d) => { spec.days = d; return b; }, inTimezone: (tz) => { spec.tz = tz; return b; },
+          create: () => { const t = { ...spec, getHandlerFunction: () => fn }; triggers.push(t); return t; },
+        };
+        return b;
+      },
+    },
   };
   vm.createContext(ctx);
   vm.runInContext(readFileSync(path, 'utf8'), ctx, { filename: 'Code.gs' });
 
   const parse = (out) => JSON.parse(out.content);
   return {
-    ctx, sheets, props, cache, fetches, clock,
+    ctx, sheets, props, cache, fetches, clock, triggers,
     setFetchResponse: (code, body = '') => { fetchResponse = { code, body }; },
     get: (params) => parse(ctx.doGet({ parameter: params })),
     post: (body) => parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } })),

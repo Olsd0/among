@@ -26,7 +26,8 @@ Apps Script 웹앱 → 구글시트 (coupons · sources · run_log · events · 
 | `collector/src/fetch.js` · `robots.js` | 렌더링, 상세 페이지 따라가기, robots.txt |
 | `collector/src/run.js` | 전체 실행 + 실행 기록 |
 | `collector/src/check-sources.js` | 출처 점검 (Claude 호출 없이 접속·텍스트·스크린샷만) |
-| `collector/sources.example.json` | 햄버거 4사 출처 초기값 |
+| `collector/src/nutrition.js` | 영양성분 가져오기 (식약처 공공데이터 → 우리 브랜드 → 1개 기준 환산 → 열량 검산 → 시트). AI 호출 없음 |
+| `collector/sources.example.json` | 출처 초기값 (브랜드 자체 페이지 + 통신사 멤버십·네이버페이·SPC 브랜드) |
 | `apps-script/Code.gs` | 시트 백엔드 (공개 API · 수집기 API · 지표) |
 | `.github/workflows/collect.yml` | 00시 예약 + 수동/버튼 실행, `mode=check` 점검 |
 | `.github/workflows/pages.yml` | `web/` GitHub Pages 배포 |
@@ -64,7 +65,9 @@ npm run sync-web            # engine.js 수정 후 web/engine.js 갱신 (안 하
 | Settings → Secrets → Actions | `GEMINI_API_KEY` | Google AI Studio 키 — 무료 한도 실험용. Claude 키가 없을 때 사용 (모델 기본 `gemini-3.5-flash-lite`, 변수 `GEMINI_MODEL`로 변경) |
 | | `APPS_SCRIPT_URL` | 1-4의 웹앱 URL |
 | | `COLLECTOR_TOKEN` | 스크립트 속성의 같은 값 |
+| | `DATA_GO_KR_KEY` | 선택. 공공데이터포털 '전국통합식품영양성분정보(음식)표준데이터' 활용신청 후 받은 **일반 인증키(Decoding)**. 있으면 주 1회 영양성분 자동 갱신 |
 | Settings → Variables → Actions | `APPS_SCRIPT_URL` | 같은 URL (화면 배포용, 공개돼도 되는 값) |
+| | `NUTRITION_FIELD_MAP` | 선택. 영양성분 API 필드 이름이 바뀌었을 때만 (예: `{"name":"FOOD_NM_KR"}`) |
 | | `CLAUDE_MODEL` | 선택. 비우면 `claude-haiku-5-5` |
 | | `BOT_CONTACT_URL` | 선택. 수집기 User-Agent에 넣을 연락처(저장소 주소 등) |
 
@@ -79,6 +82,17 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
    - `robots.txt에서 … 거부`로 나온 출처는 수집할 수 없다 → sources 탭에서 `active`를 `FALSE`
    - 상세 링크가 0개면 `follow` 선택자를 실제 링크 형식에 맞게 수정 (sources 탭만 고치면 됨, 코드 수정 불필요)
 2. mode = collect 실행 → coupons 탭 확인 → `node scripts/audit-sample.js out/coupons.json 20`으로 표본 대조표를 만들어 **추출 정확도** 측정
+
+## v4 (2026-10-27) 반영 방법
+
+1. 저장소에 반영(push) → `pages`가 화면을 자동 배포
+2. Apps Script 편집기에 새 `Code.gs` 붙여넣기 → 프로젝트 설정에서 매니페스트(`appsscript.json`)도 교체(권한 `script.scriptapp` 추가됨) → **배포 관리 → 수정 → 새 버전**
+   - 배포 후 첫 요청 때 자동으로: coupons에 `programs·program_note·how_to_use·stackable`, sources에 `program·follow_text` 열 추가, `nutrition` 탭 생성, 새 출처 7개 추가 (기존 열·행은 그대로)
+3. 편집기에서 `installTriggers` 1회 실행 → 매일 00시대 정시 수집 (GitHub 예약 실행은 늦게 오면 스스로 건너뜀). `GITHUB_TOKEN`·`GITHUB_REPO` 스크립트 속성이 있어야 동작
+4. (선택) `DATA_GO_KR_KEY` 등록 → Actions → collect → mode `nutrition` 1회 실행 → 주석에서 브랜드별 메뉴 수 확인
+5. Actions → collect → mode `check`, only `tmembership-brand,kt-membership-food,uplus-membership,npay-cafe,baskin-event,paris-promo` → robots 판정·글자 확인. 막힌 출처는 sources 탭에서 `active=FALSE`
+
+알아둘 점: 통신사 조건이 붙은 쿠폰(현재 7건)은 id가 바뀌어 첫 수집 때 예전 행은 `gone`, 새 행이 추가된다. 특정 카드사 결제 할인·외부 배달앱 전용 행사는 이제 엔진이 버린다(현재 4건).
 
 ## 운영
 

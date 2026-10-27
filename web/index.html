@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AMONG 어몽 · 프랜차이즈 쿠폰 비교</title>
-<meta name="description" content="햄버거·커피 프랜차이즈 자사앱 쿠폰을 쿠폰가·할인율·조건으로 한눈에 비교하고, 고른 혜택은 공식 앱에서 바로 확인하세요.">
+<meta name="description" content="햄버거·카페·치킨·피자·디저트 프랜차이즈 쿠폰과 통신사·네이버페이·해피포인트 할인을 한 번에 비교하고, 내가 쓸 수 있는 혜택만 골라 보세요.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111015" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="AMONG 어몽 · 프랜차이즈 쿠폰 비교">
-<meta property="og:description" content="자사앱 쿠폰, 앱 하나씩 열지 말고 한 번에 비교">
+<meta property="og:description" content="앱 하나씩 열지 말고, 내 통신사·페이로 쓸 수 있는 할인까지 한 번에">
 <meta property="og:image" content="icon-512.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-64.png" type="image/png">
@@ -21,6 +21,7 @@
     --text: #17161c; --text-2: #4a4957; --muted: #8a8a99;
     --primary: #5b3df5; --primary-ink: #ffffff; --primary-soft: #efebff;
     --sale: #e5283b; --sale-soft: #fff0f1; --warn: #a35400; --warn-soft: #fff3df; --info: #2457c5; --info-soft: #eaf1ff;
+    --good: #12805a; --good-soft: #e5f6ee;
     --shadow: 0 1px 2px rgba(23, 22, 28, .04), 0 4px 16px rgba(23, 22, 28, .05);
     --radius: 18px;
     color-scheme: light;
@@ -31,6 +32,7 @@
       --text: #f2f1f6; --text-2: #c9c8d3; --muted: #9c9baa;
       --primary: #8f7bff; --primary-ink: #111015; --primary-soft: #29243f;
       --sale: #ff6574; --sale-soft: #3a1d23; --warn: #ffb547; --warn-soft: #3a2a12; --info: #8db2ff; --info-soft: #1c2742;
+      --good: #4cc98b; --good-soft: #15291f;
       --shadow: none; color-scheme: dark;
     }
   }
@@ -39,6 +41,7 @@
     --text: #f2f1f6; --text-2: #c9c8d3; --muted: #9c9baa;
     --primary: #8f7bff; --primary-ink: #111015; --primary-soft: #29243f;
     --sale: #ff6574; --sale-soft: #3a1d23; --warn: #ffb547; --warn-soft: #3a2a12; --info: #8db2ff; --info-soft: #1c2742;
+    --good: #4cc98b; --good-soft: #15291f;
     --shadow: none; color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -48,20 +51,21 @@
     font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; word-break: keep-all;
   }
-  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button, select { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   a { color: inherit; }
   svg { flex: none; }
   .shell { max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 
   /* 머리글 */
   header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); padding-top: env(safe-area-inset-top); }
-  .bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 10px; }
+  .bar { display: flex; align-items: center; gap: 4px; padding: 12px 12px 8px 16px; }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; letter-spacing: -.02em; text-decoration: none; }
   .logo img { width: 36px; height: 36px; border-radius: 10px; }
   .bar .sp { flex: 1; }
-  .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; }
+  .icon-btn { position: relative; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; }
   .icon-btn:hover { background: var(--surface-2); }
   .icon-btn.spin svg { animation: spin 1s linear infinite; }
+  .icon-btn .dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); border: 2px solid var(--bg); }
   @keyframes spin { to { transform: rotate(360deg); } }
   .search { padding: 0 16px 10px; display: none; }
   .search.on { display: block; }
@@ -74,19 +78,30 @@
   /* 카테고리 */
   nav.cats { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
   nav.cats::-webkit-scrollbar { display: none; }
-  .cat { flex: 1 0 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 9px; color: var(--muted); font-size: 13px; position: relative; }
+  .cat { flex: 1 0 58px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px 9px; color: var(--muted); font-size: 13px; position: relative; }
   .cat[aria-selected="true"] { color: var(--primary); font-weight: 700; }
   .cat[aria-selected="true"]::after { content: ""; position: absolute; left: 16%; right: 16%; bottom: -1px; height: 3px; border-radius: 3px; background: var(--primary); }
 
-  /* 정렬 · 필터 */
+  /* 내 혜택 안내 */
+  .me { margin: 10px 16px 0; padding: 12px 14px; border-radius: 14px; background: var(--primary-soft); color: var(--text); display: flex; gap: 10px; align-items: center; font-size: 14px; }
+  .me[hidden] { display: none; }
+  .me b { color: var(--primary); }
+  .me .grow { flex: 1; min-width: 0; }
+  .me .act { flex: none; height: 32px; padding: 0 12px; border-radius: 9px; background: var(--primary); color: var(--primary-ink); font-weight: 700; font-size: 13px; }
+  .me .x { flex: none; width: 28px; height: 28px; display: grid; place-items: center; color: var(--muted); border-radius: 8px; }
+
+  /* 정렬 · 빠른 필터 */
   .tools { display: flex; align-items: center; gap: 8px; padding: 12px 16px 4px; }
-  .sorts { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-  .sorts::-webkit-scrollbar { display: none; }
-  .chip-btn { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 14px; color: var(--text-2); white-space: nowrap; }
+  .chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip-btn { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13.5px; color: var(--text-2); white-space: nowrap; background: var(--bg); }
   .chip-btn[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); font-weight: 600; }
-  .filter-btn { position: relative; width: 44px; height: 36px; border-radius: 999px; border: 1px solid var(--line-strong); display: grid; place-items: center; flex: none; }
+  .chip-btn .n { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .chip-btn[aria-pressed="true"] .n { color: var(--primary); }
+  .sort { appearance: none; -webkit-appearance: none; flex: none; height: 34px; padding: 0 28px 0 12px; border-radius: 999px; border: 1px solid var(--text); font-size: 13.5px; font-weight: 700; background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a99' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center; color: var(--text); }
+  .filter-btn { position: relative; width: 42px; height: 34px; border-radius: 999px; border: 1px solid var(--line-strong); display: grid; place-items: center; flex: none; }
   .filter-btn[data-on="true"] { border-color: var(--primary); color: var(--primary); }
-  .filter-btn[data-on="true"]::after { content: ""; position: absolute; top: 6px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--sale); }
+  .filter-btn[data-on="true"]::after { content: ""; position: absolute; top: 5px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--sale); }
   .summary { padding: 6px 18px 2px; font-size: 13px; color: var(--muted); min-height: 24px; }
 
   /* 안내 띠 */
@@ -98,14 +113,15 @@
 
   /* 카드 */
   main { flex: 1; padding: 8px 16px 8px; display: flex; flex-direction: column; gap: 12px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; scroll-margin-top: 150px; }
+  .card.flash { outline: 2px solid var(--primary); outline-offset: -2px; }
   .card-main { display: grid; grid-template-columns: 76px 1fr auto; gap: 14px; padding: 16px 16px 10px; align-items: start; cursor: pointer; }
   .tile { width: 76px; height: 76px; border-radius: 14px; background: var(--surface-2); color: var(--text-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 6px; }
   .tile .logo { width: 32px; height: 32px; border-radius: 8px; background: #fff; object-fit: contain; padding: 3px; box-shadow: 0 0 0 1px var(--line, rgba(0,0,0,.08)); }
   .tile .logo + .cat-ico { display: none; }
   .tile span { font-size: 12px; font-weight: 700; line-height: 1.15; color: var(--text); overflow-wrap: anywhere; }
   .info { min-width: 0; }
-  .menu { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+  .menu { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; overflow-wrap: anywhere; }
   .prow { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--muted); }
   .prow + .prow { margin-top: 2px; }
   .prow .lbl { min-width: 38px; flex: none; white-space: nowrap; }
@@ -113,51 +129,74 @@
   .prow.cp .lbl { color: var(--primary); font-weight: 600; }
   .prow.cp b { font-size: 26px; font-weight: 800; color: var(--primary); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
   .prow.cp em { font-style: normal; font-size: 15px; font-weight: 600; margin-left: 2px; letter-spacing: 0; }
+  .prow b.sm { font-size: 14px; font-weight: 700; }
   .rate { min-width: 64px; padding: 8px 8px 7px; border-radius: 12px; background: var(--sale-soft); color: var(--sale); text-align: center; line-height: 1.1; }
   .rate b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
   .rate b small { font-size: 13px; font-weight: 700; }
-  .prow b.sm { font-size: 14px; font-weight: 700; }
   .rate span { font-size: 12px; font-weight: 600; }
   .rate.none { background: var(--surface-2); color: var(--muted); }
   .rate.none b { font-size: 14px; padding: 6px 0 2px; }
+  .rate.pt { background: var(--good-soft); color: var(--good); }
   .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
   .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
   .badge.b-aud { background: var(--warn-soft); color: var(--warn); }
   .badge.b-app { background: var(--primary-soft); color: var(--primary); }
+  .badge.b-prog { background: var(--info-soft); color: var(--info); }
+  .badge.b-mine { background: var(--primary); color: var(--primary-ink); }
+  .badge.b-new { background: var(--good-soft); color: var(--good); }
   .card-foot { display: flex; align-items: center; gap: 6px; padding: 0 16px 14px; flex-wrap: wrap; }
   .chip { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--line-strong); font-size: 13px; color: var(--text-2); white-space: nowrap; }
   .chip.due { border-color: color-mix(in srgb, var(--sale) 55%, transparent); color: var(--sale); }
   .chip.soon { border-color: var(--line-strong); color: var(--info); }
   .cta { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 12px; border-radius: 9px; background: var(--primary); color: var(--primary-ink); font-size: 14px; font-weight: 700; text-decoration: none; white-space: nowrap; }
   .cta:active { transform: translateY(1px); }
+
+  /* 상세: 쓰는 법 → 조건 → 영양 → 출처 */
   .detail { border-top: 1px dashed var(--line-strong); margin: 0 16px; padding: 12px 0 14px; font-size: 13.5px; }
   .detail[hidden] { display: none; }
-  .detail dl { margin: 0; display: grid; grid-template-columns: 64px 1fr; gap: 6px 10px; }
+  .detail h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .detail section { margin-top: 14px; }
+  .detail > section:first-child { margin-top: 0; }
+  .howto { margin: 0; padding-left: 20px; color: var(--text); }
+  .howto li + li { margin-top: 3px; }
+  .detail dl { margin: 0; display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px; }
   .detail dt { color: var(--muted); }
   .detail dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
-  .detail .acts { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .warn-line { color: var(--warn); font-weight: 600; }
+  .nut { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .nut div { background: var(--surface-2); border-radius: 10px; padding: 8px 6px; text-align: center; }
+  .nut b { display: block; font-size: 16px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+  .nut span { font-size: 11.5px; color: var(--muted); }
+  .nut-basis { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .src { font-size: 12px; color: var(--muted); }
+  .src a { color: var(--muted); }
+  .acts { display: flex; gap: 6px; margin-top: 12px; }
+  .act-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 36px; border-radius: 10px; background: var(--surface-2); font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .act-btn[aria-pressed="true"] { color: var(--sale); }
+  .act-btn[aria-pressed="true"] svg { fill: currentColor; }
   .link-btn { font-size: 13px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 4px 2px; }
 
   .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
   .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
+  .empty button { margin-top: 12px; }
   .skel { height: 150px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface-2) 0%, var(--line) 50%, var(--surface-2) 100%); background-size: 200% 100%; animation: sh 1.2s infinite; }
   @keyframes sh { to { background-position: -200% 0; } }
 
-  footer.bottom { text-align: center; color: var(--muted); font-size: 13px; padding: 18px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); margin-top: 8px; }
-  footer .when { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2); }
-  footer p { margin: 6px 0 0; }
-  footer .fine { font-size: 11.5px; margin-top: 12px; line-height: 1.5; }
+  footer.bottom { text-align: center; color: var(--muted); font-size: 12.5px; padding: 18px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); margin-top: 8px; line-height: 1.55; }
+  footer p { margin: 4px 0 0; }
+  footer .fine { font-size: 11.5px; margin-top: 10px; }
 
-  /* 시트(필터·제보) */
-  dialog { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 480px; border-radius: 22px 22px 0 0; background: var(--surface); color: var(--text); }
+  /* 시트(필터·내 혜택·제보) */
+  dialog { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 480px; max-height: 88dvh; overflow-y: auto; border-radius: 22px 22px 0 0; background: var(--surface); color: var(--text); }
   dialog::backdrop { background: rgba(10, 10, 14, .45); }
   .sheet { padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); }
-  .sheet h2 { margin: 0 0 14px; font-size: 18px; }
+  .sheet h2 { margin: 0 0 6px; font-size: 18px; }
+  .sheet .lead { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; }
   .group { margin-bottom: 16px; }
   .group > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
   .seg { display: flex; flex-wrap: wrap; gap: 6px; }
   .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; }
-  .switch input { width: 20px; height: 20px; accent-color: var(--primary); }
+  .switch input { width: 20px; height: 20px; accent-color: var(--primary); flex: none; }
   .sheet .btns { display: flex; gap: 8px; margin-top: 6px; }
   .btn { flex: 1; height: 48px; border-radius: 12px; font-weight: 700; }
   .btn.primary { background: var(--primary); color: var(--primary-ink); }
@@ -180,11 +219,14 @@
       <button class="icon-btn" id="searchBtn" aria-label="메뉴 검색" aria-expanded="false">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       </button>
+      <button class="icon-btn" id="meBtn" aria-label="내 통신사·결제수단 설정">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 15h2"/><path d="M6 6V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
+      </button>
       <button class="icon-btn" id="refreshBtn" aria-label="지금 쿠폰 다시 확인">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
       </button>
     </div>
-    <div class="search" id="searchRow"><label class="sr" for="q">메뉴·브랜드 검색</label><input id="q" type="search" placeholder="메뉴나 브랜드 검색 (예: 불고기, 와퍼)" autocomplete="off"></div>
+    <div class="search" id="searchRow"><label class="sr" for="q">메뉴·브랜드 검색</label><input id="q" type="search" placeholder="메뉴·브랜드·통신사 검색 (예: 불고기, KT)" autocomplete="off"></div>
     <nav class="cats" id="cats" role="tablist" aria-label="카테고리"></nav>
   </header>
 
@@ -195,12 +237,17 @@
   <div class="notice sync" id="syncNote" hidden></div>
   <div class="notice err" id="errNote" hidden></div>
 
+  <div class="me" id="meBar" hidden></div>
+
   <div class="tools" role="toolbar" aria-label="정렬과 필터">
-    <div class="sorts">
-    <button class="chip-btn" data-sort="price">가격 낮은 순 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/></svg></button>
-    <button class="chip-btn" data-sort="rate">할인율 높은 순 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/></svg></button>
-    <button class="chip-btn" data-sort="deadline">마감 임박 순</button>
-    </div>
+    <label class="sr" for="sortSel">정렬</label>
+    <select class="sort" id="sortSel">
+      <option value="best">추천순</option>
+      <option value="price">가격 낮은 순</option>
+      <option value="rate">할인율 높은 순</option>
+      <option value="deadline">마감 임박 순</option>
+    </select>
+    <div class="chips" id="quick"></div>
     <button class="filter-btn" id="filterBtn" aria-label="필터">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
     </button>
@@ -210,24 +257,42 @@
   <main id="list" aria-busy="true"></main>
 
   <footer class="bottom">
-    <span class="when"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="lastChecked">확인 시각 불러오는 중</span></span>
-    <p>실제 혜택은 공식 앱에서 최종 확인하세요</p>
-    <p class="fine">AMONG은 각 브랜드와 제휴하지 않은 독립 서비스로, 브랜드가 공개한 공식 페이지의 행사 정보를 매일 00시에 자동으로 모아 같은 기준으로 정리합니다.
-      개인정보는 수집하지 않으며, 서비스 개선을 위해 익명 이용 기록(방문·이동)만 남깁니다.
+    <p>실제 혜택과 영양정보는 공식 앱·매장에서 최종 확인하세요.</p>
+    <p id="lastChecked"></p>
+    <p class="fine">AMONG은 각 브랜드·통신사와 제휴하지 않은 독립 서비스로, 공개된 공식 페이지의 행사 정보를 매일 자동으로 모아 같은 기준으로 정리합니다.
+      영양성분은 식품의약품안전처 공공데이터를 사용합니다. 개인정보는 수집하지 않으며, 통신사·결제수단 설정은 이 기기에만 저장돼요.
       <br><button class="link-btn" id="themeBtn">화면 테마 바꾸기</button></p>
   </footer>
 </div>
 
+<dialog id="meSheet" aria-labelledby="meTitle">
+  <form method="dialog" class="sheet">
+    <h2 id="meTitle">내 할인 수단</h2>
+    <p class="lead">알려주시면 내가 실제로 쓸 수 있는 할인만 골라 위에 보여드려요. 이 기기에만 저장돼요.</p>
+    <div class="group"><span>통신사 멤버십</span><div class="seg" data-me="telecom">
+      <button type="button" class="chip-btn" data-v="SKT">SKT</button><button type="button" class="chip-btn" data-v="KT">KT</button><button type="button" class="chip-btn" data-v="LGU+">LG U+</button><button type="button" class="chip-btn" data-v="">알뜰폰·없음</button>
+    </div></div>
+    <div class="group"><span>자주 쓰는 결제·포인트 (여러 개 선택)</span><div class="seg" data-me="pays">
+      <button type="button" class="chip-btn" data-v="네이버페이">네이버페이</button><button type="button" class="chip-btn" data-v="카카오페이">카카오페이</button><button type="button" class="chip-btn" data-v="토스페이">토스페이</button><button type="button" class="chip-btn" data-v="해피포인트">해피포인트</button><button type="button" class="chip-btn" data-v="CJ ONE">CJ ONE</button>
+    </div></div>
+    <label class="switch"><span>앱 신규 가입 혜택도 보기<br><small style="color:var(--muted)">이미 가입한 앱이 많다면 꺼 두세요</small></span><input type="checkbox" id="meNew" checked></label>
+    <div class="btns"><button type="button" class="btn ghost" id="meReset">설정 지우기</button><button class="btn primary" value="ok">저장</button></div>
+  </form>
+</dialog>
+
 <dialog id="filterSheet" aria-labelledby="fTitle">
   <form method="dialog" class="sheet" id="filterForm">
     <h2 id="fTitle">필터</h2>
+    <div class="group"><span>예산 (쿠폰가 기준)</span><div class="seg" data-key="maxPrice">
+      <button type="button" class="chip-btn" data-v="">전체</button><button type="button" class="chip-btn" data-v="5000">5천원 이하</button><button type="button" class="chip-btn" data-v="10000">1만원 이하</button><button type="button" class="chip-btn" data-v="20000">2만원 이하</button>
+    </div></div>
     <div class="group"><span>구성</span><div class="seg" data-key="itemType">
       <button type="button" class="chip-btn" data-v="">전체</button><button type="button" class="chip-btn" data-v="세트">세트</button><button type="button" class="chip-btn" data-v="단품">단품</button>
     </div></div>
     <div class="group"><span>주문 방법</span><div class="seg" data-key="channel">
       <button type="button" class="chip-btn" data-v="">전체</button><button type="button" class="chip-btn" data-v="매장">매장</button><button type="button" class="chip-btn" data-v="픽업">픽업</button><button type="button" class="chip-btn" data-v="배달">배달</button><button type="button" class="chip-btn" data-v="드라이브스루">드라이브스루</button>
     </div></div>
-    <label class="switch"><span>누구나 쓸 수 있는 쿠폰만<br><small style="color:var(--muted)">신규회원·멤버십·개인 발급 쿠폰 제외</small></span><input type="checkbox" id="everyoneOnly"></label>
+    <label class="switch"><span>아무 조건 없이 쓰는 쿠폰만<br><small style="color:var(--muted)">신규회원·멤버십·통신사·결제수단 조건 제외</small></span><input type="checkbox" id="everyoneOnly"></label>
     <div class="btns"><button type="button" class="btn ghost" id="filterReset">초기화</button><button class="btn primary" value="ok">적용</button></div>
   </form>
 </dialog>
@@ -235,13 +300,13 @@
 <dialog id="reportSheet" aria-labelledby="rTitle">
   <form method="dialog" class="sheet" id="reportForm">
     <h2 id="rTitle">정보가 달라요</h2>
-    <p id="reportTarget" style="margin:-6px 0 10px;color:var(--muted);font-size:14px"></p>
+    <p id="reportTarget" class="lead"></p>
     <div class="reasons">
       <label><input type="radio" name="reason" value="가격이 달라요" required> 가격이 달라요</label>
       <label><input type="radio" name="reason" value="이미 끝났어요"> 이미 끝났어요</label>
       <label><input type="radio" name="reason" value="조건이 달라요"> 조건이 달라요</label>
       <label><input type="radio" name="reason" value="공식 앱에 없어요"> 공식 앱에 없어요</label>
-      <label><input type="radio" name="reason" value="기타"> 기타</label>
+      <label><input type="radio" name="reason" value="기타"> 기타 (영양정보 포함)</label>
     </div>
     <label class="sr" for="memo">자세한 내용</label>
     <textarea id="memo" name="memo" maxlength="500" placeholder="자세히 알려주시면 더 빨리 고칠 수 있어요 (선택)"></textarea>
@@ -252,7 +317,10 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-import { sortCoupons, matchesFilters, daysLeft, todayKST } from './engine.js';
+import {
+  sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
+  PROGRAM_LABEL, isFresh, isOpenToEveryone,
+} from './engine.js';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -266,15 +334,22 @@ const CATS = [
   { id: '카페', icon: '<path d="M5 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3.5v2M12 3.5v2"/>' },
   { id: '치킨', icon: '<path d="M14.5 4.5a5 5 0 0 1 2.8 8.6c-1.6 1.6-3.8 1.9-5.5 1.2L8.5 17.6a1.8 1.8 0 1 1-2.1-2.1l3.3-3.3c-.7-1.7-.4-3.9 1.2-5.5a5 5 0 0 1 3.6-2.2z"/>' },
   { id: '피자', icon: '<path d="M12 21 3.5 6.5a14 14 0 0 1 17 0z"/><circle cx="10" cy="10" r="1"/><circle cx="14" cy="13" r="1"/>' },
+  { id: '디저트', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M8 7.5l.5 1M15.5 7l-.6 1M17 13l-1 .2M7 14.5l1-.3"/>' },
   { id: '전체', icon: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>' },
 ];
 const ICON = {
   store: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-4h4v4"/></svg>',
   cal: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
   chev: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+  heart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+  share: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>',
+  flag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4h11l-1.5 4L16 12H5"/></svg>',
 };
+const TELECOMS = ['SKT', 'KT', 'LGU+'];
+// 공식 링크가 멤버십·결제 서비스면 버튼 이름도 그쪽으로
+const LINK_LABELS = [[/tworld\.co\.kr|sktmembership/, 'T멤버십'], [/membership\.kt\.com/, 'KT 멤버십'], [/lguplus\.com/, 'U+ 멤버십'], [/naver\.com/, '네이버페이'], [/happypointcard/, '해피포인트']];
 
-// ---------- 저장소 (브라우저별 편의 기능만, 실패해도 동작) ----------
+// ---------- 저장소 (이 기기에만 · 실패해도 동작) ----------
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 저장 불가 환경 */ } },
@@ -289,26 +364,43 @@ const sid = (() => {
 const prefs = store.get('among_prefs', {});
 const state = {
   category: CATS.some((c) => c.id === prefs.category) ? prefs.category : '햄버거',
-  sort: ['price', 'rate', 'deadline'].includes(prefs.sort) ? prefs.sort : 'price',
-  filters: { itemType: '', channel: '', everyoneOnly: false, ...(prefs.filters || {}) },
+  sort: ['best', 'price', 'rate', 'deadline'].includes(prefs.sort) ? prefs.sort : 'best',
+  filters: { itemType: '', channel: '', everyoneOnly: false, maxPrice: '', ...(prefs.filters || {}) },
+  quick: { mine: false, programsOnly: false, fresh: false, endingSoon: false, saved: false, ...(prefs.quick || {}) },
+  profile: store.get('among_profile', null),      // { telecom, pays: [], newMember }
+  saved: new Set(store.get('among_saved', [])),
   q: '',
   coupons: [],
   meta: {},
   loading: true,
   open: new Set(),
   syncing: false,
+  nutrition: null,          // { items, updated_at } — 처음 상세를 열 때 불러옴
+  nutritionLoading: null,
 };
-const savePrefs = () => store.set('among_prefs', { category: state.category, sort: state.sort, filters: state.filters });
+// '새로 생긴 혜택' 기준 = 지난 방문 시각 (이 기기에만 저장, 30분 안에 다시 열면 같은 방문으로 봄)
+const visit = (() => {
+  const v = store.get('among_visit', null);
+  const now = Date.now();
+  if (!v) { store.set('among_visit', { prev: null, last: now }); return { since: null }; }
+  if (now - v.last > 30 * 60e3) { store.set('among_visit', { prev: v.last, last: now }); return { since: new Date(v.last).toISOString() }; }
+  store.set('among_visit', { ...v, last: now });
+  return { since: v.prev ? new Date(v.prev).toISOString() : null };
+})();
+const savePrefs = () => store.set('among_prefs', { category: state.category, sort: state.sort, filters: state.filters, quick: { ...state.quick, saved: false } });
+const profileObj = () => (state.profile ? { programs: [state.profile.telecom, ...(state.profile.pays || [])].filter(Boolean), newMember: state.profile.newMember !== false } : null);
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const won = (n) => (n === null || n === undefined || n === '' || Number.isNaN(+n) ? '' : Number(n).toLocaleString('ko-KR'));
+const has = (v) => v !== null && v !== undefined && v !== '';
+const won = (n) => (!has(n) || Number.isNaN(+n) ? '' : Number(n).toLocaleString('ko-KR'));
 const safeUrl = (u) => (/^https?:\/\//i.test(String(u || '')) ? String(u).split(' ')[0] : '');
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-// 브랜드 아이콘: 공식 사이트 주소의 사이트 아이콘(파비콘)을 그대로 불러와 표시만 한다 (저장·가공 안 함). 실패하면 카테고리 아이콘
+// 브랜드 아이콘: 공식 사이트 아이콘(파비콘)을 그대로 불러와 표시만 한다 (저장·가공 안 함). 실패하면 카테고리 아이콘
 const siteDomain = (u) => { const h = host(u).split('.'); return h.slice(/\.(co|or|go|ne)\.kr$/.test(host(u)) ? -3 : -2).join('.'); };
-const logoUrl = (c) => { const d = siteDomain(safeUrl(c.source_url) || safeUrl(c.official_link)); return d ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : ''; };
-const logoAlt = (c) => { const u = safeUrl(c.source_url) || safeUrl(c.official_link); try { return u ? `${new URL(u).origin}/favicon.ico` : ''; } catch { return ''; } };
+const brandSite = (c) => (LINK_LABELS.some(([re]) => re.test(c.source_url || '')) ? '' : safeUrl(c.source_url)) || safeUrl(c.official_link);
+const logoUrl = (c) => { const d = siteDomain(brandSite(c)); return d && !LINK_LABELS.some(([re]) => re.test(d)) ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : ''; };
+const logoAlt = (c) => { const u = brandSite(c); try { return u ? `${new URL(u).origin}/favicon.ico` : ''; } catch { return ''; } };
 // 구글 아이콘 서비스는 아이콘이 없으면 16px 지구본을 준다 → 공식 사이트 favicon.ico로 한 번 더, 그래도 없으면 카테고리 아이콘
 window.logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; } else img.remove(); };
 window.logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
@@ -321,7 +413,7 @@ function fmtChecked(iso) {
   const k = new Date(d.getTime() + 9 * 3600e3);
   const hm = `${String(k.getUTCHours()).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}`;
   const day = k.toISOString().slice(0, 10);
-  return day === todayKST() ? hm : `${md(day)} ${hm}`;
+  return day === todayKST() ? `오늘 ${hm}` : `${md(day)} ${hm}`;
 }
 
 // ---------- 예시 데이터 (가상의 브랜드) ----------
@@ -329,20 +421,28 @@ function demoData() {
   const t = todayKST();
   const plus = (n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
   const now = new Date().toISOString();
-  const c = (o) => ({ discount_type: 'price', audience: '전체', app_only: true, start_date: plus(-3), conditions: '', source_url: 'https://example.com/promotion', official_link: 'https://example.com/app', checked_at: now, ...o });
+  const old = new Date(Date.now() - 9 * 864e5).toISOString();
+  const c = (o) => ({ discount_type: 'price', audience: '전체', app_only: true, start_date: plus(-3), conditions: '', programs: [], program_note: '', how_to_use: '', stackable: '', source_url: 'https://example.com/promotion', official_link: 'https://example.com/app', checked_at: now, first_seen: old, ...o });
   return {
     last_checked_at: now,
     coupons: [
-      c({ id: 'd1', brand: 'A버거', category: '햄버거', menu: '불고기버거 세트', item_type: '세트', regular_price: 8000, coupon_price: 5500, discount_rate: 31, channels: ['매장', '픽업'], end_date: plus(3), conditions: '1인 1회 · 일부 매장 제외' }),
+      c({ id: 'd1', brand: 'A버거', category: '햄버거', menu: '불고기버거 세트', item_type: '세트', regular_price: 8000, coupon_price: 5500, discount_rate: 31, channels: ['매장', '픽업'], end_date: plus(3), conditions: '1인 1회 · 일부 매장 제외', stackable: 'no', how_to_use: 'A버거 앱 쿠폰함에서 받아 키오스크에서 바코드를 찍어요', first_seen: now }),
       c({ id: 'd2', brand: 'B버거', category: '햄버거', menu: '치즈버거 세트', item_type: '세트', regular_price: 8100, coupon_price: 5900, discount_rate: 27, channels: ['매장'], end_date: plus(5) }),
-      c({ id: 'd3', brand: 'C버거', category: '햄버거', menu: '클래식버거 세트', item_type: '세트', regular_price: 7900, coupon_price: 6200, discount_rate: 22, channels: ['픽업'], end_date: plus(0) }),
+      c({ id: 'd3', brand: 'C버거', category: '햄버거', menu: '클래식버거', item_type: '단품', regular_price: 4900, coupon_price: 3200, discount_rate: 35, channels: ['픽업'], end_date: plus(0), app_only: false }),
       c({ id: 'd4', brand: 'D버거', category: '햄버거', menu: '싸이버거 단품', item_type: '단품', regular_price: 4900, coupon_price: 3500, discount_rate: 29, channels: ['매장', '픽업', '배달'], end_date: plus(9), audience: '신규회원', conditions: '첫 주문 1회' }),
-      c({ id: 'd5', brand: 'A버거', category: '햄버거', menu: '새우버거 단품', item_type: '단품', regular_price: 5200, coupon_price: 3900, discount_rate: 25, channels: ['드라이브스루', '픽업'], end_date: plus(12), start_date: plus(2) }),
-      c({ id: 'd6', brand: 'B버거', category: '햄버거', menu: '더블패티 세트', item_type: '세트', regular_price: 11400, coupon_price: 8900, discount_rate: 22, channels: ['배달'], end_date: plus(6), min_order: 15000, conditions: '자체 배달 15,000원 이상 주문 시' }),
-      c({ id: 'd7', brand: 'E커피', category: '카페', menu: '아메리카노 (R)', item_type: '단품', regular_price: 3200, coupon_price: 1900, discount_rate: 41, channels: ['매장', '픽업'], end_date: plus(4), audience: '멤버십', conditions: '골드 등급 이상' }),
+      c({ id: 'd5', brand: 'B버거', category: '햄버거', menu: '전 메뉴', item_type: '기타', coupon_price: null, discount_type: 'percent', discount_value: 20, discount_rate: 20, channels: ['매장', '픽업'], audience: '멤버십', programs: ['SKT', 'KT'], program_note: 'VIP 20% · 일반 10%', app_only: false, end_date: plus(20), official_link: 'https://m.tworld.co.kr/membership/benefit/brand', how_to_use: '결제 전에 통신사 멤버십 바코드를 보여줘요', first_seen: now }),
+      c({ id: 'd6', brand: 'E커피', category: '카페', menu: '아메리카노 (R)', item_type: '단품', regular_price: 3200, coupon_price: 1900, discount_rate: 41, channels: ['매장', '픽업'], end_date: plus(4), audience: '전체' }),
+      c({ id: 'd7', brand: 'E커피', category: '카페', menu: '전 메뉴', item_type: '기타', coupon_price: null, discount_type: 'point_back', discount_value: 500, discount_rate: null, min_order: 2000, channels: ['매장'], programs: ['네이버페이'], app_only: false, end_date: plus(6), conditions: '현장결제(QR) 2천원 이상, 기간 중 1회' }),
+      c({ id: 'd8', brand: 'F피자', category: '피자', menu: '모든 피자', item_type: '기타', coupon_price: null, discount_type: 'percent', discount_value: 50, discount_rate: 50, channels: ['픽업'], audience: '멤버십', programs: ['KT'], program_note: '방문포장 · 2만5천원 이상', app_only: false, end_date: plus(2), stackable: 'no', official_link: 'https://membership.kt.com/discount/partner/PartnerList.do', how_to_use: 'KT 멤버십 앱에서 쿠폰 받기 → F피자 앱 포장 주문 때 쿠폰번호 입력' }),
+      c({ id: 'd9', brand: 'G베이커리', category: '디저트', menu: '전 제품', item_type: '기타', coupon_price: null, discount_type: 'percent', discount_value: 20, discount_rate: 20, channels: ['매장'], programs: ['해피포인트'], app_only: true, end_date: plus(1), conditions: '해피포인트 앱 바코드 스캔 시', first_seen: now }),
     ],
   };
 }
+const DEMO_NUTRITION = [
+  { brand: 'A버거', name: '불고기버거', serving: '149g', kcal: 386, protein_g: 17.2, sugar_g: 9, sodium_mg: 715, source: '예시 값' },
+  { brand: 'C버거', name: '클래식버거', serving: '180g', kcal: 452, protein_g: 21, sugar_g: 7.5, sodium_mg: 820, source: '예시 값' },
+  { brand: 'E커피', name: '아메리카노', serving: '355ml', kcal: 10, protein_g: 0.6, sugar_g: 0, sodium_mg: 5, source: '예시 값' },
+];
 
 // ---------- 서버 통신 ----------
 async function api(action) {
@@ -383,13 +483,31 @@ async function loadCoupons({ quiet = false } = {}) {
   }
 }
 function applyData(data) {
-  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST());
+  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, programs: c.programs || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();
 }
 
-// ---------- 화면 ----------
+// 영양성분: 상세를 처음 열 때 한 번만 불러오고, 이 기기에 하루 보관
+async function loadNutrition() {
+  if (state.nutrition) return state.nutrition;
+  if (state.nutritionLoading) return state.nutritionLoading;
+  state.nutritionLoading = (async () => {
+    if (DEMO) return (state.nutrition = { items: DEMO_NUTRITION });
+    const cached = store.get('among_nutrition', null);
+    if (cached && Date.now() - cached.saved_at < 864e5) return (state.nutrition = cached);
+    try {
+      const j = await api('nutrition');
+      state.nutrition = { items: j.items || [], updated_at: j.updated_at, saved_at: Date.now() };
+      store.set('among_nutrition', state.nutrition);
+    } catch { state.nutrition = cached || { items: [] }; }
+    return state.nutrition;
+  })();
+  return state.nutritionLoading;
+}
+
+// ---------- 화면 조각 ----------
 function renderCats() {
   $('#cats').innerHTML = CATS.map((c) => `
     <button class="cat" role="tab" aria-selected="${c.id === state.category}" data-cat="${c.id}">
@@ -400,43 +518,118 @@ function renderCats() {
 function dueChip(c, today) {
   if (c.start_date && c.start_date > today) return `<span class="chip soon">${ICON.cal}${md(c.start_date)} 시작</span>`;
   const d = daysLeft(c.end_date, today);
-  if (d === null) return `<span class="chip">${ICON.cal}기간 확인 필요</span>`;
-  return `<span class="chip due">${ICON.cal}${d === 0 ? '오늘 종료' : `D-${d}`}</span>`;
+  if (d === null) return '';
+  if (d > 30) return `<span class="chip">${ICON.cal}~${md(c.end_date)}</span>`;   // 한참 남은 건 날짜만
+  return `<span class="chip${d <= 7 ? ' due' : ''}">${ICON.cal}${d === 0 ? '오늘 종료' : `D-${d}`}</span>`;
 }
 
 function rateBox(c) {
+  if (c.discount_type === 'point_back') return `<div class="rate pt"><b>${has(c.discount_rate) ? `${c.discount_rate}<small>%</small>` : `${won(c.discount_value)}<small>원</small>`}</b><span>적립</span></div>`;
   if (c.discount_type === 'free_item') return `<div class="rate"><b>${c.discount_rate ? c.discount_rate + '%' : '증정'}</b><span>${c.discount_rate ? '체감 할인' : '1+1·증정'}</span></div>`;
-  if (c.discount_type === 'amount' && (c.coupon_price === null || c.coupon_price === '') && c.discount_value) return `<div class="rate"><b>${Math.round(c.discount_value / 1000) >= 1 ? Math.round(c.discount_value / 1000) + '천' : c.discount_value}<small>원</small></b><span>할인</span></div>`;
-  if (c.discount_rate === null || c.discount_rate === undefined || c.discount_rate === '') return '<div class="rate none"><b>특가</b><span>정상가 미표기</span></div>';
+  if (c.discount_type === 'amount' && !has(c.coupon_price) && c.discount_value) return `<div class="rate"><b>${c.discount_value >= 1000 && c.discount_value % 1000 === 0 ? c.discount_value / 1000 + '천' : won(c.discount_value)}<small>원</small></b><span>할인</span></div>`;
+  if (!has(c.discount_rate)) return '<div class="rate none"><b>특가</b><span>정상가 미표기</span></div>';
   return `<div class="rate"><b>${c.discount_rate}%</b><span>할인</span></div>`;
 }
 
-// 쿠폰가가 있으면 쿠폰가, 없으면 주문 전체 할인 (정률·정액)
+// 쿠폰가가 있으면 쿠폰가, 없으면 주문 전체 할인 (정률·정액) 또는 적립
 function priceRow(c) {
-  if (c.coupon_price !== null && c.coupon_price !== undefined && c.coupon_price !== '') {
-    return `<div class="prow cp"><span class="lbl">쿠폰가</span><b>${won(c.coupon_price)}<em>원</em></b></div>`;
-  }
+  if (has(c.coupon_price) && c.discount_type !== 'free_item') return `<div class="prow cp"><span class="lbl">쿠폰가</span><b>${won(c.coupon_price)}<em>원</em></b></div>`;
   if (c.discount_type === 'percent' && c.discount_rate) return `<div class="prow cp"><span class="lbl">주문 할인</span><b>${c.discount_rate}<em>%</em></b></div>`;
   if (c.discount_type === 'amount' && c.discount_value) return `<div class="prow cp"><span class="lbl">주문 할인</span><b>${won(c.discount_value)}<em>원</em></b></div>`;
+  if (c.discount_type === 'point_back' && c.discount_value) return `<div class="prow cp"><span class="lbl">결제 후 적립</span><b>${has(c.discount_rate) ? `${c.discount_rate}<em>%</em>` : `${won(c.discount_value)}<em>원</em>`}</b></div>`;
   if (c.discount_type === 'free_item') return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">1+1 · 증정</b></div>';
   return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">공식 앱에서 확인</b></div>';
 }
 
-const AUD = { 신규회원: '신규회원 전용', 멤버십: '멤버십 전용', 개인: '받은 사람만 (개인 쿠폰)' };
+const AUD = { 신규회원: '앱 신규가입 혜택', 멤버십: '멤버십 회원', 개인: '받은 사람만 (개인 쿠폰)' };
+const progLabel = (p) => PROGRAM_LABEL[p] || p;
+
+function badges(c) {
+  const mine = profileObj() ? myPrograms(c, profileObj()) : [];
+  const progs = c.programs || [];
+  const out = [];
+  if (mine.length) out.push(`<span class="badge b-mine">내 ${esc(mine.map((p) => (TELECOMS.includes(p) ? p : progLabel(p))).join('·'))} 혜택</span>`);
+  else if (progs.length) out.push(`<span class="badge b-prog">${esc(progs.length > 2 ? '통신사 멤버십' : progs.map(progLabel).join(' · '))}</span>`);
+  if (c.audience === '신규회원' || c.audience === '개인' || (c.audience === '멤버십' && !progs.length)) out.push(`<span class="badge b-aud">${esc(AUD[c.audience])}</span>`);
+  if (c.app_only) out.push('<span class="badge b-app">앱 전용</span>');
+  if (isFresh(c, todayKST(), visit.since)) out.push(`<span class="badge b-new">${visit.since ? '지난 방문 후 새로' : '새로 생김'}</span>`);
+  return out.join('');
+}
+
+function ctaLabel(c) {
+  const hit = LINK_LABELS.find(([re]) => re.test(safeUrl(c.official_link)));
+  return hit ? `${hit[1]}에서 확인` : '공식 앱에서 확인';
+}
+
+/** 쓰는 법: 페이지에 적힌 방법이 있으면 그것, 없으면 조건으로 안내 문장을 만든다 */
+function howTo(c) {
+  const steps = [];
+  if (c.how_to_use) steps.push(c.how_to_use);
+  const progs = c.programs || [];
+  const tel = progs.filter((p) => TELECOMS.includes(p));
+  if (!c.how_to_use) {
+    if (tel.length) steps.push(`${tel.map(progLabel).join(' 또는 ')} 앱에서 바코드·쿠폰을 준비해요`);
+    if (progs.includes('해피포인트')) steps.push('계산할 때 해피포인트 앱 바코드를 보여줘요');
+    ['네이버페이', '카카오페이', '토스페이'].filter((p) => progs.includes(p)).forEach((p) => steps.push(`${p}로 결제해요`));
+    if (c.audience === '신규회원') steps.push(`${c.brand} 앱에 새로 가입하면 쿠폰함에 들어와요`);
+    else if (c.app_only && !progs.length) steps.push(`${c.brand} 앱 쿠폰함에서 받아 주문할 때 적용해요`);
+  }
+  const ch = c.channels || [];
+  if (ch.length) steps.push(`${ch.join(' · ')} 주문에 쓸 수 있어요`);
+  return steps;
+}
+
+function nutritionBlock(c) {
+  if (!state.nutrition) return state.nutritionLoading ? '<section><h4>영양성분</h4><p class="src">불러오는 중…</p></section>' : '';
+  const m = matchNutrition(c, state.nutrition.items);
+  if (!m) return '';
+  const it = m.item;
+  const cell = (v, unit, label) => (has(v) ? `<div><b>${won(v)}<small style="font-size:11px">${unit}</small></b><span>${label}</span></div>` : '');
+  const sp = sodiumPercent(it.sodium_mg);
+  const basis = [
+    m.set ? `세트 중 ${esc(it.name)} 기준 (음료·사이드 제외)` : `${esc(it.name)}${m.basis === 'exact' ? '' : ' 기준'}`,
+    it.serving ? esc(String(it.serving).replace(' 기준', '')) : '',
+  ].filter(Boolean).join(' · ');
+  return `<section><h4>영양성분</h4>
+    <div class="nut">${cell(it.kcal, 'kcal', '열량')}${cell(it.protein_g, 'g', '단백질')}${cell(it.sugar_g, 'g', '당류')}${cell(it.sodium_mg, 'mg', `나트륨${has(sp) ? ` ${sp}%` : ''}`)}</div>
+    <p class="nut-basis">${basis} · ${esc(it.source || '식약처 공공데이터')}</p></section>`;
+}
+
+function detailHtml(c, today) {
+  const progs = c.programs || [];
+  const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${won(c.max_discount)}원 할인` : '', c.conditions].filter(Boolean).join(' · ');
+  const period = c.end_date
+    ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${daysLeft(c.end_date, today) === 0 ? '오늘 끝나요' : daysLeft(c.end_date, today) + '일 남음'})`
+    : '끝나는 날 공지 없음 · 매일 다시 확인해요';
+  const need = progs.length ? `${progs.map(progLabel).join(' 또는 ')}${c.program_note ? ` (${c.program_note})` : ''}`
+    : c.audience === '전체' ? (c.app_only ? `${c.brand} 앱 회원 누구나` : '누구나') : AUD[c.audience];
+  const src = safeUrl(c.source_url);
+  const steps = howTo(c);
+  const saved = state.saved.has(c.id);
+  return `
+    ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
+    <section><h4>꼭 확인할 조건</h4><dl>
+      <dt>필요</dt><dd>${esc(need)}</dd>
+      <dt>기간</dt><dd>${esc(period)}</dd>
+      ${cond ? `<dt>조건</dt><dd>${esc(cond)}</dd>` : ''}
+      ${c.stackable === 'no' ? '<dt>중복</dt><dd class="warn-line">다른 쿠폰·할인과 같이 못 써요</dd>' : c.stackable === 'yes' ? '<dt>중복</dt><dd>다른 할인과 같이 쓸 수 있어요</dd>' : ''}
+    </dl></section>
+    <div data-nut="${esc(c.id)}">${nutritionBlock(c)}</div>
+    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a>${c.checked_at ? ` · ${esc(fmtChecked(c.checked_at))} 확인` : ''}</p></section>` : ''}
+    <div class="acts">
+      <button class="act-btn" data-save="${esc(c.id)}" aria-pressed="${saved}">${ICON.heart}${saved ? '찜함' : '찜'}</button>
+      <button class="act-btn" data-share="${esc(c.id)}">${ICON.share}공유</button>
+      <button class="act-btn" data-report="${esc(c.id)}">${ICON.flag}정보가 달라요</button>
+    </div>`;
+}
 
 function card(c, today) {
   const open = state.open.has(c.id);
   const link = safeUrl(c.official_link) || safeUrl(c.source_url);
-  const src = safeUrl(c.source_url);
-  const ch = (c.channels || []).length ? c.channels.join(' · ') : '주문 방법 확인 필요';
-  const badges = [
-    c.audience && c.audience !== '전체' ? `<span class="badge b-aud">${esc(AUD[c.audience] || c.audience)}</span>` : '',
-    c.app_only ? '<span class="badge b-app">앱 전용</span>' : '',
-    c.item_type && c.item_type !== '기타' && !String(c.menu).includes(c.item_type) ? `<span class="badge">${esc(c.item_type)}</span>` : '',
-  ].join('');
-  const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${won(c.max_discount)}원 할인` : '', c.conditions].filter(Boolean).join(' · ');
+  const ch = (c.channels || []).length ? c.channels.join(' · ') : '';
+  const b = badges(c);
   return `
-  <article class="card" data-id="${esc(c.id)}">
+  <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
     <div class="card-main" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
       <div class="tile" aria-hidden="true">
         ${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="32" height="32" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}" onload="logoCheck(this)" onerror="logoFail(this)">` : ''}
@@ -444,59 +637,100 @@ function card(c, today) {
         <span>${esc(c.brand)}</span>
       </div>
       <div class="info">
-        ${badges ? `<div class="badges">${badges}</div>` : ''}
+        ${b ? `<div class="badges">${b}</div>` : ''}
         <h3 class="menu"><span class="sr">${esc(c.brand)} </span>${esc(c.menu)}</h3>
-        ${c.regular_price ? `<div class="prow"><span class="lbl">정상가</span><s>${won(c.regular_price)}원</s></div>` : ''}
+        ${c.regular_price && c.discount_type !== 'point_back' ? `<div class="prow"><span class="lbl">정상가</span><s>${won(c.regular_price)}원</s></div>` : ''}
         ${priceRow(c)}
       </div>
       ${rateBox(c)}
     </div>
     <div class="card-foot">
-      <span class="chip">${ICON.store}${esc(ch)}</span>
+      ${ch ? `<span class="chip">${ICON.store}${esc(ch)}</span>` : ''}
       ${dueChip(c, today)}
-      ${link ? `<a class="cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">공식 앱에서 확인${ICON.chev}</a>` : ''}
+      ${link ? `<a class="cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">${esc(ctaLabel(c))}${ICON.chev}</a>` : ''}
     </div>
-    <div class="detail" id="dt-${esc(c.id)}" ${open ? '' : 'hidden'}>
-      <dl>
-        <dt>기간</dt><dd>${c.start_date ? md(c.start_date) : ''} ~ ${c.end_date ? md(c.end_date) : '미정'}${c.end_date ? ` (${daysLeft(c.end_date, today) === 0 ? '오늘까지' : daysLeft(c.end_date, today) + '일 남음'})` : ''}</dd>
-        <dt>주문</dt><dd>${esc(ch)}</dd>
-        <dt>대상</dt><dd>${esc(c.audience === '전체' ? '앱 회원 누구나' : AUD[c.audience] || c.audience)}${c.app_only ? ' · 공식 앱에서만' : ''}</dd>
-        ${cond ? `<dt>조건</dt><dd>${esc(cond)}</dd>` : ''}
-        ${src ? `<dt>출처</dt><dd><a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a></dd>` : ''}
-        <dt>확인</dt><dd>${esc(fmtChecked(c.checked_at) || '-')} 자동 확인</dd>
-      </dl>
-      <div class="acts"><button class="link-btn" data-report="${esc(c.id)}">정보가 달라요</button></div>
-    </div>
+    <div class="detail" id="dt-${esc(c.id)}" ${open ? '' : 'hidden'}>${open ? detailHtml(c, today) : ''}</div>
   </article>`;
+}
+
+// ---------- 목록 ----------
+const QUICK = [
+  { key: 'mine', label: '내가 쓸 수 있는' },
+  { key: 'programsOnly', label: '통신사·페이 할인' },
+  { key: 'fresh', label: '새로 생긴' },   // 지난 방문 이후 (첫 방문이면 어제·오늘)
+  { key: 'endingSoon', label: '곧 끝나는' },
+  { key: 'saved', label: '찜' },
+];
+function baseFilters() {
+  return { category: state.category, ...state.filters, q: state.q };
+}
+function quickFilters(q = state.quick) {
+  return { mine: q.mine, programsOnly: q.programsOnly, fresh: q.fresh, endingSoon: q.endingSoon, ids: q.saved ? state.saved : null };
+}
+function visible(extra = quickFilters()) {
+  const today = todayKST();
+  const ctx = { today, profile: profileObj() || {}, since: visit.since };
+  return state.coupons.filter((c) => matchesFilters(c, { ...baseFilters(), ...extra }, ctx));
+}
+
+function renderQuick() {
+  // 각 칩 옆 숫자 = 그 칩만 켰을 때 지금 화면에서 보일 개수
+  $('#quick').innerHTML = QUICK.map(({ key, label }) => {
+    if (key === 'saved' && !state.saved.size) return '';
+    const n = visible({ ...quickFilters({ mine: false, programsOnly: false, fresh: false, endingSoon: false, saved: false }), ...quickFilters({ [key]: true }) }).length;
+    if (!n && !state.quick[key] && key !== 'mine') return '';
+    return `<button class="chip-btn" data-quick="${key}" aria-pressed="${!!state.quick[key]}">${label} <span class="n">${n}</span></button>`;
+  }).join('');
+}
+
+function renderMeBar() {
+  const bar = $('#meBar');
+  const p = state.profile;
+  if (p) {
+    const items = [p.telecom ? `${p.telecom} 멤버십` : '', ...(p.pays || [])].filter(Boolean);
+    bar.innerHTML = `<span class="grow">${items.length ? `<b>${esc(items.join(' · '))}</b> 기준으로 내가 쓸 수 있는 혜택을 먼저 보여드려요` : '조건 없는 쿠폰을 먼저 보여드려요'}</span><button class="act" data-open-me>변경</button>`;
+    bar.hidden = false;
+  } else if (!store.get('among_me_dismissed', false)) {
+    bar.innerHTML = '<span class="grow">통신사·자주 쓰는 페이를 알려주시면 <b>내가 쓸 수 있는 할인</b>만 골라드려요</span><button class="act" data-open-me>설정</button><button class="x" data-dismiss-me aria-label="닫기">✕</button>';
+    bar.hidden = false;
+  } else bar.hidden = true;
+  $('#meBtn').innerHTML = $('#meBtn').innerHTML.replace(/<span class="dot"><\/span>/, '') + (p ? '<span class="dot"></span>' : '');
 }
 
 function render() {
   const today = todayKST();
   renderCats();
-  document.querySelectorAll('[data-sort]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sort === state.sort)));
+  renderMeBar();
+  $('#sortSel').value = state.sort;
   const f = state.filters;
-  $('#filterBtn').dataset.on = String(!!(f.itemType || f.channel || f.everyoneOnly));
+  $('#filterBtn').dataset.on = String(!!(f.itemType || f.channel || f.everyoneOnly || f.maxPrice));
 
   const list = $('#list');
   list.setAttribute('aria-busy', String(state.loading));
   if (state.loading && !state.coupons.length) {
     list.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
     $('#summary').textContent = '';
+    $('#quick').innerHTML = '';
     return;
   }
-  const shown = sortCoupons(state.coupons.filter((c) => matchesFilters(c, { category: state.category, ...f, q: state.q })), state.sort, today);
+  renderQuick();
+  const shown = sortCoupons(visible(), state.sort, today, profileObj());
   const brands = new Set(shown.map((c) => c.brand)).size;
-  $('#summary').textContent = shown.length ? `${state.category === '전체' ? '전체' : state.category} 쿠폰 ${shown.length}개 · 브랜드 ${brands}곳` : '';
+  const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;
+  $('#summary').textContent = shown.length
+    ? `${state.category} 혜택 ${shown.length}개 · 브랜드 ${brands}곳${profileObj() ? ` · 내가 쓸 수 있는 것 ${usable}개` : ''}`
+    : '';
 
   if (!shown.length) {
     const inCat = state.coupons.some((c) => state.category === '전체' || c.category === state.category);
+    const anyQuick = Object.values(state.quick).some(Boolean);
     list.innerHTML = inCat
-      ? '<div class="empty"><b>조건에 맞는 쿠폰이 없어요</b>필터나 검색어를 바꿔 보세요.</div>'
-      : `<div class="empty"><b>${esc(state.category)} 쿠폰은 준비 중이에요</b>햄버거부터 시작해 차례로 늘려가고 있어요.</div>`;
+      ? `<div class="empty"><b>조건에 맞는 혜택이 없어요</b>${anyQuick ? '빠른 필터를 꺼 보세요.' : '필터나 검색어를 바꿔 보세요.'}${anyQuick ? '<br><button class="chip-btn" data-clear-quick>빠른 필터 모두 끄기</button>' : ''}</div>`
+      : `<div class="empty"><b>${esc(state.category)} 혜택은 준비 중이에요</b>브랜드를 차례로 늘려가고 있어요.</div>`;
   } else {
     list.innerHTML = shown.map((c) => card(c, today)).join('');
   }
-  $('#lastChecked').textContent = state.meta.last_checked_at ? `마지막 확인 ${fmtChecked(state.meta.last_checked_at)}` : '확인 시각 없음';
+  $('#lastChecked').textContent = state.meta.last_checked_at ? `공식 페이지를 매일 자동으로 확인해요 · 마지막 확인 ${fmtChecked(state.meta.last_checked_at)}` : '';
 }
 
 let toastTimer;
@@ -525,7 +759,7 @@ async function pollUntilDone(sinceIso) {
       await loadCoupons({ quiet: true });
       setSync(false);
       const added = state.coupons.filter((c) => !before.has(c.id)).length;
-      toast(st.last_state === 'failed' ? '일부 출처를 확인하지 못했어요. 나중에 다시 시도해 주세요.' : added ? `갱신 완료 · 새 쿠폰 ${added}개` : '갱신 완료 · 바뀐 쿠폰이 없어요');
+      toast(st.last_state === 'failed' ? '일부 출처를 확인하지 못했어요. 나중에 다시 시도해 주세요.' : added ? `갱신 완료 · 새 혜택 ${added}개` : '갱신 완료 · 바뀐 혜택이 없어요');
       return;
     }
   }
@@ -535,12 +769,12 @@ async function pollUntilDone(sinceIso) {
 async function refresh() {
   if (state.syncing) { toast('이미 확인하고 있어요. 조금만 기다려 주세요.'); return; }
   if (DEMO) { toast('예시 모드에서는 실제 갱신이 일어나지 않아요.'); return; }
-  setSync(true, '최신 쿠폰 확인을 요청했어요…');
+  setSync(true, '최신 혜택 확인을 요청했어요…');
   const reqAt = new Date().toISOString();
   try {
     const r = await apiPost({ action: 'refresh' });
     if (!r.ok) throw new Error(r.error);
-    if (r.accepted) { setSync(true, '최신 쿠폰을 확인하고 있어요. 보통 3~5분 걸려요.'); pollUntilDone(reqAt); return; }
+    if (r.accepted) { setSync(true, '최신 혜택을 확인하고 있어요. 보통 3~5분 걸려요.'); pollUntilDone(reqAt); return; }
     if (r.reason === 'cooldown') { setSync(false); toast(`방금 확인했어요. ${Math.ceil(r.retry_after_s / 60)}분 뒤에 다시 할 수 있어요.`); return; }
     setSync(true, '이미 확인하고 있어요. 끝나면 자동으로 바뀌어요.'); pollUntilDone(null);
   } catch (e) {
@@ -553,7 +787,7 @@ async function checkStatusOnLoad() {
   try {
     const st = await api('status');
     if (st.last_checked_at && !state.meta.last_checked_at) { state.meta.last_checked_at = st.last_checked_at; render(); }
-    if (st.state !== 'idle') { setSync(true, '최신 쿠폰을 확인하고 있어요. 끝나면 자동으로 바뀌어요.'); pollUntilDone(null); }
+    if (st.state !== 'idle') { setSync(true, '최신 혜택을 확인하고 있어요. 끝나면 자동으로 바뀌어요.'); pollUntilDone(null); }
   } catch { /* 상태 확인 실패는 무시 */ }
 }
 
@@ -562,13 +796,25 @@ $('#cats').addEventListener('click', (e) => {
   const b = e.target.closest('[data-cat]'); if (!b) return;
   state.category = b.dataset.cat; savePrefs(); render();
 });
-document.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => { state.sort = b.dataset.sort; savePrefs(); render(); }));
+$('#sortSel').addEventListener('change', (e) => { state.sort = e.target.value; savePrefs(); render(); });
+$('#quick').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-quick]'); if (!b) return;
+  const k = b.dataset.quick;
+  if (k === 'mine' && !state.profile && !state.quick.mine) { openMe(true); return; }
+  state.quick[k] = !state.quick[k]; savePrefs(); render();
+  track('filter', { value: `quick:${k}:${state.quick[k] ? 'on' : 'off'}` });
+});
 
-$('#list').addEventListener('click', (e) => {
+$('#list').addEventListener('click', async (e) => {
   const cta = e.target.closest('[data-click]');
   if (cta) { const c = state.coupons.find((x) => x.id === cta.dataset.click); track('click', { coupon_id: c?.id, brand: c?.brand }); return; }
   const rep = e.target.closest('[data-report]');
   if (rep) { openReport(rep.dataset.report); return; }
+  const sv = e.target.closest('[data-save]');
+  if (sv) { toggleSave(sv.dataset.save, sv); return; }
+  const sh = e.target.closest('[data-share]');
+  if (sh) { shareCoupon(sh.dataset.share); return; }
+  if (e.target.closest('[data-clear-quick]')) { Object.keys(state.quick).forEach((k) => { state.quick[k] = false; }); savePrefs(); render(); return; }
   const main = e.target.closest('.card-main');
   if (main) toggleCard(main);
 });
@@ -580,10 +826,43 @@ function toggleCard(main) {
   const id = main.closest('.card').dataset.id;
   const dt = document.getElementById('dt-' + id);
   const open = dt.hidden;
+  const c = state.coupons.find((x) => x.id === id);
+  if (open) {
+    state.open.add(id);
+    dt.innerHTML = detailHtml(c, todayKST());
+    track('detail', { coupon_id: id, brand: c?.brand });
+    if (!state.nutrition) loadNutrition().then(() => {
+      for (const box of document.querySelectorAll('[data-nut]')) {
+        const cc = state.coupons.find((x) => x.id === box.dataset.nut);
+        if (cc) box.innerHTML = nutritionBlock(cc);
+      }
+    });
+  } else state.open.delete(id);
   dt.hidden = !open;
   main.setAttribute('aria-expanded', String(open));
-  if (open) { state.open.add(id); const c = state.coupons.find((x) => x.id === id); track('detail', { coupon_id: id, brand: c?.brand }); }
-  else state.open.delete(id);
+}
+
+function toggleSave(id, btn) {
+  if (state.saved.has(id)) state.saved.delete(id); else state.saved.add(id);
+  store.set('among_saved', [...state.saved]);
+  const on = state.saved.has(id);
+  btn.setAttribute('aria-pressed', String(on));
+  btn.innerHTML = `${ICON.heart}${on ? '찜함' : '찜'}`;
+  toast(on ? '찜했어요. 위의 ‘찜’에서 모아볼 수 있어요.' : '찜을 뺐어요.');
+  renderQuick();
+}
+
+async function shareCoupon(id) {
+  const c = state.coupons.find((x) => x.id === id); if (!c) return;
+  const url = `${location.origin}${location.pathname}?c=${encodeURIComponent(id)}`;
+  const what = has(c.coupon_price) ? `${won(c.coupon_price)}원` : c.discount_rate ? `${c.discount_rate}% 할인` : c.discount_value ? `${won(c.discount_value)}원 ${c.discount_type === 'point_back' ? '적립' : '할인'}` : '혜택';
+  const text = `${c.brand} ${c.menu} ${what}${c.end_date ? ` (~${md(c.end_date)})` : ''}`;
+  track('share', { coupon_id: id, brand: c.brand });
+  try {
+    if (navigator.share) { await navigator.share({ title: 'AMONG 어몽', text, url }); return; }
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    toast('링크를 복사했어요.');
+  } catch { /* 공유 취소 */ }
 }
 
 $('#searchBtn').addEventListener('click', () => {
@@ -594,11 +873,56 @@ $('#searchBtn').addEventListener('click', () => {
 $('#q').addEventListener('input', (e) => { state.q = e.target.value.trim(); render(); });
 $('#refreshBtn').addEventListener('click', refresh);
 
+// 내 할인 수단 시트
+const meSheet = $('#meSheet');
+let meDraft = null;
+let meTurnOnMine = false;
+function paintMe() {
+  meSheet.querySelectorAll('[data-me="telecom"] [data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === (meDraft.telecom || ''))));
+  meSheet.querySelectorAll('[data-me="pays"] [data-v]').forEach((b) => b.setAttribute('aria-pressed', String(meDraft.pays.includes(b.dataset.v))));
+  $('#meNew').checked = meDraft.newMember !== false;
+}
+function openMe(turnOnMine = false) {
+  meTurnOnMine = turnOnMine;
+  meDraft = { telecom: '', pays: [], newMember: true, ...(state.profile || {}) };
+  meDraft.pays = [...(meDraft.pays || [])];
+  paintMe(); meSheet.showModal();
+}
+$('#meBtn').addEventListener('click', () => openMe(false));
+$('#meBar').addEventListener('click', (e) => {
+  if (e.target.closest('[data-open-me]')) openMe(!state.profile);
+  if (e.target.closest('[data-dismiss-me]')) { store.set('among_me_dismissed', true); render(); }
+});
+meSheet.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-v]');
+  if (b) {
+    const g = b.closest('[data-me]').dataset.me;
+    if (g === 'telecom') meDraft.telecom = b.dataset.v;
+    else meDraft.pays = meDraft.pays.includes(b.dataset.v) ? meDraft.pays.filter((x) => x !== b.dataset.v) : [...meDraft.pays, b.dataset.v];
+    paintMe();
+  }
+  if (e.target === meSheet) meSheet.close('cancel');
+});
+$('#meNew').addEventListener('change', (e) => { meDraft.newMember = e.target.checked; });
+$('#meReset').addEventListener('click', () => {
+  state.profile = null; store.set('among_profile', null); state.quick.mine = false; savePrefs();
+  meSheet.close('cancel'); render(); toast('설정을 지웠어요.');
+});
+meSheet.addEventListener('close', () => {
+  if (meSheet.returnValue !== 'ok' || !meDraft) return;
+  state.profile = meDraft; store.set('among_profile', meDraft);
+  if (meTurnOnMine || !state.quick.mine) state.quick.mine = true;
+  state.sort = 'best'; savePrefs(); render();
+  // 어떤 수단을 고르는지만 익명으로 (서비스에 어떤 출처를 늘릴지 판단용)
+  track('filter', { value: `profile:${[meDraft.telecom || '없음', ...meDraft.pays].join(',')}` });
+  toast('내가 쓸 수 있는 혜택을 먼저 보여드려요.');
+});
+
 // 필터 시트
 const fSheet = $('#filterSheet');
 let draft = null;
 function paintFilter() {
-  fSheet.querySelectorAll('.seg').forEach((seg) => seg.querySelectorAll('[data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === draft[seg.dataset.key]))));
+  fSheet.querySelectorAll('.seg').forEach((seg) => seg.querySelectorAll('[data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === String(draft[seg.dataset.key] || '')))));
   $('#everyoneOnly').checked = !!draft.everyoneOnly;
 }
 $('#filterBtn').addEventListener('click', () => { draft = { ...state.filters }; paintFilter(); fSheet.showModal(); });
@@ -608,7 +932,7 @@ fSheet.addEventListener('click', (e) => {
   if (e.target === fSheet) fSheet.close('cancel');
 });
 $('#everyoneOnly').addEventListener('change', (e) => { draft.everyoneOnly = e.target.checked; });
-$('#filterReset').addEventListener('click', () => { draft = { itemType: '', channel: '', everyoneOnly: false }; paintFilter(); });
+$('#filterReset').addEventListener('click', () => { draft = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' }; paintFilter(); });
 fSheet.addEventListener('close', () => {
   if (fSheet.returnValue === 'ok' && draft) { state.filters = draft; savePrefs(); render(); track('filter', { value: JSON.stringify(draft) }); }
 });
@@ -620,7 +944,7 @@ function openReport(id) {
   const c = state.coupons.find((x) => x.id === id); if (!c) return;
   reportId = id;
   $('#reportForm').reset();
-  $('#reportTarget').textContent = `${c.brand} · ${c.menu}${c.coupon_price ? ` · ${won(c.coupon_price)}원` : ''}`;
+  $('#reportTarget').textContent = `${c.brand} · ${c.menu}${has(c.coupon_price) ? ` · ${won(c.coupon_price)}원` : ''}`;
   rSheet.showModal();
 }
 $('#reportCancel').addEventListener('click', () => rSheet.close('cancel'));
@@ -645,10 +969,25 @@ $('#themeBtn').addEventListener('click', () => {
   toast({ system: '기기 설정을 따라요', light: '밝은 화면', dark: '어두운 화면' }[theme]);
 });
 
+// 공유 링크(?c=쿠폰id)로 들어오면 그 쿠폰을 펼쳐서 보여준다
+function openFromLink() {
+  const id = params.get('c');
+  if (!id) return;
+  const c = state.coupons.find((x) => x.id === id);
+  if (!c) { toast('공유된 혜택이 이미 끝났거나 바뀌었어요.'); return; }
+  state.category = c.category || '전체';
+  Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
+  state.open.add(id);
+  render();
+  loadNutrition().then(() => { const box = document.querySelector(`[data-nut="${CSS.escape(id)}"]`); if (box) box.innerHTML = nutritionBlock(c); });
+  const el = document.getElementById(`card-${id}`);
+  if (el) { el.scrollIntoView({ block: 'start' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+}
+
 // ---------- 시작 ----------
 $('#demoNote').hidden = !DEMO;
 render();
-loadCoupons().then(checkStatusOnLoad);
+loadCoupons().then(() => { openFromLink(); checkStatusOnLoad(); });
 track('visit', { value: document.referrer ? host(document.referrer) : '' });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>

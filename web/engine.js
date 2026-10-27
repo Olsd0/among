@@ -8,7 +8,120 @@
 export const CHANNELS = ['매장', '픽업', '배달', '드라이브스루'];
 export const AUDIENCES = ['전체', '신규회원', '멤버십', '개인'];
 export const ITEM_TYPES = ['단품', '세트', '기타'];
-export const DISCOUNT_TYPES = ['price', 'amount', 'percent', 'free_item'];
+// point_back = 결제 후 포인트 적립 (네이버페이 500원 적립 등). 결제액을 줄이지 않으므로 쿠폰가 계산에 쓰지 않는다
+export const DISCOUNT_TYPES = ['price', 'amount', 'percent', 'free_item', 'point_back'];
+export const CATEGORIES = ['햄버거', '카페', '치킨', '피자', '디저트'];
+
+// ---------- 브랜드 목록 (여러 브랜드가 한 페이지에 나오는 멤버십·결제 출처에서 브랜드 이름을 맞추는 데 사용) ----------
+// [표준 이름, 카테고리, 같은 브랜드로 볼 표기]
+export const BRANDS = [
+  ['맥도날드', '햄버거', /맥도날드|mcdonald/i],
+  ['버거킹', '햄버거', /버거킹|burger\s*king|비케이알/i],
+  ['롯데리아', '햄버거', /롯데리아|lotteria/i],
+  ['맘스터치', '햄버거', /맘스터치|mom'?s\s*touch/i],
+  ['KFC', '햄버거', /kfc|케이에프씨/i],
+  ['파파이스', '햄버거', /파파이스|popeyes/i],
+  ['노브랜드버거', '햄버거', /노브랜드\s*버거/],
+  ['프랭크버거', '햄버거', /프랭크\s*버거/],
+  ['쉐이크쉑', '햄버거', /쉐이크\s*쉑|shake\s*shack/i],
+  ['스타벅스', '카페', /스타벅스|starbucks/i],
+  ['이디야', '카페', /이디야|ediya/i],
+  ['메가MGC커피', '카페', /메가\s*(mgc)?\s*커피|mega\s*(mgc)?\s*coffee/i],
+  ['빽다방', '카페', /빽다방/],
+  ['할리스', '카페', /할리스|hollys/i],
+  ['폴바셋', '카페', /폴\s*바셋|paul\s*bassett/i],
+  ['투썸플레이스', '카페', /투썸/],
+  ['컴포즈커피', '카페', /컴포즈/],
+  ['공차', '카페', /공차|gong\s*cha/i],
+  ['파스쿠찌', '카페', /파스쿠찌|pascucci/i],
+  ['커피빈', '카페', /커피빈|coffee\s*bean/i],
+  ['BBQ', '치킨', /bbq|비비큐/i],
+  ['bhc', '치킨', /bhc|비에이치씨/i],
+  ['교촌치킨', '치킨', /교촌/],
+  ['굽네치킨', '치킨', /굽네/],
+  ['푸라닭', '치킨', /푸라닭/],
+  ['처갓집양념치킨', '치킨', /처갓집/],
+  ['네네치킨', '치킨', /네네\s*치킨/],
+  ['도미노피자', '피자', /도미노|domino/i],
+  ['피자헛', '피자', /피자헛|pizza\s*hut/i],
+  ['파파존스', '피자', /파파존스|papa\s*john/i],
+  ['미스터피자', '피자', /미스터\s*피자|mr\.?\s*pizza/i],
+  ['반올림피자', '피자', /반올림/],
+  ['파리바게뜨', '디저트', /파리바게(뜨|트)|paris\s*baguette/i],
+  ['뚜레쥬르', '디저트', /뚜레쥬르|tous\s*les\s*jours/i],
+  ['배스킨라빈스', '디저트', /배스킨|베스킨|baskin/i],
+  ['던킨', '디저트', /던킨|dunkin/i],
+  ['설빙', '디저트', /설빙/],
+];
+
+/** 표기가 달라도 같은 브랜드면 표준 이름과 카테고리를. 모르는 브랜드면 null */
+export function canonicalBrand(name) {
+  const s = String(name || '').trim();
+  if (!s) return null;
+  for (const [brand, category, re] of BRANDS) if (brand === s || re.test(s)) return { brand, category };
+  return null;
+}
+
+// ---------- 혜택 프로그램 (통신사 멤버십 · 간편결제 · 포인트) ----------
+// 쿠폰을 쓰려면 이 중 하나가 필요하다는 뜻. 여러 개면 "그중 하나만 있으면 됨"
+export const PROGRAMS = ['SKT', 'KT', 'LGU+', '네이버페이', '카카오페이', '토스페이', '해피포인트', 'CJ ONE', '카드'];
+export const PROGRAM_LABEL = {
+  SKT: 'SKT T멤버십', KT: 'KT 멤버십', 'LGU+': 'U+ 멤버십', 네이버페이: '네이버페이', 카카오페이: '카카오페이',
+  토스페이: '토스페이', 해피포인트: '해피포인트', 'CJ ONE': 'CJ ONE', 카드: '특정 카드 결제',
+};
+const PROGRAM_PATTERNS = [
+  // 'KT 멤버십' 안의 'T 멤버십'을 SKT로 읽지 않도록 T 앞에 영문자가 없어야 함 (구형 사파리 호환 위해 lookbehind 미사용)
+  ['SKT', /\bSKT\b|SK\s*텔레콤|(^|[^A-Za-z])T\s*(멤버십|membership|우주|day\b)|티\s*멤버십/i],
+  ['KT', /\bKT\b|(^|[^A-Za-z])kt\s*(멤버십|membership)|케이티\s*멤버십|달\.?\s*달\.?\s*혜택/i],
+  ['LGU+', /LG\s*U\s*\+|LGU\s*\+|\bU\s*\+\s*(멤버십|membership)|유플러스|유플투쁠/i],
+  ['네이버페이', /네이버\s*페이|\bN\s*pay\b|\bnpay\b/i],
+  ['카카오페이', /카카오\s*페이|kakao\s*pay/i],
+  ['토스페이', /토스\s*페이|toss\s*pay/i],
+  ['해피포인트', /해피\s*포인트|happy\s*point|해피\s*오더/i],
+  ['CJ ONE', /cj\s*one|씨제이\s*원/i],
+  // 특정 카드사 결제 할인 — 가진 사람이 적어 기본 목록에서 제외한다 (D20)
+  ['카드', /(신한|국민|KB|삼성|현대|롯데|하나|우리|NH|농협|BC|비씨|씨티|IBK|카카오뱅크|토스뱅크|모빌리언스)[^\s,·]{0,8}\s*카드|청구\s*할인|카드\s*(로\s*)?결제\s*시\s*\d/i],
+];
+
+/** 문장에서 필요한 프로그램 찾기 ("T멤버십, KT 멤버십 VIP 30%" → ['SKT','KT']) */
+export function detectPrograms(text) {
+  const s = String(text || '');
+  return PROGRAM_PATTERNS.filter(([, re]) => re.test(s)).map(([p]) => p);
+}
+
+/** AI가 준 프로그램 이름을 표준 이름으로 ("T멤버십" → 'SKT'), 모르는 이름은 버린다 */
+export function normPrograms(list) {
+  const out = new Set();
+  for (const v of Array.isArray(list) ? list : String(list || '').split(/[,/·|]/)) {
+    const s = String(v || '').trim();
+    if (!s) continue;
+    if (PROGRAMS.includes(s)) { out.add(s); continue; }
+    detectPrograms(s).forEach((p) => out.add(p));
+  }
+  return PROGRAMS.filter((p) => out.has(p));
+}
+
+const DELIVERY_APPS = /쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|위메프오|먹깨비/;
+const DELIVERY_EXCLUDED = /(쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|배달\s*앱)[^.·\n]{0,20}(제외|불가|미적용|적용\s*(안|않|불가)|사용\s*(안|불가))/;
+/** 외부 배달앱 전용 행사인가 (경쟁 서비스가 이미 다루는 영역이라 제외, D7·HANDOFF 4장) */
+export function isDeliveryAppOnly(text) {
+  const s = String(text || '');
+  return DELIVERY_APPS.test(s) && !DELIVERY_EXCLUDED.test(s);
+}
+
+/** "1천원당 150원 할인" → 15 (%) */
+export function perThousandRate(text) {
+  const m = String(text || '').match(/(?:1\s*천|1,?000|천)\s*원\s*당\s*(?:최대\s*)?(\d{1,3})\s*원/);
+  return m ? +m[1] / 10 : null;
+}
+
+/** 다른 할인과 같이 쓸 수 있는지: 'no' | 'yes' | '' (모름) */
+export function detectStackable(text) {
+  const s = String(text || '');
+  if (/중복\s*(적용|사용|할인)?\s*(불가|안\s*됨|안\s*됩니다|되지\s*않|제한)|타\s*(할인|쿠폰|프로모션|제휴)[^.·\n]{0,12}(불가|제외|안\s*됨)/.test(s)) return 'no';
+  if (/중복\s*(적용|사용|할인)?\s*가능/.test(s)) return 'yes';
+  return '';
+}
 
 export const RULES = {
   minPrice: 500,
@@ -142,6 +255,7 @@ export function normDiscountType(v, raw = {}) {
   if (DISCOUNT_TYPES.includes(s)) return s;
   if (/%|퍼센트|percent|정률/.test(s)) return 'percent';
   if (/원\s*할인|정액|amount/.test(s)) return 'amount';
+  if (/적립|캐시백|cashback|point/.test(s)) return 'point_back';
   if (/증정|무료|1\s*\+\s*1|free|덤/.test(s)) return 'free_item';
   if (toInt(raw.coupon_price) !== null) return 'price';
   return 'price';
@@ -157,7 +271,7 @@ export function normDiscountType(v, raw = {}) {
  * - free_item: 결제액은 정상가 그대로, 증정품 가치(discount_value)로 체감 할인율 계산
  * 계산 불가면 coupon_price = null.
  */
-export function computeCouponPrice({ regular_price, coupon_price, discount_type, discount_value, max_discount }) {
+export function computeCouponPrice({ regular_price, coupon_price, discount_type, discount_value, max_discount, discount_unit }) {
   const reg = toInt(regular_price);
   const val = toNumber(discount_value);
   const cap = toInt(max_discount);
@@ -182,6 +296,14 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
       // 주문 전체 정률 할인 (예: "앱 첫 주문 25% 할인") — 쿠폰가 없이 할인율만
       else if (val !== null && val > 0 && val < 100) return { coupon_price: null, discount_rate: Math.round(val), saved: null, scope: 'order' };
       break;
+    case 'point_back':
+      // 적립: 결제액은 그대로. %면 할인율 자리에 적립률을, 원이면 적립액만 (discount_unit은 normalize에서 판단)
+      if (val !== null && val > 0) {
+        return discount_unit === 'percent'
+          ? { coupon_price: null, discount_rate: Math.round(val * 10) / 10, saved: null, scope: 'order' }
+          : { coupon_price: null, discount_rate: null, saved: Math.round(val), scope: 'order' };
+      }
+      return { coupon_price: null, discount_rate: null, saved: null, scope: 'order' };
     case 'free_item':
       price = reg !== null ? reg : toInt(coupon_price);
       if (reg !== null && val !== null && val > 0) {
@@ -232,10 +354,12 @@ export function checkEvidence(raw, pageText) {
   const nums = [];
   const type = raw.discount_type;
   if ((type === 'price' || !type) && toInt(raw.coupon_price) !== null) nums.push(toInt(raw.coupon_price));
-  if ((type === 'amount' || type === 'percent') && toNumber(raw.discount_value) !== null) nums.push(Math.round(toNumber(raw.discount_value)));
+  if ((type === 'amount' || type === 'percent' || type === 'point_back') && toNumber(raw.discount_value) !== null) nums.push(Math.round(toNumber(raw.discount_value)));
   let numsOk = true;
   for (const n of nums) {
-    if (!priceVariants(n).some((p) => text.includes(p))) {
+    // "1천원당 150원" → 15%: 페이지에는 15가 아니라 150원으로 적혀 있다
+    const perK = type === 'percent' && [raw.evidence, raw.conditions, raw.program_note].some((t) => perThousandRate(t) === n && text.includes(squash(String(t).match(/(?:1\s*천|1,?000|천)\s*원\s*당\s*(?:최대\s*)?\d{1,3}\s*원/)[0])));
+    if (!perK && !priceVariants(n).some((p) => text.includes(p))) {
       issues.push(`숫자 ${n}이(가) 페이지에 없음`);
       penalty += RULES.pricePenalty;
       numsOk = false;
@@ -261,17 +385,37 @@ export function normalizeAndValidate(raw, ctx = {}) {
   const today = todayKST(now);
   const issues = [];
 
-  const discount_type = normDiscountType(raw.discount_type, raw);
+  // 브랜드: 브랜드 자체 출처면 출처의 브랜드, 멤버십·결제처럼 여러 브랜드가 섞인 출처면 AI가 읽은 이름을 표준 이름으로
+  const fixed = clean(ctx.brand);
+  const known = fixed ? canonicalBrand(fixed) : canonicalBrand(raw.brand);
+  const brand = fixed || known?.brand || clean(raw.brand);
+  const category = clean(ctx.category) || known?.category || clean(raw.category);
+
+  const allText = [raw.menu, raw.conditions, raw.evidence, raw.program_note, raw.how_to_use].map(clean).join(' ');
+  let discount_type = normDiscountType(raw.discount_type, raw);
+  let discount_value = toNumber(raw.discount_value);
+  // "1천원당 100원 할인"은 10% 할인. AI가 정액 100원으로 읽었거나 값을 비워 둔 경우 엔진이 환산한다
+  const perK = perThousandRate(allText);
+  if (perK !== null && ((discount_type === 'percent' && discount_value === null) || (discount_type === 'amount' && discount_value !== null && discount_value <= 300 && toInt(raw.regular_price) === null))) {
+    discount_type = 'percent';
+    discount_value = perK;
+  }
+  // 적립 단위: 원 / % (AI가 알려주지 않으면 근거 문장에 'N%'가 있는지로 판단)
+  const discount_unit = discount_type !== 'point_back' ? ''
+    : (raw.discount_unit === 'percent' || raw.discount_unit === 'won') ? raw.discount_unit
+      : (discount_value !== null && discount_value < 100 && new RegExp(`${discount_value}\\s*%`).test(allText)) ? 'percent' : 'won';
+  const programs = normPrograms([...normPrograms(raw.programs), ...(ctx.programs || []), ...detectPrograms(allText)]);
+
   const c = {
-    brand: clean(ctx.brand || raw.brand),
-    category: clean(ctx.category || raw.category),
+    brand,
+    category,
     menu: clean(raw.menu),
     item_type: normItemType(raw.item_type, raw.menu),
     regular_price: toInt(raw.regular_price),
     coupon_price: null,
     discount_rate: null,
     discount_type,
-    discount_value: toNumber(raw.discount_value),
+    discount_value,
     max_discount: toInt(raw.max_discount),
     min_order: toInt(raw.min_order),
     channels: normChannels(raw.channels),
@@ -286,15 +430,22 @@ export function normalizeAndValidate(raw, ctx = {}) {
     source_id: clean(ctx.sourceId || raw.source_id),
     source_url: clean(ctx.sourceUrl || raw.source_url),
     official_link: clean(ctx.officialLink || raw.official_link),
+    // 이용자에게 필요한 정보: 무엇이 있어야 쓰는지 · 어떻게 쓰는지 · 다른 할인과 같이 되는지
+    programs,
+    program_note: clean(raw.program_note).slice(0, 120),
+    how_to_use: clean(raw.how_to_use).slice(0, 160),
+    stackable: raw.stackable === true ? 'yes' : raw.stackable === false ? 'no' : detectStackable(allText),
   };
+  // 통신사 멤버십이 필요한데 대상이 '전체'로 읽혔으면 멤버십으로 (누구나 쓰는 쿠폰과 구분)
+  if (programs.some((p) => ['SKT', 'KT', 'LGU+', 'CJ ONE'].includes(p)) && c.audience === '전체') c.audience = '멤버십';
 
-  const calc = computeCouponPrice({ ...raw, discount_type });
+  const calc = computeCouponPrice({ ...raw, discount_type, discount_value, discount_unit });
   c.coupon_price = calc.coupon_price;
   c.discount_rate = calc.discount_rate;
   // 주문 전체 할인(쿠폰가 없음): 정액이면 할인액을 discount_value에 둔다 (화면 표시용)
   if (calc.coupon_price === null && calc.saved !== null && c.discount_value === null) c.discount_value = calc.saved;
-
-  const ev = checkEvidence({ ...raw, discount_type }, ctx.pageText);
+  // 엔진이 환산한 값(1천원당 → %)은 AI 원래 값으로 근거를 대조한다
+  const ev = checkEvidence({ ...raw, discount_type, discount_value }, ctx.pageText);
   issues.push(...ev.issues);
   c.confidence = Math.max(0, +(c.confidence - ev.penalty).toFixed(2));
 
@@ -305,11 +456,14 @@ export function normalizeAndValidate(raw, ctx = {}) {
   if (c.start_date && c.end_date && c.start_date > c.end_date) reject.push('기간 역전');
   if (c.coupon_price !== null && (c.coupon_price < RULES.minPrice || c.coupon_price > RULES.maxPrice)) reject.push('쿠폰가 범위 벗어남');
   if (c.discount_type !== 'free_item' && c.coupon_price !== null && c.regular_price !== null && c.coupon_price >= c.regular_price) reject.push('쿠폰가 ≥ 정상가');
+  if (!fixed && !known) reject.push('지원하지 않는 브랜드');
+  if (isDeliveryAppOnly(allText)) reject.push('외부 배달앱 전용 행사');
+  if (programs.includes('카드')) reject.push('특정 카드 결제 할인');
 
   // ---- pending: 사람이 보기 전엔 게시하지 않을 것 ----
   const hold = [];
   // 쿠폰가·할인율·할인액 중 하나라도 있으면 비교 가능 (주문 전체 할인 포함). 아무것도 없으면 보류
-  if (c.coupon_price === null && c.discount_rate === null && !(c.discount_type === 'amount' && c.discount_value > 0) && c.discount_type !== 'free_item') hold.push('쿠폰가 계산 불가');
+  if (c.coupon_price === null && c.discount_rate === null && !((c.discount_type === 'amount' || c.discount_type === 'point_back') && c.discount_value > 0) && c.discount_type !== 'free_item') hold.push('쿠폰가 계산 불가');
   if (c.discount_rate !== null && c.discount_rate > RULES.maxRate) hold.push('할인율 90% 초과');
   if (c.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
   // 연도(2025~2027)를 가격으로 읽은 경우: 페이지에 'N원'으로 적혀 있지 않으면 보류
@@ -344,8 +498,14 @@ export function dedupe(list, idFn) {
 
 /** 같은 행사가 목록·상세 페이지에서 메뉴 표기만 조금 달리 두 번 잡힌 것을 하나로 (D17) */
 function bigrams(s) { const a = new Set(); for (let i = 0; i < s.length - 1; i++) a.add(s.slice(i, i + 2)); return a; }
+/** '전체', '전 메뉴', '모든 피자', '피자 전 메뉴' 처럼 특정 메뉴가 아닌 표기인가 */
+export function isGenericMenu(menu) {
+  const k = menuKey(menu).replace(/^(모든|전체|전|all)/, '').replace(/(전체|전|모든)?(메뉴|상품|제품|품목)$/, '');
+  return !k || /^(피자|치킨|버거|햄버거|커피|음료|디저트|도넛|빵|케이크|아이스크림|사이드|제휴메뉴)$/.test(k);
+}
 export function similarMenu(a, b, minContain = 2) {
-  const x = menuKey(a).replace(/^new/, ''), y = menuKey(b).replace(/^new/, '');
+  if (isGenericMenu(a) && isGenericMenu(b)) return true;
+  const x = menuKey(a).replace(/^new/, '').replace(/^(모든|전체)/, ''), y = menuKey(b).replace(/^new/, '').replace(/^(모든|전체)/, '');
   if (!x || !y) return false;
   if (x === y) return true;
   const [s, l] = x.length <= y.length ? [x, y] : [y, x];
@@ -365,6 +525,10 @@ export function mergeSimilar(list) {
     if (dup) {
       const urls = new Set(String(dup.source_url).split(' ').concat(String(c.source_url).split(' ')).filter(Boolean));
       dup.source_url = [...urls].join(' ');
+      // 같은 할인을 통신사마다 따로 공지한 경우(SKT 20% · KT 20%) → 하나로 합치고 프로그램을 모은다
+      if ((c.programs || []).length) dup.programs = normPrograms([...(dup.programs || []), ...c.programs]);
+      if (c.program_note && !String(dup.program_note || '').includes(c.program_note)) dup.program_note = [dup.program_note, c.program_note].filter(Boolean).join(' · ').slice(0, 160);
+      if (!dup.how_to_use && c.how_to_use) dup.how_to_use = c.how_to_use;
       continue;
     }
     out.push(c);
@@ -401,6 +565,50 @@ export function menuKey(menu) {
   return clean(menu).toLowerCase().replace(/[\s()\[\]·,.\-_/+]/g, '');
 }
 
+// ---------- 영양성분 매칭 (식약처 공공데이터 ↔ 쿠폰 메뉴) ----------
+// 틀린 영양정보를 보여주는 것보다 안 보여주는 게 낫다: 확실할 때만 붙이고, 어떤 메뉴 기준인지 항상 함께 보여준다.
+const SET_WORDS = /(세트|콤보|combo|meal|박스|팩)$/;
+const SIZE_TAIL = /(m|l|r|s|라지|미디엄|레귤러|스몰|톨|그란데|벤티|\d+(pcs|조각|ml|g|oz))$/;
+
+/**
+ * @param coupon {brand, menu, item_type}
+ * @param items  [{brand, name, ...영양값}]
+ * @returns {item, basis: 'exact'|'size'|'similar', set: boolean} | null
+ */
+export function matchNutrition(coupon, items) {
+  if (!coupon || !Array.isArray(items) || !items.length) return null;
+  const menu = clean(coupon.menu);
+  if (!menu || isGenericMenu(menu) || /외\s*\d+\s*종|,|·|\/|중\s*택|\d+\s*종/.test(menu)) return null;  // 여러 메뉴·전 메뉴는 붙일 메뉴가 없음
+  const pool = items.filter((i) => i.brand === coupon.brand && i.name);
+  if (!pool.length) return null;
+  let key = menuKey(menu).replace(/^new/, '');
+  const set = coupon.item_type === '세트' || SET_WORDS.test(key);
+  key = key.replace(/(세트|콤보|combo|meal)/g, '').replace(/단품$/, '');
+  if (key.length < 2) return null;
+  const keyed = pool.map((i) => ({ i, k: menuKey(i.name).replace(/단품$/, '') }));
+  let hit = keyed.find((x) => x.k === key);
+  if (hit) return { item: hit.i, basis: 'exact', set };
+  // 사이즈 표기만 다른 경우 (아이스 드립 커피 M ↔ 아이스드립커피)
+  const core = key.replace(SIZE_TAIL, '');
+  hit = keyed.find((x) => x.k.replace(SIZE_TAIL, '') === core && core.length >= 2);
+  if (hit) return { item: hit.i, basis: 'size', set };
+  // 한쪽이 다른 쪽을 거의 포함 (길이 차이 25% 이내) — '치즈버거'와 '더블치즈버거'처럼 다른 메뉴는 붙이지 않음
+  const cands = keyed
+    .filter((x) => x.k.length >= 3 && (key.includes(x.k) || x.k.includes(key)))
+    .filter((x) => Math.min(x.k.length, key.length) / Math.max(x.k.length, key.length) >= 0.75)
+    .sort((a, b) => Math.abs(a.k.length - key.length) - Math.abs(b.k.length - key.length));
+  if (cands.length === 1 || (cands.length > 1 && Math.abs(cands[0].k.length - key.length) < Math.abs(cands[1].k.length - key.length))) {
+    return { item: cands[0].i, basis: 'similar', set };
+  }
+  return null;
+}
+
+/** 나트륨 하루 기준치(2,000mg) 대비 % */
+export function sodiumPercent(mg) {
+  const n = toNumber(mg);
+  return n === null ? null : Math.round((n / 2000) * 100);
+}
+
 // ---------- 사용 조건 판단 (화면 필터 · 적용 가능 여부) ----------
 
 /**
@@ -423,32 +631,95 @@ export function checkApplicable(c, ctx = {}) {
   return { ok: reasons.length === 0, reasons };
 }
 
-/** 앱만 있으면 누구나 쓸 수 있는 쿠폰인가 (신규·멤버십·개인 전용 제외) */
+/** 앱만 있으면 누구나 쓸 수 있는 쿠폰인가 (신규·멤버십·개인 전용, 통신사·결제 조건 제외) */
 export function isOpenToEveryone(c) {
-  return c.audience === '전체';
+  return c.audience === '전체' && !(c.programs || []).length;
 }
 
 /**
- * 화면 필터. f: { category, itemType, channel, everyoneOnly, q }
+ * 이 사람이 쓸 수 있는 쿠폰인가. profile: { programs: ['KT','네이버페이'], newMember: true|false }
+ * - 필요한 프로그램이 여러 개면 그중 하나만 있으면 된다 (예: SKT·KT·U+ 멤버십 20%)
+ * - 개인 발급 쿠폰은 누구에게나 보장되지 않으므로 제외
+ * - newMember=false면 '신규 가입' 혜택 제외 (기본은 포함: 앱을 새로 깔면 받을 수 있으므로)
  */
-export function matchesFilters(c, f = {}) {
+export function usableBy(c, profile = {}) {
+  const have = new Set(profile.programs || []);
+  const need = c.programs || [];
+  if (need.length && !need.some((p) => have.has(p))) return false;
+  if (c.audience === '개인') return false;
+  if (c.audience === '신규회원' && profile.newMember === false) return false;
+  return true;
+}
+
+/** 쿠폰에 필요한 것 중 이 사람이 가진 프로그램 (화면의 '내 KT 할인' 표시용) */
+export function myPrograms(c, profile = {}) {
+  const have = new Set(profile.programs || []);
+  return (c.programs || []).filter((p) => have.has(p));
+}
+
+/**
+ * 화면 필터. f: { category, itemType, channel, everyoneOnly, q, mine, programsOnly, maxPrice, fresh, endingSoon, ids }
+ * ctx: { today, profile, since(지난 방문 시각) }
+ */
+export function matchesFilters(c, f = {}, ctx = {}) {
+  const today = ctx.today || todayKST();
   if (f.category && f.category !== '전체' && c.category !== f.category) return false;
   if (f.itemType && c.item_type !== f.itemType) return false;
   if (f.channel && !(c.channels || []).includes(f.channel)) return false;
   if (f.everyoneOnly && !isOpenToEveryone(c)) return false;
+  if (f.mine && !usableBy(c, ctx.profile || {})) return false;
+  if (f.programsOnly && !(c.programs || []).length) return false;
+  if (f.maxPrice && !(c.coupon_price !== null && c.coupon_price !== undefined && c.coupon_price !== '' && +c.coupon_price <= +f.maxPrice)) return false;
+  if (f.fresh && !isFresh(c, today, ctx.since)) return false;
+  if (f.endingSoon) { const d = daysLeft(c.end_date, today); if (d === null || d > 3) return false; }
+  if (f.ids && !f.ids.has(c.id)) return false;
   if (f.q) {
     const q = String(f.q).toLowerCase().replace(/\s/g, '');
-    const hay = `${c.brand}${c.menu}${c.conditions}`.toLowerCase().replace(/\s/g, '');
+    const progs = (c.programs || []).map((p) => `${p}${PROGRAM_LABEL[p] || ''}`).join('');
+    const hay = `${c.brand}${c.menu}${c.conditions}${progs}`.toLowerCase().replace(/\s/g, '');
     if (!hay.includes(q)) return false;
   }
   return true;
 }
 
-/** 정렬: price(쿠폰가 낮은 순) | rate(할인율 높은 순) | deadline(마감 임박 순). 시작 전 쿠폰은 뒤로. */
-export function sortCoupons(list, key = 'price', today = todayKST()) {
+/**
+ * '새로 생긴 혜택'인가. since(지난 방문 시각)가 있으면 그 뒤에 처음 보인 것, 없으면(첫 방문) 어제·오늘 처음 보인 것
+ */
+export function isFresh(c, today = todayKST(), since = null) {
+  if (!c.first_seen) return false;
+  const t = Date.parse(c.first_seen);
+  if (Number.isNaN(t)) return false;
+  if (since) return t > Date.parse(since);
+  return diffDays(today, todayKST(new Date(t))) <= 1;
+}
+
+/** 혜택 종류 순서: 쿠폰가 있음 → 할인율 → 할인액 → 적립 → 1+1·증정 (DESIGN_NEXT 4장) */
+export function benefitKind(c) {
+  if (c.coupon_price !== null && c.coupon_price !== undefined && c.coupon_price !== '' && c.discount_type !== 'free_item') return 0;
+  if (c.discount_type === 'percent') return 1;
+  if (c.discount_type === 'amount') return 2;
+  if (c.discount_type === 'point_back') return 3;
+  return 4;
+}
+
+/**
+ * 정렬: best(추천순) | price(쿠폰가 낮은 순) | rate(할인율 높은 순) | deadline(마감 임박 순). 시작 전 쿠폰은 뒤로.
+ * 추천순: 내가 쓸 수 있는 것 → 누구나 쓰는 것 → 조건 있는 것, 그 안에서 혜택 종류 → 혜택 크기
+ */
+export function sortCoupons(list, key = 'price', today = todayKST(), profile = null) {
   const notStarted = (c) => (c.start_date && c.start_date > today ? 1 : 0);
   const num = (v, dflt) => (v === null || v === undefined || v === '' ? dflt : +v);
+  // 내 통신사·페이로 받는 혜택 → 조건 없는 혜택 → 그 밖에 쓸 수 있는 것(신규가입 등) → 내가 못 쓰는 것
+  const access = (c) => (profile && !usableBy(c, profile) ? 3 : profile && myPrograms(c, profile).length ? 0 : isOpenToEveryone(c) ? 1 : 2);
+  const size = (c) => {
+    const k = benefitKind(c);
+    if (k === 0) return num(c.coupon_price, 1e9);
+    if (k === 1) return -num(c.discount_rate, 0);
+    if (k === 2 || k === 3) return -num(c.discount_value, 0);
+    return 0;
+  };
   const cmp = {
+    best: (a, b) => access(a) - access(b) || benefitKind(a) - benefitKind(b) || size(a) - size(b),
     price: (a, b) => num(a.coupon_price, 1e9) - num(b.coupon_price, 1e9),
     rate: (a, b) => num(b.discount_rate, -1) - num(a.discount_rate, -1),
     deadline: (a, b) => num(daysLeft(a.end_date, today), 1e6) - num(daysLeft(b.end_date, today), 1e6),

@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize } from './engine.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST } from './engine.js';
 import { couponId, contentHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
@@ -58,6 +58,21 @@ export async function runCollector(o = {}) {
     sources: [], pages: 0, input_tokens: 0, output_tokens: 0, summary: null, ingest: null, errors: [], state: 'running',
   };
 
+  // 예약 실행 중복 방지: 00시 Apps Script 트리거가 이미 오늘 수집을 끝냈으면 GitHub 예약 실행(지연되어 새벽에 도착)은 건너뛴다
+  const statusReader = o.sheetRead || sheetRead;
+  if (trigger === 'schedule' && statusReader && env.SKIP_IF_DONE !== '0') {
+    const done = await collectedToday(statusReader, now).catch(() => '');
+    if (done) {
+      report.state = 'skipped';
+      report.finished_at = new Date().toISOString();
+      report.errors.push(`오늘(${todayKST(now)}) 이미 수집함: ${done}`);
+      writeFileSync(join(outDir, 'run_log.json'), JSON.stringify(report, null, 2));
+      log(`[${run_id}] 오늘 이미 수집을 마쳐 건너뜀 (${done})`);
+      if (process.env.GITHUB_ACTIONS && !o.quiet) console.log(`::notice title=수집 건너뜀::${report.errors[0]}`);
+      return report;
+    }
+  }
+
   let ctx;
   try {
     if (sheet) await sheet.post('run_start', { run_id, trigger, started_at: report.started_at });
@@ -89,8 +104,9 @@ export async function runCollector(o = {}) {
           if (stopReason) throw new Error(`중단: ${stopReason}`);
           if (Date.now() > deadline) { stopReason = '실행 시간 예산 초과'; throw new Error(stopReason); }
           sr.pages++; report.pages++;
+          const program = normPrograms(source.program)[0] || '';
           const ext = await extractCoupons(page, {
-            brand: source.brand, category: source.category, now,
+            brand: source.brand, category: source.category, program, now,
             provider: llm.provider, apiKey: llm.apiKey, model: llm.model,
           });
           report.input_tokens += ext.usage.input_tokens;
@@ -98,7 +114,7 @@ export async function runCollector(o = {}) {
           if (ext.truncated) report.errors.push(`${source.id}: 응답이 max_tokens에서 잘림 (${page.finalUrl})`);
           for (const raw of ext.coupons) {
             const c = normalizeAndValidate(raw, {
-              now, brand: source.brand, category: source.category, sourceId: source.id,
+              now, brand: source.brand, category: source.category, sourceId: source.id, programs: normPrograms(source.program),
               sourceUrl: page.finalUrl || page.url, officialLink: source.official_link || source.url, pageText: page.text,
             });
             c.id = couponId(c);
@@ -193,6 +209,14 @@ export async function runCollector(o = {}) {
     }
   }
   return report;
+}
+
+/** 오늘(KST) 이미 성공한 수집이 있으면 그 시각을, 없으면 '' */
+export async function collectedToday(sheetClient, now = new Date()) {
+  const st = await sheetClient.get('status');
+  const last = st && st.last_checked_at;
+  if (!last || st.state !== 'idle') return st && st.state !== 'idle' ? `실행 중 (${st.state})` : '';
+  return todayKST(new Date(last)) === todayKST(now) ? last : '';
 }
 
 // CLI

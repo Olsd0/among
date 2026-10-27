@@ -9,12 +9,15 @@ const sha1 = (s) => createHash('sha1').update(s).digest('hex');
  * 가격은 키에 넣지 않는다 (가격 정정 시 새 쿠폰이 아니라 기존 쿠폰의 수정으로 본다).
  */
 export function couponId(c) {
-  const key = [c.brand, menuKey(c.menu), c.item_type, c.audience, c.end_date || ''].join('|');
-  return 'c_' + sha1(key).slice(0, 12);
+  const key = [c.brand, menuKey(c.menu), c.item_type, c.audience, c.end_date || ''];
+  // 통신사·결제 조건이 붙은 혜택은 조건이 다르면 다른 쿠폰 (SKT 20%와 KT 15%가 한 id로 겹치지 않게).
+  // 조건이 없는 기존 쿠폰은 id가 바뀌지 않도록 비어 있으면 키에 넣지 않는다.
+  if ((c.programs || []).length) key.push([...c.programs].sort().join(','));
+  return 'c_' + sha1(key.join('|')).slice(0, 12);
 }
 
-const HASH_FIELDS = ['menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate', 'channels',
-  'audience', 'app_only', 'min_order', 'start_date', 'end_date', 'conditions', 'status'];
+const HASH_FIELDS = ['menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate', 'discount_type', 'discount_value', 'channels',
+  'audience', 'app_only', 'min_order', 'start_date', 'end_date', 'conditions', 'status', 'programs', 'program_note', 'how_to_use', 'stackable'];
 
 /** 화면에 보이는 내용이 바뀌었는지 판단하는 해시 (checked_at 등 시각 필드 제외) */
 export function contentHash(c) {

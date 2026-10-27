@@ -1,9 +1,12 @@
 /**
  * AMONG 시트 백엔드 (Google Apps Script 웹앱)
  * ------------------------------------------------------------
- * 탭: coupons · sources · run_log · events · reports
- * 공개 API (토큰 없음): GET coupons · status / POST refresh · event · report
- * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish
+ * 탭: coupons · sources · run_log · events · reports · nutrition
+ * 공개 API (토큰 없음): GET coupons · status · nutrition / POST refresh · event · report
+ * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish · nutrition_ingest
+ *
+ * 코드를 새 버전으로 배포하면 첫 요청 때 migrate_()가 새 열·탭·출처를 자동으로 추가한다 (SCHEMA_VERSION).
+ * 00시 정시 수집: 편집기에서 installTriggers() 1회 실행 → 매일 00시대에 scheduledCollect()가 GitHub 수집을 부른다.
  * 관리 API (ADMIN_TOKEN): POST metrics
  *
  * 스크립트 속성 (프로젝트 설정 → 스크립트 속성):
@@ -21,20 +24,13 @@
 // 최초 1회 실행 함수 (편집기 기본 선택이 되도록 맨 위에 둠)
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  Object.keys(SHEETS).forEach((name) => {
-    let sh = ss.getSheetByName(name);
-    if (!sh) sh = ss.insertSheet(name);
-    const headers = SHEETS[name];
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    sh.setFrozenRows(1);
-    // 날짜·숫자 자동 변환 방지 (시트가 '2026-10-31'을 날짜 객체로 바꾸지 않게)
-    sh.getRange(1, 1, sh.getMaxRows(), headers.length).setNumberFormat('@');
-  });
+  Object.keys(SHEETS).forEach((name) => ensureSheet_(ss, name));
   const src = sheet_('sources');
   if (src.getLastRow() < 2) {
     SAMPLE_SOURCES_.forEach((s) => appendRow_('sources', s));
   }
   const p = PropertiesService.getScriptProperties();
+  p.setProperty('SCHEMA_VERSION', String(SCHEMA_VERSION));
   ['COLLECTOR_TOKEN', 'ADMIN_TOKEN'].forEach((k) => {
     if (!p.getProperty(k)) p.setProperty(k, Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''));
   });
@@ -44,12 +40,15 @@ function setup() {
 
 const TZ = 'Asia/Seoul';
 const SHEETS = {
+  // 열은 항상 뒤에만 추가한다 (기존 시트의 열 순서를 바꾸지 않기 위해 — migrate_가 빠진 열을 끝에 붙임)
   coupons: ['id', 'status', 'brand', 'category', 'menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate',
     'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only',
     'start_date', 'end_date', 'conditions', 'confidence', 'issues', 'evidence', 'source_id', 'source_url',
-    'official_link', 'first_seen', 'checked_at', 'updated_at', 'hash', 'last_run_id'],
+    'official_link', 'first_seen', 'checked_at', 'updated_at', 'hash', 'last_run_id',
+    'programs', 'program_note', 'how_to_use', 'stackable'],
   sources: ['id', 'active', 'brand', 'category', 'url', 'selector', 'exclude', 'follow', 'detail_selector',
-    'max_follow', 'max_shots', 'wait_ms', 'official_link', 'notes', 'last_ok_at', 'last_error'],
+    'max_follow', 'max_shots', 'wait_ms', 'official_link', 'notes', 'last_ok_at', 'last_error', 'program', 'follow_text'],
+  nutrition: ['brand', 'name', 'serving', 'kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg', 'source', 'updated_at'],
   run_log: ['run_id', 'trigger', 'state', 'started_at', 'finished_at', 'duration_s', 'model', 'sources_ok',
     'sources_failed', 'pages', 'found', 'published', 'pending', 'rejected', 'auto_publish_rate', 'inserted',
     'updated', 'unchanged', 'gone', 'expired', 'input_tokens', 'output_tokens', 'errors'],
@@ -58,21 +57,28 @@ const SHEETS = {
 };
 const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate',
   'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only', 'start_date', 'end_date',
-  'conditions', 'source_url', 'official_link', 'first_seen', 'checked_at'];
+  'conditions', 'source_url', 'official_link', 'first_seen', 'checked_at', 'programs', 'program_note', 'how_to_use', 'stackable'];
+const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
+const SCHEMA_VERSION = 4;
+// 이 버전에서 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
+const NEW_SOURCES_V4 = ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'];
 const NUM_FIELDS = ['regular_price', 'coupon_price', 'discount_rate', 'discount_value', 'max_discount', 'min_order', 'confidence'];
 const EVENT_TYPES = ['visit', 'click', 'detail', 'refresh', 'share', 'filter'];
 const REPORT_REASONS = ['가격이 달라요', '이미 끝났어요', '조건이 달라요', '공식 앱에 없어요', '기타'];
 const STALE_MIN = 30;           // queued/running 상태가 이보다 오래되면 멈춘 것으로 본다
-const CACHE_KEY = 'coupons_v2';
+const CACHE_KEY = 'coupons_v3';
+const NUTRITION_CACHE_KEY = 'nutrition_v1';
 
 // ============ 진입점 ============
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
   try {
+    migrate_();
     switch (p.action || 'coupons') {
       case 'coupons': return json_(getCoupons_());
       case 'status': return json_(getStatus_());
+      case 'nutrition': return json_(getNutrition_());
       default: return json_({ ok: false, error: 'unknown action' });
     }
   } catch (err) {
@@ -84,6 +90,7 @@ function doPost(e) {
   let body = {};
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (err) { return json_({ ok: false, error: 'bad json' }); }
   try {
+    migrate_();
     switch (body.action) {
       // 공개
       case 'refresh': return json_(requestRefresh_());
@@ -94,6 +101,7 @@ function doPost(e) {
       case 'sources': auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, sources: getSources_() });
       case 'ingest': auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingest_(body)) });
       case 'run_finish': auth_(body, 'COLLECTOR_TOKEN'); return json_(runFinish_(body.report || {}));
+      case 'nutrition_ingest': auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingestNutrition_(body)) });
       // 관리
       case 'metrics': auth_(body, 'ADMIN_TOKEN'); return json_(getMetrics_(body));
       default: return json_({ ok: false, error: 'unknown action' });
@@ -117,6 +125,7 @@ function getCoupons_() {
       PUBLIC_FIELDS.forEach((f) => { o[f] = r[f]; });
       NUM_FIELDS.forEach((f) => { if (f in o) o[f] = o[f] === '' ? null : Number(o[f]); });
       o.channels = r.channels ? String(r.channels).split(',').filter(String) : [];
+      o.programs = r.programs ? String(r.programs).split(',').filter(String) : [];
       o.app_only = r.app_only === true || String(r.app_only).toUpperCase() === 'TRUE';
       return o;
     });
@@ -142,6 +151,7 @@ function getStatus_() {
     last_checked_at: p.getProperty('LAST_SUCCESS_AT') || '',
     cooldown_s: remain,
     schedule: '매일 00:00 (KST)',
+    nutrition_updated_at: p.getProperty('NUTRITION_UPDATED_AT') || '',
   };
 }
 
@@ -303,6 +313,7 @@ function couponToRow_(c, runId, checkedAt) {
   const r = {};
   SHEETS.coupons.forEach((h) => { r[h] = c[h] === undefined || c[h] === null ? '' : c[h]; });
   r.channels = (c.channels || []).join(',');
+  r.programs = (c.programs || []).join(',');
   r.issues = (c.issues || []).join('; ');
   r.app_only = c.app_only ? 'TRUE' : 'FALSE';
   r.checked_at = checkedAt;
@@ -361,6 +372,12 @@ function getMetrics_(b) {
   // 쿠폰 현황
   const byStatus = {};
   const byBrand = {};
+  const byProgram = {};
+  coupons.filter((c) => c.status === 'published' && (!c.end_date || c.end_date >= today)).forEach((c) => {
+    String(c.programs || '').split(',').filter(String).forEach((pg) => { byProgram[pg] = (byProgram[pg] || 0) + 1; });
+  });
+  let nutritionCount = 0;
+  try { nutritionCount = readTable_('nutrition').rows.length; } catch (err) { /* 탭 없음 */ }
   coupons.forEach((c) => {
     byStatus[c.status] = (byStatus[c.status] || 0) + 1;
     if (c.status === 'published' && (!c.end_date || c.end_date >= today)) byBrand[c.brand] = (byBrand[c.brand] || 0) + 1;
@@ -426,6 +443,9 @@ function getMetrics_(b) {
       auto_publish_rate_7runs: rates.length ? round_(rates.reduce((a, b2) => a + Number(b2), 0) / rates.length, 3) : null,
       coupons_by_status: byStatus,
       published_by_brand: byBrand,
+      published_by_program: byProgram,
+      nutrition_items: nutritionCount,
+      nutrition_updated_at: PropertiesService.getScriptProperties().getProperty('NUTRITION_UPDATED_AT') || '',
       pending_reasons: pendingReasons,
       runs: recentRuns,
       tokens_7runs: runs.slice(-7).reduce((a, r) => a + Number(r.input_tokens || 0) + Number(r.output_tokens || 0), 0),
@@ -449,6 +469,101 @@ function getMetrics_(b) {
   };
 }
 
+// ============ 영양성분 (식약처 공공데이터 → 수집기 → 이 탭) ============
+
+function getNutrition_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(NUTRITION_CACHE_KEY);
+  if (hit) return JSON.parse(hit);
+  const items = readTable_('nutrition').rows.filter((r) => r.brand && r.name).map((r) => {
+    const o = { brand: r.brand, name: r.name, serving: r.serving, source: r.source };
+    NUTRITION_NUM.forEach((f) => { o[f] = r[f] === '' || r[f] === undefined ? null : Number(r[f]); });
+    return o;
+  });
+  const out = { ok: true, updated_at: PropertiesService.getScriptProperties().getProperty('NUTRITION_UPDATED_AT') || '', count: items.length, items: items };
+  try { cache.put(NUTRITION_CACHE_KEY, JSON.stringify(out), 3600); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
+  return out;
+}
+
+/** 영양성분 표 전체 교체. 빈 목록으로 지우는 실수를 막기 위해 items가 없으면 거절 */
+function ingestNutrition_(b) {
+  const items = (b.items || []).filter((x) => x && x.brand && x.name);
+  if (!items.length) throw new Error('nutrition items가 비어 있음 (기존 표 유지)');
+  const now = nowIso_();
+  const t = readTable_('nutrition');
+  const rows = items.map((x) => {
+    const r = {};
+    SHEETS.nutrition.forEach((h) => { r[h] = x[h] === undefined || x[h] === null ? '' : x[h]; });
+    r.updated_at = now;
+    return r;
+  });
+  writeTable_(sheet_('nutrition'), t.headers, rows);
+  PropertiesService.getScriptProperties().setProperty('NUTRITION_UPDATED_AT', now);
+  CacheService.getScriptCache().remove(NUTRITION_CACHE_KEY);
+  const brands = {};
+  rows.forEach((r) => { brands[r.brand] = (brands[r.brand] || 0) + 1; });
+  return { count: rows.length, brands: brands };
+}
+
+// ============ 자동 마이그레이션 (새 버전 배포 후 첫 요청에서 1회) ============
+
+function migrate_() {
+  const p = PropertiesService.getScriptProperties();
+  if (Number(p.getProperty('SCHEMA_VERSION') || 0) >= SCHEMA_VERSION) return;
+  withLock_(() => {
+    if (Number(p.getProperty('SCHEMA_VERSION') || 0) >= SCHEMA_VERSION) return;
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    Object.keys(SHEETS).forEach((name) => ensureSheet_(ss, name));
+    const have = {};
+    readTable_('sources').rows.forEach((r) => { have[r.id] = true; });
+    SAMPLE_SOURCES_.filter((x) => NEW_SOURCES_V4.indexOf(x.id) >= 0 && !have[x.id]).forEach((x) => appendRow_('sources', x));
+    CacheService.getScriptCache().remove(CACHE_KEY);
+    p.setProperty('SCHEMA_VERSION', String(SCHEMA_VERSION));
+  });
+}
+
+/** 탭이 없으면 만들고, 머리글에 빠진 열을 끝에 붙인다 (기존 열 순서·데이터는 그대로) */
+function ensureSheet_(ss, name) {
+  let sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  const want = SHEETS[name];
+  const lastCol = sh.getLastColumn();
+  const have = lastCol ? sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String).filter(String) : [];
+  const missing = want.filter((h) => have.indexOf(h) < 0);
+  if (!have.length) {
+    sh.getRange(1, 1, 1, want.length).setValues([want]).setFontWeight('bold');
+  } else if (missing.length) {
+    sh.getRange(1, have.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+  }
+  sh.setFrozenRows(1);
+  // 날짜·숫자 자동 변환 방지 (시트가 '2026-10-31'을 날짜 객체로 바꾸지 않게)
+  sh.getRange(1, 1, sh.getMaxRows(), Math.max(have.length + missing.length, want.length)).setNumberFormat('@');
+}
+
+// ============ 00시 정시 수집 (GitHub 예약 실행은 지연이 커서 백업으로만) ============
+
+/** 시간 트리거가 매일 00시대에 부른다. 오늘 이미 성공했거나 실행 중이면 건너뜀 */
+function scheduledCollect() {
+  migrate_();
+  const p = PropertiesService.getScriptProperties();
+  if (kstDay_(p.getProperty('LAST_SUCCESS_AT') || '') === todayKST_()) return 'skip: 오늘 이미 수집함';
+  if (currentState_(p) !== 'idle') return 'skip: 실행 중';
+  const res = withLock_(() => dispatchWorkflow_('schedule'));
+  if (!res.ok) { Logger.log('00시 수집 호출 실패: ' + res.error); return res.error; }
+  p.setProperty('LAST_REFRESH_REQ_MS', String(Date.now()));
+  setState_(p, 'queued');
+  return 'dispatched';
+}
+
+/** 편집기에서 1회 실행: 매일 00시대 트리거 설치 (다시 실행해도 1개만 유지) */
+function installTriggers() {
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'scheduledCollect')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('scheduledCollect').timeBased().atHour(0).nearMinute(5).everyDays(1).inTimezone(TZ).create();
+  Logger.log('설치 완료: 매일 00시대에 scheduledCollect 실행 (GitHub 토큰 GITHUB_TOKEN·GITHUB_REPO 필요)');
+}
+
 // ============ 초기 설정 ============
 
 
@@ -469,7 +584,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.mcdonalds.co.kr/kor/promotion/list",
-    "notes": "상세에 정상가·행사가 글자. 종료일 대부분 없음"
+    "notes": "상세에 정상가·행사가 글자. 종료일 대부분 없음",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "bk-event",
@@ -485,7 +602,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 4,
     "wait_ms": 2500,
     "official_link": "https://www.burgerking.co.kr/event/ongoing",
-    "notes": "목록 배너만(상세는 클릭으로만 열림)"
+    "notes": "목록 배너만(상세는 클릭으로만 열림)",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "kfc-promo",
@@ -501,7 +620,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.kfckorea.com/promotion/promotionList/A801",
-    "notes": "목록에 행사명·기간 글자, 상세는 이미지"
+    "notes": "목록에 행사명·기간 글자, 상세는 이미지",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "popeyes-event",
@@ -517,7 +638,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.popeyes.co.kr/event",
-    "notes": "1+1·할인 행사 목록"
+    "notes": "1+1·할인 행사 목록",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "moms-promo",
@@ -533,7 +656,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1000,
     "official_link": "https://momstouch.co.kr/promotion/list.php",
-    "notes": "해외 서버 접속 차단 → 국내에서 실행 필요"
+    "notes": "해외 서버 접속 차단 → 국내에서 실행 필요",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "lotte-event",
@@ -549,7 +674,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.lotteeatz.com/event/main",
-    "notes": "robots.txt 차단 → 자동 수집 불가"
+    "notes": "robots.txt 차단 → 자동 수집 불가",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "starbucks-event",
@@ -565,7 +692,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 2000,
     "official_link": "https://www.starbucks.co.kr/whats_new/campaign_list.do",
-    "notes": "이벤트 목록(행사명·기간 글자). 상세는 클릭으로만 열림"
+    "notes": "이벤트 목록(행사명·기간 글자). 상세는 클릭으로만 열림",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "ediya-event",
@@ -581,7 +710,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.ediya.com/contents/event.html?tb_name=event",
-    "notes": "이벤트 목록(이미지 위주)"
+    "notes": "이벤트 목록(이미지 위주)",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "mega-event",
@@ -597,7 +728,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.mega-mgccoffee.com/bbs/?bbs_category=3",
-    "notes": "이벤트 게시판"
+    "notes": "이벤트 게시판",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "paik-event",
@@ -613,7 +746,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://paikdabang.com/news/?cate=event",
-    "notes": "이벤트 게시판"
+    "notes": "이벤트 게시판",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "hollys-event",
@@ -629,7 +764,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.hollys.co.kr/news/event/list.do",
-    "notes": "이벤트 목록(행사명·기간 글자). 상세는 클릭으로만 열림"
+    "notes": "이벤트 목록(행사명·기간 글자). 상세는 클릭으로만 열림",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "paulbassett-benefit",
@@ -645,7 +782,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.baristapaulbassett.co.kr/society/Partnership.pb",
-    "notes": "제휴 할인(% 글자)"
+    "notes": "제휴 할인(% 글자)",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "twosome-event",
@@ -661,7 +800,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.twosome.co.kr/",
-    "notes": "해외 서버 403 → 국내에서 실행 필요"
+    "notes": "해외 서버 403 → 국내에서 실행 필요",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "compose-event",
@@ -677,7 +818,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://composecoffee.com/",
-    "notes": "해외 서버 403 → 국내에서 실행 필요"
+    "notes": "해외 서버 403 → 국내에서 실행 필요",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "bbq-event",
@@ -693,7 +836,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 2000,
     "official_link": "https://bbq.co.kr/events",
-    "notes": "이벤트 목록"
+    "notes": "이벤트 목록",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "bhc-event",
@@ -709,7 +854,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.bhc.co.kr/event/currentEvent",
-    "notes": "진행중 이벤트 목록(행사명·기간 글자)"
+    "notes": "진행중 이벤트 목록(행사명·기간 글자)",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "kyochon-event",
@@ -725,7 +872,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://m.kyochon.com/event/event_list",
-    "notes": "이벤트 목록"
+    "notes": "이벤트 목록",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "goobne-event",
@@ -741,7 +890,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.goobne.co.kr/brd/event/list_p",
-    "notes": "이벤트 목록(할인액·기간 글자). 상세는 클릭으로만 열림"
+    "notes": "이벤트 목록(할인액·기간 글자). 상세는 클릭으로만 열림",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "purak-event",
@@ -757,7 +908,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.puradakchicken.com/news/event.asp",
-    "notes": "이벤트 목록"
+    "notes": "이벤트 목록",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "dominos-event",
@@ -773,7 +926,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 2000,
     "official_link": "https://web.dominos.co.kr/event/list?gubun=E0200",
-    "notes": "이벤트·제휴"
+    "notes": "이벤트·제휴",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "pizzahut-event",
@@ -789,7 +944,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 2000,
     "official_link": "https://www.pizzahut.co.kr/cs/event",
-    "notes": "이벤트 목록(이미지 위주)"
+    "notes": "이벤트 목록(이미지 위주)",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "papajohns-event",
@@ -805,7 +962,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.pji.co.kr/event/ongoing",
-    "notes": "목록에 할인율·기간 글자"
+    "notes": "목록에 할인율·기간 글자",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "mrpizza-event",
@@ -821,7 +980,9 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 1500,
     "official_link": "https://www.mrpizza.co.kr/bbs/board.php?bo_table=event",
-    "notes": "이벤트 게시판(앱 전용 행사 포함)"
+    "notes": "이벤트 게시판(앱 전용 행사 포함)",
+    "program": "",
+    "follow_text": ""
   },
   {
     "id": "banolim-event",
@@ -837,7 +998,135 @@ const SAMPLE_SOURCES_ = [
     "max_shots": 3,
     "wait_ms": 2000,
     "official_link": "https://order.banolimpizza.com/event/list?eventStatus=all",
-    "notes": "이벤트 목록"
+    "notes": "이벤트 목록",
+    "program": "",
+    "follow_text": ""
+  },
+  {
+    "id": "tmembership-brand",
+    "active": "TRUE",
+    "brand": "",
+    "category": "",
+    "url": "https://m.tworld.co.kr/membership/benefit/brand",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "",
+    "detail_selector": "",
+    "max_follow": 0,
+    "max_shots": 6,
+    "wait_ms": 2500,
+    "official_link": "https://m.tworld.co.kr/membership/benefit/brand",
+    "notes": "[v4 추가] SKT T멤버십 혜택 브랜드 한 페이지(등급별 할인율이 글자로 있음, 10/27 확인). 여러 브랜드 → brand 비움",
+    "program": "SKT",
+    "follow_text": ""
+  },
+  {
+    "id": "kt-membership-food",
+    "active": "TRUE",
+    "brand": "",
+    "category": "",
+    "url": "https://membership.kt.com/discount/partner/PartnerList.do",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "a[href*='/discount/partner/']",
+    "detail_selector": "",
+    "max_follow": 10,
+    "max_shots": 3,
+    "wait_ms": 2000,
+    "official_link": "https://membership.kt.com/discount/partner/PartnerList.do",
+    "notes": "[v4 추가] KT 멤버십 제휴 브랜드 목록 → 우리가 다루는 브랜드 상세만 따라감(상세 예: /discount/partner/C21/68/PartnerDetail.do = 도미노, 10/27 확인)",
+    "program": "KT",
+    "follow_text": "맥도날드|버거킹|롯데리아|맘스터치|KFC|파파이스|스타벅스|이디야|메가|빽다방|할리스|폴바셋|투썸|컴포즈|공차|파스쿠찌|BBQ|bhc|교촌|굽네|푸라닭|도미노|피자헛|파파존스|미스터피자|반올림|파리바게|뚜레쥬르|배스킨|던킨"
+  },
+  {
+    "id": "uplus-membership",
+    "active": "TRUE",
+    "brand": "",
+    "category": "",
+    "url": "https://m.lguplus.com/benefit-membership?urcMbspDivsCd=01&urcMbspBnftDivsCd=02",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "",
+    "detail_selector": "",
+    "max_follow": 0,
+    "max_shots": 6,
+    "wait_ms": 3000,
+    "official_link": "https://m.lguplus.com/membership/intro",
+    "notes": "[v4 추가] U+ 멤버십 전체 제휴사 목록(첫 화면에 파리바게뜨·배스킨라빈스 혜택 글자 확인). 목록이 JS로 그려질 수 있음 → check 모드로 확인",
+    "program": "LGU+",
+    "follow_text": ""
+  },
+  {
+    "id": "npay-cafe",
+    "active": "TRUE",
+    "brand": "",
+    "category": "카페",
+    "url": "https://campaign2.naver.com/npay/cafe/",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "",
+    "detail_selector": "",
+    "max_follow": 0,
+    "max_shots": 4,
+    "wait_ms": 2000,
+    "official_link": "https://campaign2.naver.com/npay/cafe/",
+    "notes": "[v4 추가] 네이버페이 카페 결제 적립 캠페인(예: 2천원 이상 결제 시 500원 적립). robots에서 막히면 자동으로 건너뜀",
+    "program": "네이버페이",
+    "follow_text": ""
+  },
+  {
+    "id": "baskin-event",
+    "active": "TRUE",
+    "brand": "배스킨라빈스",
+    "category": "디저트",
+    "url": "https://www.baskinrobbins.co.kr/play/event/list.php",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "a[href*='view.php?seq=']",
+    "detail_selector": "",
+    "max_follow": 4,
+    "max_shots": 4,
+    "wait_ms": 1500,
+    "official_link": "https://www.baskinrobbins.co.kr/play/event/list.php",
+    "notes": "[v4 추가] 해피포인트 앱 할인·제휴 혜택이 글자로 공지됨(10/27 확인: 해피포인트플러스 결제 시 50% 등)",
+    "program": "",
+    "follow_text": ""
+  },
+  {
+    "id": "paris-promo",
+    "active": "TRUE",
+    "brand": "파리바게뜨",
+    "category": "디저트",
+    "url": "https://www.paris.co.kr/promotion/",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "a[href*='/promotion/']",
+    "detail_selector": "",
+    "max_follow": 4,
+    "max_shots": 4,
+    "wait_ms": 1500,
+    "official_link": "https://www.paris.co.kr/promotion/",
+    "notes": "[v4 추가] 파리바게뜨 프로모션 목록(상세 /promotion/슬러그/, 기간은 글자·혜택 일부는 이미지)",
+    "program": "",
+    "follow_text": ""
+  },
+  {
+    "id": "dunkin-event",
+    "active": "FALSE",
+    "brand": "던킨",
+    "category": "디저트",
+    "url": "https://www.dunkindonuts.co.kr/event",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "a[href*='/event/view']",
+    "detail_selector": "",
+    "max_follow": 4,
+    "max_shots": 4,
+    "wait_ms": 1500,
+    "official_link": "https://www.dunkindonuts.co.kr/",
+    "notes": "[v4 추가·꺼둠] 상세는 /event/view?id= 형식. 목록 주소 미확인 → probe/check 모드로 확인 후 켜기",
+    "program": "",
+    "follow_text": ""
   }
 ];
 

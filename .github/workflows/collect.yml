@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       mode:
-        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 (check·probe·e2e는 Claude 호출 없음)'
+        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 / nutrition = 영양성분만 갱신 (check·probe·e2e·nutrition은 AI 호출 없음)'
         required: false
         default: collect
         type: choice
-        options: [collect, dry, check, probe, e2e]
+        options: [collect, dry, check, probe, e2e, nutrition]
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
@@ -98,7 +98,7 @@ jobs:
           node src/e2e-verify.js expect-off
 
       - name: 수집
-        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e'
+        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -118,6 +118,18 @@ jobs:
             exit 0
           fi
           node src/run.js
+
+      # 영양성분: 식약처 공공데이터 (AI 호출 없음). 예약 실행 때는 주 1회만 실제로 갱신(최근 6일 안이면 스스로 건너뜀),
+      # mode=nutrition 수동 실행은 항상 갱신. 실패해도 쿠폰 수집 결과에는 영향 없음
+      - name: 영양성분 갱신 (주 1회 · 공공데이터)
+        if: always() && (inputs.mode == 'nutrition' || github.event_name == 'schedule' || inputs.trigger == 'schedule')
+        env:
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          NUTRITION_FIELD_MAP: ${{ vars.NUTRITION_FIELD_MAP }}
+          FORCE: ${{ inputs.mode == 'nutrition' && '1' || '' }}
+        run: node src/nutrition.js
 
       - name: 실행 결과 보관 (스크린샷·추출 결과, 7일)
         if: always()

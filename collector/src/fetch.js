@@ -40,7 +40,7 @@ async function autoScroll(page, maxSteps = 25) {
 
 /**
  * 한 페이지를 렌더링해 텍스트·이미지 대체텍스트·스크린샷·링크를 돌려준다.
- * opts: { selector, exclude, follow, maxShots, outDir, waitMs }
+ * opts: { selector, exclude, follow, followText, maxShots, outDir, waitMs }
  */
 export async function renderPage(ctx, url, opts = {}) {
   const robots = await robotsAllows(url);
@@ -70,8 +70,12 @@ export async function renderPage(ctx, url, opts = {}) {
       const text = el.innerText;
       hidden.forEach(([n, d]) => { n.style.display = d; });
       const alts = [...el.querySelectorAll('img[alt]')].map((i) => i.alt.trim()).filter((a) => a.length > 3);
-      const links = follow ? [...document.querySelectorAll(follow)].map((a) => a.href).filter(Boolean) : [];
-      return { title: document.title, text, alts: [...new Set(alts)], links: [...new Set(links)] };
+      // 링크 글자(이미지 링크면 대체텍스트)도 함께 — follow_text로 '우리가 다루는 브랜드' 링크만 고르기 위해
+      const links = follow ? [...document.querySelectorAll(follow)].map((a) => ({
+        href: a.href,
+        text: [a.innerText, a.getAttribute('title'), a.getAttribute('aria-label'), ...[...a.querySelectorAll('img[alt]')].map((i) => i.alt)].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
+      })).filter((l) => l.href) : [];
+      return { title: document.title, text, alts: [...new Set(alts)], links };
     }, { selector, exclude: opts.exclude || [], follow: opts.follow || '' });
 
     let text = data.text.replace(/\n{3,}/g, '\n\n').trim();
@@ -84,9 +88,13 @@ export async function renderPage(ctx, url, opts = {}) {
       screenshots.forEach((s, i) => writeFileSync(join(opts.outDir, `${opts.name || 'page'}_${i + 1}.jpg`), s.buffer));
     }
 
+    const textRe = opts.followText ? new RegExp(opts.followText, 'i') : null;
+    const links = [...new Set(data.links
+      .filter((l) => sameSite(l.href, page.url()))
+      .filter((l) => !textRe || textRe.test(l.text) || textRe.test(decodeURIComponent(l.href)))
+      .map((l) => l.href))];
     return {
-      url, finalUrl: page.url(), status, title: data.title, text,
-      links: data.links.filter((l) => sameSite(l, page.url())),
+      url, finalUrl: page.url(), status, title: data.title, text, links,
       screenshots: screenshots.map(({ base64 }) => ({ media_type: 'image/jpeg', data: base64 })),
     };
   } finally {
@@ -119,6 +127,7 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
     selector: source.selector || undefined,
     exclude: splitList(source.exclude),
     follow: source.follow || '',
+    followText: source.follow_text || '',
     maxShots: source.max_shots === '' || source.max_shots === undefined ? 4 : +source.max_shots,
     waitMs: +source.wait_ms || 0,
     outDir, name: source.id,
