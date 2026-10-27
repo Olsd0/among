@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { openBrowser, collectSource } from './fetch.js';
-import { loadLocalSources, pool } from './run.js';
+import { loadLocalSources, pool, withExampleSources } from './run.js';
 import { SheetClient } from './sheet.js';
 
 const only = process.env.ONLY ? process.env.ONLY.split(',').map((x) => x.trim()).filter(Boolean) : null;
@@ -11,7 +11,8 @@ const outDir = resolve(process.env.OUT_DIR || 'out');
 const all = process.env.APPS_SCRIPT_URL && !process.env.SOURCES_FILE
   ? (await new SheetClient(process.env.APPS_SCRIPT_URL, process.env.COLLECTOR_TOKEN).post('sources')).sources
   : loadLocalSources(process.env.SOURCES_FILE || 'sources.example.json');
-const sources = all.filter((s) => !only || only.includes(s.id));
+// 시트에 아직 없는 새 출처도 점검할 수 있게 예시 파일에서 보충
+const sources = (only ? withExampleSources(all, only) : all).filter((s) => !only || only.includes(s.id));
 mkdirSync(outDir, { recursive: true });
 
 const ctx = await openBrowser();

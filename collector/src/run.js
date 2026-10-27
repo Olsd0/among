@@ -81,6 +81,8 @@ export async function runCollector(o = {}) {
     if (!sources && env.LOCAL_SOURCES === '1') sources = loadLocalSources(env.SOURCES_FILE);  // 전체 경로 점검용
     if (!sources && (sheet || sheetRead)) sources = (await (sheet || sheetRead).post('sources')).sources;
     if (!sources) sources = loadLocalSources(env.SOURCES_FILE || 'sources.json');
+    // 시험 실행(dry)에서 아직 시트에 없는 출처 id를 지정하면 sources.example.json에서 가져온다 (시트에 넣기 전에 추출 품질 확인)
+    if (env.DRY_RUN === '1' && env.ONLY) sources = withExampleSources(sources, env.ONLY.split(',').map((x) => x.trim()));
     const only = env.ONLY ? env.ONLY.split(',').map((s) => s.trim()) : null;
     sources = sources.filter(isActive).filter((s) => !only || only.includes(s.id));
     log(`[${run_id}] 출처 ${sources.length}개 수집 시작 (trigger=${trigger}, model=${report.model})`);
@@ -209,6 +211,15 @@ export async function runCollector(o = {}) {
     }
   }
   return report;
+}
+
+/** only에 있지만 목록에 없는 출처를 예시 파일에서 보충 (활성 여부와 관계없이 — 시험용) */
+export function withExampleSources(sources, only, file = 'sources.example.json') {
+  const have = new Set(sources.map((s) => s.id));
+  const missing = only.filter((id) => id && !have.has(id));
+  if (!missing.length || !existsSync(file)) return sources;
+  const extra = loadLocalSources(file).filter((s) => missing.includes(s.id)).map((s) => ({ ...s, active: 'TRUE' }));
+  return [...sources, ...extra];
 }
 
 /** 오늘(KST) 이미 성공한 수집이 있으면 그 시각을, 없으면 '' */

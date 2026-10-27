@@ -118,3 +118,15 @@ test('예약 실행: 00시 트리거가 오늘 이미 수집했으면 GitHub 예
   const manual = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'button' }, now, sheet, sheetRead: status('2026-10-26T15:12:00Z'), sources: [], quiet: true, browser: { close: async () => {} } });
   assert.notEqual(manual.state, 'skipped', '갱신 버튼은 항상 실행');
 });
+
+test('시험 실행: 시트에 아직 없는 출처 id는 예시 파일에서 보충', async () => {
+  const { withExampleSources } = await import('../src/run.js');
+  const cwd = process.cwd();
+  process.chdir(new URL('..', import.meta.url).pathname);
+  try {
+    const out = withExampleSources([{ id: 'mcd-promo' }], ['mcd-promo', 'tmembership-brand', 'dunkin-event', 'nope']);
+    assert.deepEqual(out.map((s) => s.id), ['mcd-promo', 'tmembership-brand', 'dunkin-event']);
+    assert.equal(out.find((s) => s.id === 'dunkin-event').active, 'TRUE', '꺼둔 출처도 시험은 가능');
+    assert.equal(out.find((s) => s.id === 'tmembership-brand').program, 'SKT');
+  } finally { process.chdir(cwd); }
+});
