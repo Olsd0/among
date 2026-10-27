@@ -36,7 +36,7 @@ export const TOOL = {
             coupon_price: { ...nullable('integer'), description: '쿠폰 적용 후 가격(원). 페이지에 적혀 있을 때만. 직접 계산하지 말 것' },
             discount_type: { type: 'string', enum: DISCOUNT_TYPES, description: 'price=“○○원에”, amount=“○○원 할인”, percent=“○○% 할인”(“1천원당 ○○원 할인”도 percent), free_item=1+1·증정, point_back=결제 후 포인트·캐시 적립' },
             discount_value: { ...nullable('number'), description: 'price면 쿠폰가, amount면 할인액, percent면 % 숫자(“1천원당 ○○원”이면 null), free_item이면 증정품 가격(적혀 있을 때만), point_back이면 적립액 또는 적립률' },
-            discount_unit: { type: 'string', enum: ['won', 'percent', ''], description: 'point_back일 때만: 적립이 원이면 won, %면 percent. 그 외에는 빈 문자열' },
+            discount_unit: { type: 'string', enum: ['won', 'percent'], description: 'point_back일 때만 적음: 적립이 원이면 won, %면 percent' },
             max_discount: { ...nullable('integer'), description: '최대 할인 금액(원)' },
             min_order: { ...nullable('integer'), description: '최소 주문 금액(원)' },
             channels: { type: 'array', items: { type: 'string', enum: CHANNELS }, description: '사용 가능 채널. 적혀 있지 않으면 빈 배열' },

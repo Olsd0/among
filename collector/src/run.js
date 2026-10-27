@@ -223,10 +223,11 @@ export function withExampleSources(sources, only, file = 'sources.example.json')
 }
 
 /** 오늘(KST) 이미 성공한 수집이 있으면 그 시각을, 없으면 '' */
+// 실행 상태(queued·running)는 보지 않는다: 00시 트리거가 이 실행을 부르면서 'queued'로 바꿔 두기 때문 (같은 워크플로는 concurrency로 한 번에 하나만 돈다)
 export async function collectedToday(sheetClient, now = new Date()) {
   const st = await sheetClient.get('status');
   const last = st && st.last_checked_at;
-  if (!last || st.state !== 'idle') return st && st.state !== 'idle' ? `실행 중 (${st.state})` : '';
+  if (!last) return '';
   return todayKST(new Date(last)) === todayKST(now) ? last : '';
 }
 

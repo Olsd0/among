@@ -83,9 +83,15 @@ const PROGRAM_PATTERNS = [
   ['카드', /(신한|국민|KB|삼성|현대|롯데|하나|우리|NH|농협|BC|비씨|씨티|IBK|카카오뱅크|토스뱅크|모빌리언스)[^\s,·]{0,8}\s*카드|청구\s*할인|카드\s*(로\s*)?결제\s*시\s*\d/i],
 ];
 
-/** 문장에서 필요한 프로그램 찾기 ("T멤버십, KT 멤버십 VIP 30%" → ['SKT','KT']) */
+// "T멤버십 할인과 중복 불가", "네이버페이 결제 시 사용 불가"처럼 제외·불가 문맥에서 나온 이름은 '필요 조건'이 아니다
+const EXCLUDE_CONTEXT = /중복|제외|불가|미적용|적용\s*(안|않)|사용\s*(안|못)|안\s*됨|대상\s*아님/;
+
+/** 문장에서 필요한 프로그램 찾기 ("T멤버십, KT 멤버십 VIP 30%" → ['SKT','KT']). 제외 문맥 구절은 건너뜀 */
 export function detectPrograms(text) {
-  const s = String(text || '');
+  // 구절 = 쉼표·마침표·줄바꿈·' / ' 단위. 혜택 표시(N%·N원·전용·대상·회원)가 있으면 제외 단어가 있어도 필요 조건으로 본다
+  const parts = String(text || '').split(/[,.;\n]|\s\/\s/)
+    .filter((x) => !EXCLUDE_CONTEXT.test(x) || /\d+\s*(%|원)|전용|대상|회원|고객/.test(x));
+  const s = parts.join(' | ');
   return PROGRAM_PATTERNS.filter(([, re]) => re.test(s)).map(([p]) => p);
 }
 
@@ -109,10 +115,10 @@ export function isDeliveryAppOnly(text) {
   return DELIVERY_APPS.test(s) && !DELIVERY_EXCLUDED.test(s);
 }
 
-/** "1천원당 150원 할인" → 15 (%) */
+/** "1천원당 150원 할인" → 15 (%). 등급별로 여러 번 나오면 가장 낮은 값 (D21: 과장하지 않기) */
 export function perThousandRate(text) {
-  const m = String(text || '').match(/(?:1\s*천|1,?000|천)\s*원\s*당\s*(?:최대\s*)?(\d{1,3})\s*원/);
-  return m ? +m[1] / 10 : null;
+  const all = [...String(text || '').matchAll(/(?:1\s*천|1,?000|천)\s*원\s*당\s*(?:최대\s*)?(\d{1,3})\s*원/g)].map((m) => +m[1] / 10);
+  return all.length ? Math.min(...all) : null;
 }
 
 /** 다른 할인과 같이 쓸 수 있는지: 'no' | 'yes' | '' (모름) */
@@ -389,7 +395,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
   const fixed = clean(ctx.brand);
   const known = fixed ? canonicalBrand(fixed) : canonicalBrand(raw.brand);
   const brand = fixed || known?.brand || clean(raw.brand);
-  const category = clean(ctx.category) || known?.category || clean(raw.category);
+  // 여러 브랜드 출처(예: 네이버페이 카페 캠페인)에서는 출처 카테고리보다 브랜드 본래 카테고리가 맞다
+  const category = fixed ? (clean(ctx.category) || known?.category || clean(raw.category)) : (known?.category || clean(ctx.category) || clean(raw.category));
 
   const allText = [raw.menu, raw.conditions, raw.evidence, raw.program_note, raw.how_to_use].map(clean).join(' ');
   let discount_type = normDiscountType(raw.discount_type, raw);
@@ -683,14 +690,14 @@ export function matchesFilters(c, f = {}, ctx = {}) {
 }
 
 /**
- * '새로 생긴 혜택'인가. since(지난 방문 시각)가 있으면 그 뒤에 처음 보인 것, 없으면(첫 방문) 어제·오늘 처음 보인 것
+ * '새로 생긴 혜택'인가. since(지난 방문 시각)가 있으면 그 뒤에 처음 보인 것, 없으면(첫 방문) 오늘 처음 보인 것
  */
 export function isFresh(c, today = todayKST(), since = null) {
   if (!c.first_seen) return false;
   const t = Date.parse(c.first_seen);
   if (Number.isNaN(t)) return false;
   if (since) return t > Date.parse(since);
-  return diffDays(today, todayKST(new Date(t))) <= 1;
+  return diffDays(today, todayKST(new Date(t))) === 0;
 }
 
 /** 혜택 종류 순서: 쿠폰가 있음 → 할인율 → 할인액 → 적립 → 1+1·증정 (DESIGN_NEXT 4장) */

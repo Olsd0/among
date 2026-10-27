@@ -146,7 +146,7 @@ test('화면 필터: 내 혜택 · 통신사·페이 · 가격대 · 새로 생�
   assert.deepEqual(ids({ mine: true }, { programs: ['KT'] }), ['a', 'b', 'c']);
   assert.deepEqual(ids({ programsOnly: true }), ['b']);
   assert.deepEqual(ids({ maxPrice: 10000 }), ['a']);
-  assert.deepEqual(ids({ fresh: true }), ['a'], '첫 방문: 어제·오늘(KST 10/27 00:10) 처음 보인 것');
+  assert.deepEqual(ids({ fresh: true }), ['a'], '첫 방문: 오늘(KST 10/27 00:10) 처음 보인 것');
   const since = (f, s) => list.filter((c) => matchesFilters(c, f, { today, since: s })).map((c) => c.id);
   assert.deepEqual(since({ fresh: true }, '2026-10-15T00:00:00Z'), ['a', 'c'], '지난 방문(10/15) 이후 생긴 것');
   assert.deepEqual(ids({ endingSoon: true }), ['a', 'b']);
@@ -193,4 +193,19 @@ test('영양성분 매칭: 정확히 같거나 사이즈만 다를 때만, 세�
   assert.equal(m('핫크리스피치킨 외 9종'), null);
   assert.equal(m('불고기 버거', '단품', '롯데리아'), null);
   assert.equal(sodiumPercent(1010), 51);
+});
+
+test('검토 보완: 제외 문맥의 통신사·카드 이름은 조건이 아님, 등급별 1천원당은 낮은 값, 여러 브랜드 출처 카테고리', () => {
+  assert.deepEqual(detectPrograms('T멤버십 등 제휴 할인과 중복 불가'), []);
+  assert.deepEqual(detectPrograms('네이버페이 결제 시 사용 불가, 앱 주문 전용'), []);
+  assert.deepEqual(detectPrograms('T멤버십 회원 전용, 타 할인 중복 불가'), ['SKT']);
+  assert.deepEqual(detectPrograms('삼성카드 결제 할인 제외'), []);
+  const open = v({ conditions: '통신사 제휴(SKT·KT) 할인과 중복 불가' });
+  assert.deepEqual(open.programs, []);
+  assert.equal(open.audience, '전체', '누구나 쓰는 쿠폰이 통신사 전용으로 바뀌지 않음');
+  assert.equal(v({ conditions: '삼성카드 결제 할인과 중복 적용 안 됨' }).status, 'published');
+  assert.equal(perThousandRate('VIP 1천원당 150원, SILVER 1천원당 50원'), 5);
+  const pb = normalizeAndValidate({ brand: '파리바게뜨', menu: '전 제품', discount_type: 'point_back', discount_value: 500, evidence: '500원 적립', confidence: 0.9 },
+    { now: NOW, category: '카페', programs: ['네이버페이'] });
+  assert.equal(pb.category, '디저트', '네이버페이 카페 캠페인에 나온 베이커리는 디저트로');
 });

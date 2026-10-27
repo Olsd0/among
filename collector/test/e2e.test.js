@@ -115,6 +115,9 @@ test('예약 실행: 00시 트리거가 오늘 이미 수집했으면 GitHub 예
   assert.equal(sheet.calls.length, 0, '시트에 아무것도 쓰지 않음');
   const run = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'schedule' }, now, sheet, sheetRead: status('2026-10-25T15:12:00Z'), sources: [], quiet: true, browser: { close: async () => {} } });
   assert.notEqual(run.state, 'skipped', '어제 수집이 마지막이면 실행');
+  // 00시 트리거가 부르면서 'queued'로 바꿔 둔 상태에서도 자기 자신을 건너뛰지 않음 (검토에서 발견한 버그)
+  const queued = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'schedule' }, now, sheet, sheetRead: status('2026-10-25T15:12:00Z', 'queued'), sources: [], quiet: true, browser: { close: async () => {} } });
+  assert.notEqual(queued.state, 'skipped');
   const manual = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'button' }, now, sheet, sheetRead: status('2026-10-26T15:12:00Z'), sources: [], quiet: true, browser: { close: async () => {} } });
   assert.notEqual(manual.state, 'skipped', '갱신 버튼은 항상 실행');
 });
