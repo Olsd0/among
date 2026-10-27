@@ -523,19 +523,21 @@ function dueChip(c, today) {
   return `<span class="chip${d <= 7 ? ' due' : ''}">${ICON.cal}${d === 0 ? '오늘 종료' : `D-${d}`}</span>`;
 }
 
+const upTo = (c) => /^최대/.test(c.program_note || '');
 function rateBox(c) {
   if (c.discount_type === 'point_back') return `<div class="rate pt"><b>${has(c.discount_rate) ? `${c.discount_rate}<small>%</small>` : `${won(c.discount_value)}<small>원</small>`}</b><span>적립</span></div>`;
   if (c.discount_type === 'free_item') return `<div class="rate"><b>${c.discount_rate ? c.discount_rate + '%' : '증정'}</b><span>${c.discount_rate ? '체감 할인' : '1+1·증정'}</span></div>`;
-  if (c.discount_type === 'amount' && !has(c.coupon_price) && c.discount_value) return `<div class="rate"><b>${c.discount_value >= 1000 && c.discount_value % 1000 === 0 ? c.discount_value / 1000 + '천' : won(c.discount_value)}<small>원</small></b><span>할인</span></div>`;
+  if (c.discount_type === 'amount' && !has(c.coupon_price) && c.discount_value) return `<div class="rate"><b>${c.discount_value >= 1000 && c.discount_value % 1000 === 0 ? c.discount_value / 1000 + '천' : won(c.discount_value)}<small>원</small></b><span>${upTo(c) ? '최대 할인' : '할인'}</span></div>`;
   if (!has(c.discount_rate)) return '<div class="rate none"><b>특가</b><span>정상가 미표기</span></div>';
-  return `<div class="rate"><b>${c.discount_rate}%</b><span>할인</span></div>`;
+  return `<div class="rate"><b>${c.discount_rate}%</b><span>${upTo(c) ? '최대 할인' : '할인'}</span></div>`;
 }
 
 // 쿠폰가가 있으면 쿠폰가, 없으면 주문 전체 할인 (정률·정액) 또는 적립
 function priceRow(c) {
   if (has(c.coupon_price) && c.discount_type !== 'free_item') return `<div class="prow cp"><span class="lbl">쿠폰가</span><b>${won(c.coupon_price)}<em>원</em></b></div>`;
-  if (c.discount_type === 'percent' && c.discount_rate) return `<div class="prow cp"><span class="lbl">주문 할인</span><b>${c.discount_rate}<em>%</em></b></div>`;
-  if (c.discount_type === 'amount' && c.discount_value) return `<div class="prow cp"><span class="lbl">주문 할인</span><b>${won(c.discount_value)}<em>원</em></b></div>`;
+  const lbl = upTo(c) ? '최대 할인' : '주문 할인';
+  if (c.discount_type === 'percent' && c.discount_rate) return `<div class="prow cp"><span class="lbl">${lbl}</span><b>${c.discount_rate}<em>%</em></b></div>`;
+  if (c.discount_type === 'amount' && c.discount_value) return `<div class="prow cp"><span class="lbl">${lbl}</span><b>${won(c.discount_value)}<em>원</em></b></div>`;
   if (c.discount_type === 'point_back' && c.discount_value) return `<div class="prow cp"><span class="lbl">결제 후 적립</span><b>${has(c.discount_rate) ? `${c.discount_rate}<em>%</em>` : `${won(c.discount_value)}<em>원</em>`}</b></div>`;
   if (c.discount_type === 'free_item') return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">1+1 · 증정</b></div>';
   return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">공식 앱에서 확인</b></div>';
@@ -597,7 +599,7 @@ function nutritionBlock(c) {
 
 function detailHtml(c, today) {
   const progs = c.programs || [];
-  const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${won(c.max_discount)}원 할인` : '', c.conditions].filter(Boolean).join(' · ');
+  const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${won(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
   const period = c.end_date
     ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${daysLeft(c.end_date, today) === 0 ? '오늘 끝나요' : daysLeft(c.end_date, today) + '일 남음'})`
     : '끝나는 날 공지 없음 · 매일 다시 확인해요';

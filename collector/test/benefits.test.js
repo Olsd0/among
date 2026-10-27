@@ -247,3 +247,22 @@ test('등급별 할인은 가장 낮은 등급 값으로 · 메뉴 자리에 프
   assert.deepEqual(hp.programs, ['해피포인트']);
   assert.equal(v({ menu: '해피포인트 블록팩' }, { brand: '배스킨라빈스', category: '디저트' }).menu, '해피포인트 블록팩', '실제 메뉴 이름은 그대로');
 });
+
+test('과장 방지 (2차 시험 실행에서 발견): 최대 표기, 등급별 할인액, 머니·포인트 지급은 적립', async () => {
+  const { lowestTierAmount, isUpTo } = await import('../src/engine.js');
+  assert.equal(lowestTierAmount('LG유플러스 VVIP 고객 패밀리 9천원 OFF, VIP고객 패밀리 6천원OFF'), 6000);
+  assert.equal(lowestTierAmount('패밀리 26,000원 → 9천원 할인'), null, '등급 표기 없으면 그대로');
+  assert.equal(isUpTo('🍚밥 먹자! 파바 고? 최대 30% 선착순 혜택!', 30), true);
+  assert.equal(isUpTo('최대 5,000원 할인', 5000), true);
+  assert.equal(isUpTo('최대 5천원 혜택', 5000), true);
+  assert.equal(isUpTo('30% 할인 (최대 3천원)', 30), false, '할인 상한(max_discount)은 최대 표기가 아님');
+  const fam = v({ menu: '패밀리', regular_price: 26000, coupon_price: 17000, discount_type: 'amount', discount_value: 9000, audience: '멤버십', evidence: 'LG유플러스 VVIP 고객 패밀리 9천원 OFF, VIP고객 패밀리 6천원OFF' }, { brand: '배스킨라빈스', category: '디저트' });
+  assert.equal(fam.discount_value, 6000);
+  assert.equal(fam.coupon_price, 20000, '쿠폰가도 낮은 등급 기준으로 다시 계산');
+  assert.deepEqual(fam.programs, ['LGU+']);
+  const pb = v({ menu: '전 메뉴', regular_price: null, coupon_price: null, discount_type: 'percent', discount_value: 30, evidence: '파바 고? 최대 30% 선착순 혜택!' }, { brand: '파리바게뜨', category: '디저트' });
+  assert.match(pb.program_note, /^최대/);
+  const money = v({ menu: '전 메뉴', regular_price: null, coupon_price: null, discount_type: 'amount', discount_value: 3000, evidence: '해피페이 머니 가입 고객 대상 3천 머니 지급' }, { brand: '배스킨라빈스', category: '디저트' });
+  assert.equal(money.discount_type, 'point_back');
+  assert.equal(money.discount_value, 3000);
+});

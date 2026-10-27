@@ -134,6 +134,23 @@ export function lowestTierPercent(text) {
   return all.length >= 2 ? Math.min(...all) : null;
 }
 
+/** 등급별 할인액 중 가장 낮은 값 ("VVIP 9천원 OFF, VIP 6천원 OFF" → 6000). 등급 표기가 없으면 null */
+export function lowestTierAmount(text) {
+  const s = String(text || '');
+  if (!TIER_WORDS.test(s)) return null;
+  const all = [...s.matchAll(/(\d+(?:,\d{3})*\s*원|\d+\s*천\s*원)\s*(?:OFF|off|할인)/g)].map((m) => toInt(m[1].replace(/천/, '000').replace(/\s/g, ''))).filter((n) => n > 0);
+  return all.length >= 2 ? Math.min(...all) : null;
+}
+
+/** '최대 30%', '최대 5천원 할인'처럼 상한만 적힌 홍보 문구인가 (할인 크기가 조건에 따라 달라짐) */
+export function isUpTo(text, value) {
+  if (value === null || value === undefined) return false;
+  const s = String(text || '').replace(/,/g, '');
+  const v = String(value);
+  const k = value >= 1000 && value % 1000 === 0 ? `${value / 1000}\\s*천` : null;
+  return new RegExp(`최대\\s*(${v}\\s*%|${v}\\s*원${k ? `|${k}` : ''})`).test(s);
+}
+
 /** 다른 할인과 같이 쓸 수 있는지: 'no' | 'yes' | '' (모름) */
 export function detectStackable(text) {
   const s = String(text || '');
@@ -422,8 +439,13 @@ export function normalizeAndValidate(raw, ctx = {}) {
   }
   // 등급별 할인: 가장 낮은 등급 값으로 (과장 방지)
   const tierMin = discount_type === 'percent' ? lowestTierPercent([raw.program_note, raw.evidence, raw.conditions].map(clean).join(' ')) : null;
-  const tierLowered = tierMin !== null && discount_value !== null && tierMin < discount_value;
-  if (tierLowered) discount_value = tierMin;
+  const tierAmt = discount_type === 'amount' ? lowestTierAmount([raw.program_note, raw.evidence, raw.conditions].map(clean).join(' ')) : null;
+  const tierLowered = (tierMin !== null && discount_value !== null && tierMin < discount_value)
+    || (tierAmt !== null && discount_value !== null && tierAmt < discount_value);
+  if (tierLowered) discount_value = discount_type === 'amount' ? tierAmt : tierMin;
+  // '3천 머니 지급', '2,000포인트 적립'은 할인이 아니라 적립 (결제액이 줄지 않음)
+  if (discount_type === 'amount' && toInt(raw.coupon_price) === null && /(머니|포인트|\bP\b|캐시)\s*(을|를)?\s*(지급|적립|증정|드려|드립니다|충전)|적립금/.test(allText)) discount_type = 'point_back';
+  const upTo = (discount_type === 'percent' || discount_type === 'amount' || discount_type === 'point_back') && isUpTo(allText, discount_value);
   // 적립 단위: 원 / % (AI가 알려주지 않으면 근거 문장에 'N%'가 있는지로 판단)
   const discount_unit = discount_type !== 'point_back' ? ''
     : (raw.discount_unit === 'percent' || raw.discount_unit === 'won') ? raw.discount_unit
@@ -460,7 +482,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
     official_link: clean(ctx.officialLink || raw.official_link),
     // 이용자에게 필요한 정보: 무엇이 있어야 쓰는지 · 어떻게 쓰는지 · 다른 할인과 같이 되는지
     programs,
-    program_note: clean(raw.program_note).slice(0, 120) || (tierLowered ? '등급에 따라 더 큰 할인' : ''),
+    // '최대'는 화면이 '최대 30%'로 보여주는 신호 (program_note에 담아 공개)
+    program_note: [upTo ? '최대 (조건에 따라 다름)' : '', clean(raw.program_note).slice(0, 120) || (tierLowered ? '등급에 따라 더 큰 할인' : '')].filter(Boolean).join(' · '),
     how_to_use: clean(raw.how_to_use).slice(0, 160),
     stackable: raw.stackable === true ? 'yes' : raw.stackable === false ? 'no' : detectStackable(allText),
   };
