@@ -144,7 +144,7 @@ export async function runCollector(o = {}) {
         if (e.code === 'ROBOTS' && !sr.pages && /거부|차단/.test(e.message)) {
           sr.ok = true;
           sr.robots_blocked = true;
-          report.errors.push(`${source.id}: ${e.message} → 이 출처 쿠폰·소식을 내림 (sources 탭에서 active=FALSE 권장)`);
+          report.errors.push(`${source.id}: ${e.message} → 이 출처 쿠폰·소식을 내림 (active는 그대로 두면 거부가 풀릴 때 자동으로 다시 수집)`);
           log(`  ⊘ ${source.id}: ${e.message}`);
           return;
         }
