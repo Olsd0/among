@@ -30,6 +30,9 @@ test('사진: 쿠폰을 읽은 그 페이지의 이미지 중 메뉴 이름·근
   assert.equal(isNonPhoto({ src: 'https://a.kr/p.svg', w: 500, h: 500 }), true);
   assert.equal(isNonPhoto({ src: 'https://a.kr/detail_long.jpg', w: 750, h: 4000 }), true, '세로로 긴 상세 통이미지');
   assert.equal(isNonPhoto({ src: 'https://a.kr/food.jpg', alt: '도미노피자', w: 500, h: 300 }, '도미노피자'), true, '대체텍스트가 브랜드 이름뿐 = 로고');
+  assert.equal(isNonPhoto({ src: 'https://www.puradakchicken.com/upload/mainbanner/260715_%EB%A9%94%EC%9D%B8%ED%95%98%EB%8B%A8_%EC%88%98%EC%83%81%EB%82%B4%EC%97%AD_m.png' }), true, '홈 메인 배너(수상 내역)');
+  assert.equal(isNonPhoto({ src: 'https://www.kfckorea.com/nas/popup/intro_img03.png' }), true, '팝업');
+  assert.equal(isNonPhoto({ src: 'https://www.kfckorea.com/nas/event/2026/10/01/Yaf7bi1GHB5S.png' }), false, '행사 이미지는 그대로');
 });
 
 test('사진: 수집 경로 — 브랜드 자체 출처만, 같은 쿠폰이 합쳐지면 사진 있는 쪽을 이어받음, 사진이 바뀌면 변경으로 봄', () => {

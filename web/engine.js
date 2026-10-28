@@ -956,7 +956,8 @@ export function benefitLabel(c) {
 }
 
 // 로고·아이콘·버튼·장식 이미지 (사진으로 쓰지 않음)
-const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sns|facebook|instagram|insta_|youtube|twitter|blog|gnb|lnb|footer|header|qr|badge|favicon|sprite|bullet|loading|spinner|placeholder|blank|appdown|app_down|googleplay|google_play|appstore|app_store|share_default|og_default|default_og|no_?image/i;
+// 홈 메인 배너·팝업·수상 내역 같은 사이트 공통 그림도 쿠폰 사진이 아니다 (10/28 실제 수집: 푸라닭 '메인하단_수상내역', KFC 'popup/intro')
+const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sns|facebook|instagram|insta_|youtube|twitter|blog|gnb|lnb|footer|header|qr|badge|favicon|sprite|bullet|loading|spinner|placeholder|blank|appdown|app_down|googleplay|google_play|appstore|app_store|share_default|og_default|default_og|no_?image|main_?banner|main_?visual|메인|popup|팝업|intro|award|수상/i;
 /**
  * 사진으로 쓸 수 없는 이미지인가: https가 아님(섞인 콘텐츠로 막힘), svg·gif, 로고·아이콘 이름, 너무 작음,
  * 가로로 긴 띠 배너·세로로 긴 상세 통이미지, 대체텍스트가 브랜드 이름뿐(=로고)
@@ -964,7 +965,9 @@ const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sn
 export function isNonPhoto(img = {}, brand = '') {
   const src = String(img.src || '');
   if (!/^https:\/\//i.test(src) || /\.(svg|gif)(\?|#|$)/i.test(src)) return true;
-  if (NON_PHOTO.test(src) || NON_PHOTO.test(img.alt || '')) return true;
+  let path = src;
+  try { path = decodeURIComponent(new URL(src).pathname); } catch { /* 그대로 */ }
+  if (NON_PHOTO.test(path) || NON_PHOTO.test(img.alt || '')) return true;
   const w = +img.w || 0, h = +img.h || 0;
   if (w && h) {
     if (w < 200 || h < 120) return true;
