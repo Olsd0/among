@@ -32,7 +32,7 @@ async function setup(data, options = {}) {
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (options.requests) options.requests.push(url.href);
-    if (options.photoUrl === url.href) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN6sAAAAASUVORK5CYII=', 'base64') });
+    if (options.photoUrl === url.href) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC', 'base64') });
     if (url.origin === site.base) return route.continue();
     if (url.hostname === 'script.google.com') {
       if (url.searchParams.get('action') === 'coupons') {
@@ -154,10 +154,11 @@ test('실제 상품 사진만 표시하고 API와 저장본의 배너·다른 �
   const requests = [];
   const { context, page } = await setup(data, { cache: data, failCoupons: 1, photoUrl, requests });
   t.after(() => context.close());
+  page.setDefaultTimeout(5000);
   await page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
   const photo = page.locator('#card-known .stub img.ph');
   await photo.scrollIntoViewIfNeeded();
-  await page.waitForFunction(() => document.querySelector('#card-known .ph')?.naturalWidth > 0);
+  await page.waitForFunction(() => document.querySelector('#card-known .ph')?.naturalWidth > 0, null, { timeout: 5000 });
   assert.equal(await photo.getAttribute('src'), photoUrl);
   assert.equal(await photo.evaluate((el) => getComputedStyle(el).objectFit), 'contain');
   assert.equal(await page.locator('#card-unknown .ph').count(), 0);
