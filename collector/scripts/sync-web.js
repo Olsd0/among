@@ -1,6 +1,6 @@
-// collector/src/engine.js → web/engine.js 복사 (화면과 수집기가 같은 계산 로직을 쓰도록)
+// 수집기와 화면이 동일한 판단 로직과 상품 사진 목록을 쓰도록 복사한다.
 import { copyFileSync } from 'node:fs';
-const src = new URL('../src/engine.js', import.meta.url);
-const dst = new URL('../../web/engine.js', import.meta.url);
-copyFileSync(src, dst);
-console.log('web/engine.js 갱신 완료');
+for (const file of ['engine.js', 'product-images.js']) {
+  copyFileSync(new URL(`../src/${file}`, import.meta.url), new URL(`../../web/${file}`, import.meta.url));
+  console.log(`web/${file} 갱신 완료`);
+}

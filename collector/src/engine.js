@@ -1,3 +1,5 @@
+import { productImage } from './product-images.js';
+
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
 // - AI(Claude)는 페이지에서 "읽기"만 한다. 숫자 계산·검증·게시 여부 결정은 전부 이 파일에서.
@@ -948,7 +950,7 @@ export function sortCoupons(list, key = 'price', today = todayKST(), profile = n
 
 /** 화면에 크게 보여줄 혜택 한 줄 ("1+1", "40%", "2,500원", "5,000원 할인", "2,000원 적립") */
 export function benefitLabel(c) {
-  const won = (n) => `${Math.round(+n).toLocaleString('en-US')}원`;
+  const won = (n) => `${moneyDigits(n)}원`;
   const has = (v) => v !== null && v !== undefined && v !== '';
   const upTo = /^최대/.test(c.program_note || '') ? '최대 ' : '';
   if (c.discount_type === 'free_item') return /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''} ${c.evidence || ''}`) ? '1+1' : '증정';
@@ -964,58 +966,32 @@ export function benefitLabel(c) {
   return '할인';
 }
 
-// 로고·아이콘·버튼·장식 이미지 (사진으로 쓰지 않음)
-// 홈 메인 배너·팝업·수상 내역 같은 사이트 공통 그림도 쿠폰 사진이 아니다 (10/28 실제 수집: 푸라닭 '메인하단_수상내역', KFC 'popup/intro')
-const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sns|facebook|instagram|insta_|youtube|twitter|blog|gnb|lnb|footer|header|qr|badge|favicon|sprite|bullet|loading|spinner|placeholder|blank|appdown|app_down|googleplay|google_play|appstore|app_store|share_default|og_default|default_og|no_?image|main_?banner|main_?visual|메인|popup|팝업|intro|award|수상/i;
-/**
- * 사진으로 쓸 수 없는 이미지인가: https가 아님(섞인 콘텐츠로 막힘), svg·gif, 로고·아이콘 이름, 너무 작음,
- * 가로로 긴 띠 배너·세로로 긴 상세 통이미지, 대체텍스트가 브랜드 이름뿐(=로고)
- */
-export function isNonPhoto(img = {}, brand = '') {
-  const src = String(img.src || '');
-  if (!/^https:\/\//i.test(src) || /\.(svg|gif)(\?|#|$)/i.test(src)) return true;
-  let path = src;
-  try { path = decodeURIComponent(new URL(src).pathname); } catch { /* 그대로 */ }
-  if (NON_PHOTO.test(path) || NON_PHOTO.test(img.alt || '')) return true;
-  const w = +img.w || 0, h = +img.h || 0;
-  if (w && h) {
-    if (w < 200 || h < 120) return true;
-    if (w / h > 4 || h / w > 2.5) return true;
-  }
-  if (brand && img.alt && squash(img.alt) === squash(brand)) return true;
-  return false;
+// 금액은 축약·자릿수 구분 없이 표시한다 (15000원, 3000원).
+export function moneyDigits(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(+value) ? String(Math.round(+value)) : '';
 }
 
-/**
- * 쿠폰(또는 소식)과 함께 온 사진 고르기 — 쿠폰 정보를 가져온 바로 그 공식 페이지의 이미지만 쓴다. 저장하지 않고 주소만 둔다.
- * 1) 이미지 대체텍스트·주변 글에 메뉴 이름이나 근거 문구 앞부분이 있으면 그 이미지
- * 2) 행사 1개짜리 상세 페이지면 공유용 대표 이미지(og:image), 없으면 큰 사진이 하나뿐일 때 그 사진
- * 3) 그 밖에는 사진 없음 ('') — 다른 곳의 사진이나 예시 사진으로 채우지 않는다
- * page: { images: [{src, alt, w, h, near}], ogImage, isDetail }
- */
-export function pickImage(item = {}, page = {}, brand = '') {
-  const imgs = (page.images || []).filter((i) => !isNonPhoto(i, brand));
-  const mk = item.menu && !isGenericMenu(item.menu) ? menuKey(item.menu) : '';
-  const ev = menuKey(item.evidence || '').slice(0, 14);
-  const score = (i) => {
-    const alt = menuKey(i.alt || ''), near = menuKey(i.near || '');
-    let s = 0;
-    if (mk.length >= 2 && alt && (alt.includes(mk) || (alt.length >= 3 && mk.includes(alt)))) s += 3;
-    if (mk.length >= 2 && near.includes(mk)) s += 2;
-    if (ev.length >= 6 && near.includes(ev)) s += 2;
-    return s;
-  };
-  // 점수가 같으면 정사각형에 가까운 사진 (작은 칸에 넣어도 잘리지 않게: 모바일용 배너가 PC용보다 나음)
-  const squareness = (i) => ((+i.w || 0) && (+i.h || 0) ? Math.abs(Math.log(i.w / i.h)) : 9);
-  let best = null, bestS = 0;
-  for (const i of imgs) { const s = score(i); if (s > bestS || (s === bestS && best && squareness(i) < squareness(best))) { best = i; bestS = s; } }
-  if (best && bestS >= 2) return best.src;
-  if (page.isDetail) {
-    if (page.ogImage && !isNonPhoto({ src: page.ogImage, alt: '' }, brand)) return page.ogImage;
-    const big = imgs.filter((i) => (+i.w || 0) >= 300 && (+i.h || 0) >= 200);
-    if (big.length === 1) return big[0].src;
-  }
-  return '';
+/** 수집된 짧은 혜택 라벨의 1.5만원·1만5천원·15,000원을 15000원으로 통일한다. */
+export function formatMoneyLabel(value) {
+  return String(value || '').replace(/[0-9][0-9,.만천 \t]{0,40}원/g, (full) => {
+    const body = full.slice(0, -1).replace(/[, \t]/g, '');
+    const parts = body.match(/\d+(?:\.\d+)?[만천]?/g);
+    if (!parts || parts.join('') !== body) return full;
+    let total = 0, previous = Infinity;
+    for (const part of parts) {
+      const suffix = part.at(-1);
+      const unit = suffix === '만' ? 10000 : suffix === '천' ? 1000 : 1;
+      if (unit >= previous) return full;
+      total += Number(unit === 1 ? part : part.slice(0, -1)) * unit;
+      previous = unit;
+    }
+    return Number.isSafeInteger(total) ? `${total}원` : full;
+  });
+}
+
+/** 페이지 배너·OG 이미지·근거 문구로 추측하지 않고 확인된 상품 사진만 선택한다. */
+export function pickImage(item = {}, _page = {}, brand = '') {
+  return productImage({ ...item, brand: item.brand || brand });
 }
 
 const WEEKDAYS = '일월화수목금토';
@@ -1143,7 +1119,7 @@ export function linkNews(newsList, coupons) {
     const overlap = (c) => !(n.end_date && c.start_date && c.start_date > n.end_date) && !(n.start_date && c.end_date && c.end_date < n.start_date);
     const sameWho = (c) => c.brand === n.brand || (n.programs || []).some((p) => (c.programs || []).includes(p) && PROGRAM_LABEL[p] === n.brand);
     const rel = coupons.filter((c) => c.status === 'published' && urlHit(c) && sameWho(c) && overlap(c)).slice(0, 6);
-    return { ...n, related_ids: rel.map((c) => c.id), image_url: n.image_url || rel.find((c) => c.image_url)?.image_url || '' };
+    return { ...n, related_ids: rel.map((c) => c.id), image_url: productImage(n) };
   });
 }
 
@@ -1191,8 +1167,8 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
     out.push({
       kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
       // 같은 페이지의 연결 쿠폰은 다른 행사일 수 있으므로 빈 소식 라벨을 쿠폰 혜택으로 채우지 않는다.
-      label: n.discount_label || '', start_date: n.start_date || null, end_date: n.end_date || null,
-      image_url: n.image_url || rel.find((c) => c.image_url)?.image_url || '', programs: n.programs || [], related_ids: rel.map((c) => c.id),
+      label: formatMoneyLabel(n.discount_label), start_date: n.start_date || null, end_date: n.end_date || null,
+      image_url: productImage(n), programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
     });
   }
@@ -1207,7 +1183,7 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
     if (profile && !usableBy(c, profile)) score -= 30;
     out.push({
       kind: 'coupon', id: c.id, brand: c.brand, category: c.category, title: `${c.brand} ${c.menu}`,
-      summary: '', label: benefitLabel(c), start_date: c.start_date || null, end_date: c.end_date || null, image_url: c.image_url || '',
+      summary: '', label: benefitLabel(c), start_date: c.start_date || null, end_date: c.end_date || null, image_url: productImage(c),
       programs: c.programs || [], related_ids: [c.id], reason: reasonOf(c), score,
     });
   }

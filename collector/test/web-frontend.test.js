@@ -3,6 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
+import { productImage } from '../src/product-images.js';
 import { serveDir } from './helpers.js';
 
 let site, browser;
@@ -30,6 +31,8 @@ async function setup(data, options = {}) {
   let couponCalls = 0;
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
+    if (options.requests) options.requests.push(url.href);
+    if (options.photoUrl === url.href) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN6sAAAAASUVORK5CYII=', 'base64') });
     if (url.origin === site.base) return route.continue();
     if (url.hostname === 'script.google.com') {
       if (url.searchParams.get('action') === 'coupons') {
@@ -88,9 +91,11 @@ test('연결 실패 시 저장본임을 알리고, 저장본이 없으면 다시
 test('할인 숫자와 단위를 분리해도 금액·할인·적립 티켓 표시를 유지한다', { timeout: 30000 }, async (t) => {
   const cases = [
     ['percent', { discount_type: 'percent', coupon_price: null, discount_rate: 20 }, '20%', '%'],
-    ['amount', { discount_type: 'amount', coupon_price: null, discount_rate: null, discount_value: 20000 }, '2만원', '원'],
-    ['price', { discount_rate: null, coupon_price: 5500 }, '5,500원', '원'],
-    ['points', { discount_type: 'point_back', coupon_price: null, discount_rate: null, discount_value: 5000 }, '5천원', '원'],
+    ['amount', { discount_type: 'amount', coupon_price: null, discount_rate: null, discount_value: 20000 }, '20000원', '원'],
+    ['amount-small', { discount_type: 'amount', coupon_price: null, discount_rate: 20, discount_value: 3000 }, '3000원', '원'],
+    ['amount-large', { discount_type: 'amount', coupon_price: null, discount_rate: 30, discount_value: 15000 }, '15000원', '원'],
+    ['price', { discount_rate: null, coupon_price: 5500 }, '5500원', '원'],
+    ['points', { discount_type: 'point_back', coupon_price: null, discount_rate: null, discount_value: 5000 }, '5000원', '원'],
     ['point-rate', { discount_type: 'point_back', coupon_price: null, discount_rate: 5, discount_value: 5 }, '5%', '%'],
     ['gift', { discount_type: 'free_item', menu: '아메리카노 1+1', coupon_price: null, discount_rate: null }, '1+1', ''],
   ];
@@ -102,6 +107,8 @@ test('할인 숫자와 단위를 분리해도 금액·할인·적립 티켓 표�
     const label = page.locator(`#card-${id} .big`);
     assert.equal(await label.innerText(), text, id);
     assert.deepEqual(await label.locator('small').allTextContents(), unit ? [unit] : [], id);
+    if (unit === '원') assert.equal(await label.evaluate((el) => getComputedStyle(el).fontSize), '18px', id);
+    assert.equal(await label.evaluate((el) => el.scrollWidth <= el.clientWidth), true, `${id} 넘침 없음`);
   }
 });
 
@@ -135,4 +142,32 @@ test('120개 혜택의 첫 표시와 검색이 모바일 화면에서 동작한�
   assert.equal(await page.locator('#list .card').count(), 1);
   assert.deepEqual(errors, []);
   t.diagnostic(`모의 API, 외부 이미지·글꼴 제외: 120개 첫 표시 ${elapsed}ms`);
+});
+
+
+test('실제 상품 사진만 표시하고 API와 저장본의 배너·다른 상품 사진은 요청하지 않는다', { timeout: 30000 }, async (t) => {
+  const known = { ...coupon('known'), brand: '맥도날드', menu: '불고기버거', image_url: 'https://example.test/banner.jpg' };
+  const photoUrl = productImage(known);
+  const unknown = { ...coupon('unknown'), menu: '전 메뉴', image_url: photoUrl };
+  const n = { ...news('banner', ago(1)), discount_label: '15천원', related_ids: ['known'], image_url: 'https://example.test/news-banner.jpg' };
+  const data = { ok: true, last_checked_at: ago(1), coupons: [known, unknown], news: [n] };
+  const requests = [];
+  const { context, page } = await setup(data, { cache: data, failCoupons: 1, photoUrl, requests });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
+  const photo = page.locator('#card-known .stub img.ph');
+  await photo.scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.querySelector('#card-known .ph')?.naturalWidth > 0);
+  assert.equal(await photo.getAttribute('src'), photoUrl);
+  assert.equal(await photo.evaluate((el) => getComputedStyle(el).objectFit), 'contain');
+  assert.equal(await page.locator('#card-unknown .ph').count(), 0);
+  assert.equal(await page.locator('#hotRail [data-hot="news:banner"] .ph').count(), 0);
+  const hotLabel = page.locator('#hotRail [data-hot="news:banner"] .lbl');
+  assert.equal(await hotLabel.innerText(), '15000원');
+  assert.equal(await hotLabel.evaluate((el) => getComputedStyle(el).fontSize), '18px');
+  await page.locator('#hotRail [data-hot="news:banner"]').click();
+  await page.locator('#newsSheet').waitFor();
+  assert.equal(await page.locator('#newsBody .ph').count(), 0);
+  assert.equal(await page.locator('#newsBody .lbl').innerText(), '15000원');
+  assert.ok(!requests.some((url) => url.includes('banner.jpg')), '저장본의 행사 배너도 요청하지 않는다');
 });
