@@ -274,28 +274,26 @@ function logEvent_(b) {
   if (EVENT_TYPES.indexOf(type) < 0) return { ok: false, error: 'bad type' };
   const sid = String(b.sid || '');
   if (!SID_RE.test(sid)) return { ok: false, error: 'bad sid' };
-  // 너무 잦은 기록은 조용히 버린다 (화면 동작에는 영향 없음)
-  if (!rateOk_('event', sid)) return { ok: true, dropped: true };
-  const saved = appendPublic_('events', {
+  // 너무 잦거나 잠금이 바쁜 기록은 조용히 버린다 (화면 동작에는 영향 없음)
+  const result = appendPublic_('events', {
     ts: nowIso_(), sid: sid, type: type,
     coupon_id: idOrEmpty_(b.coupon_id), brand: text_(b.brand, 30), value: text_(b.value, 100),
-  });
-  return saved ? { ok: true } : { ok: true, dropped: true };
+  }, 'event', sid);
+  return result === 'saved' ? { ok: true } : { ok: true, dropped: true };
 }
 
 function logReport_(b) {
   const sid = String(b.sid || '');
   if (!SID_RE.test(sid)) return { ok: false, error: 'bad sid' };
-  if (!rateOk_('report', sid)) return { ok: false, error: 'too_many' };
   const reason = REPORT_REASONS.indexOf(b.reason) >= 0 ? b.reason : '기타';
-  const saved = appendPublic_('reports', {
+  const result = appendPublic_('reports', {
     ts: nowIso_(), sid: sid, coupon_id: idOrEmpty_(b.coupon_id), brand: text_(b.brand, 30),
     menu: text_(b.menu, 80), reason: reason, memo: text_(scrubPersonal_(b.memo), 500, true), status: '새 제보',
-  });
-  return saved ? { ok: true } : { ok: false, error: 'busy' };
+  }, 'report', sid);
+  return result === 'saved' ? { ok: true } : { ok: false, error: result === 'limited' ? 'too_many' : 'busy' };
 }
 
-/** 공개 요청 빈도 제한: 브라우저(sid)별·전체 횟수를 시간 창마다 센다 (CacheService, 대략적인 값이면 충분) */
+/** 공개 요청 빈도 제한. 호출자는 반드시 스크립트 잠금을 갖고 있어야 한다. CacheService는 축출될 수 있어 보조적인 제한이다. */
 function rateOk_(kind, sid) {
   const L = PUBLIC_LIMITS[kind];
   const now = Date.now();
@@ -310,11 +308,15 @@ function rateOk_(kind, sid) {
   return true;
 }
 
-/** 공개 기록은 잠금 안에서 한 줄씩 (동시에 와도 서로 덮어쓰지 않게). 잠금을 못 얻으면 false */
-function appendPublic_(name, obj) {
+/** 빈도 검사·기록을 같은 잠금 안에서 처리해 동시 요청이 횟수 제한을 지나치지 않게 한다. */
+function appendPublic_(name, obj, kind, sid) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return false;
-  try { appendRow_(name, obj); return true; } finally { lock.releaseLock(); }
+  if (!lock.tryLock(5000)) return 'busy';
+  try {
+    if (!rateOk_(kind, sid)) return 'limited';
+    appendRow_(name, obj);
+    return 'saved';
+  } finally { lock.releaseLock(); }
 }
 
 /** 공개 입력 → 시트에 넣을 안전한 글자: 제어문자 제거, 길이 제한, 수식으로 해석될 시작 글자(= + - @) 무력화 */
@@ -341,13 +343,30 @@ function purgeOld_() {
     const sh = sheet_(name);
     const last = sh.getLastRow();
     if (last < 2) { out[name] = 0; return; }
-    const cutoff = new Date(Date.now() - RETENTION_DAYS[name] * 86400000).toISOString();
-    const ts = sh.getRange(2, 1, last - 1, 1).getValues().map((r) => (r[0] instanceof Date ? r[0].toISOString() : String(r[0])));
-    let n = 0;
-    while (n < ts.length && ts[n] && ts[n] < cutoff) n++;
-    n += Math.max(0, ts.length - n - MAX_ROWS[name]);
-    if (n >= last - 1) sh.getRange(2, 1, last - 1, Math.max(1, sh.getLastColumn())).clearContent();
-    else if (n > 0) sh.deleteRows(2, n);
+    const cutoff = Date.now() - RETENTION_DAYS[name] * 86400000;
+    const ts = sh.getRange(2, 1, last - 1, 1).getValues();
+    // 요청이 동시에 도착하면 기록 시각 순서가 달라질 수 있으므로 전체 행을 확인한다.
+    // 시각을 해석할 수 없는 기존 행은 임의로 삭제하지 않고 보존한다.
+    const remove = ts.map((r) => {
+      const ms = r[0] instanceof Date ? r[0].getTime() : Date.parse(String(r[0]));
+      return !isNaN(ms) && ms < cutoff;
+    });
+    let n = remove.filter(Boolean).length;
+    let excess = Math.max(0, ts.length - n - MAX_ROWS[name]);
+    // 행 상한을 넘으면 앞에 기록된 행부터 추가로 삭제한다.
+    for (let i = 0; excess && i < remove.length; i++) {
+      if (!remove[i]) { remove[i] = true; n++; excess--; }
+    }
+    if (n === ts.length) sh.getRange(2, 1, ts.length, Math.max(1, sh.getLastColumn())).clearContent();
+    else {
+      // 뒤에서 연속 구간별로 지워 나머지 행 번호가 바뀌어도 빠뜨리지 않는다.
+      for (let i = remove.length - 1; i >= 0;) {
+        if (!remove[i]) { i--; continue; }
+        const end = i;
+        while (i >= 0 && remove[i]) i--;
+        sh.deleteRows(i + 3, end - i);
+      }
+    }
     out[name] = n;
   });
   return out;

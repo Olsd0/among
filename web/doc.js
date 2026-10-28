@@ -35,6 +35,8 @@
     }
     sw.addEventListener('change', () => {
       const saved = ls.set('among_notrack', !sw.checked);
+      // 저장이 막혔으면 화면도 이전 상태로 되돌려 실제 설정과 일치시킨다.
+      if (!saved) sw.checked = !sw.checked;
       if (swNote) swNote.textContent = !saved ? '이 브라우저는 설정을 저장할 수 없어요.' : sw.checked ? '이용 기록을 보내요. 언제든 다시 끌 수 있어요.' : '이제 이 브라우저에서는 이용 기록을 보내지 않아요.';
     });
   }
@@ -46,15 +48,15 @@
     let armed = false;
     clr.addEventListener('click', () => {
       if (!armed) { armed = true; clr.textContent = '한 번 더 누르면 지워요'; return; }
-      let n = 0;
+      let n = 0, failed = false;
       try {
-        Object.keys(localStorage).filter((k) => k.startsWith('among_')).forEach((k) => { localStorage.removeItem(k); n++; });
-        if (window.caches) caches.keys().then((ks) => ks.filter((k) => k.startsWith('among-')).forEach((k) => caches.delete(k))).catch(() => {});
-      } catch { /* 저장소 접근 불가 */ }
+        // 이용 기록 거부 선택은 다른 정보를 지운 뒤에도 계속 지킨다.
+        Object.keys(localStorage).filter((k) => k.startsWith('among_') && k !== 'among_notrack').forEach((k) => { localStorage.removeItem(k); n++; });
+        if (window.caches) caches.keys().then((ks) => ks.filter((k) => k.startsWith('among-shell-')).forEach((k) => caches.delete(k))).catch(() => {});
+      } catch { failed = true; }
       armed = false;
       clr.textContent = '지우기';
-      if (sw && !sw.disabled) sw.checked = true;
-      if (clrNote) clrNote.textContent = n ? `이 기기에 저장된 AMONG 정보 ${n}가지를 지웠어요. 다음 방문 때 새 무작위 번호가 만들어져요.` : '지울 정보가 없어요.';
+      if (clrNote) clrNote.textContent = failed ? '이 브라우저의 저장 정보에 접근하지 못했어요. 브라우저 설정에서 사이트 데이터를 확인해 주세요.' : n ? `이 기기에 저장된 AMONG 정보 ${n}가지를 지웠어요. 이용 기록 설정은 유지돼요. 다음 방문 때 새 무작위 번호가 만들어져요.` : '지울 정보가 없어요. 이용 기록 설정은 유지돼요.';
     });
   }
 })();

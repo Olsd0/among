@@ -127,6 +127,14 @@ test('혜택 한 줄 표시', () => {
   assert.equal(benefitLabel({ discount_type: 'point_back', discount_value: 5, discount_rate: 5 }), '5% 적립');
 });
 
+test('핫딜 소식에 라벨이 없을 때 다른 연결 쿠폰의 금액을 대신 표시하지 않는다', () => {
+  const coupons = [{ id: 'c1', brand: '반올림피자', discount_type: 'amount', discount_value: 4000, audience: '전체', programs: [] }];
+  const news = [{ id: 'n1', brand: '반올림피자', title: '매주 수요일 반올림데이 최대 6천원 할인', summary: '매주 수요일', discount_label: '', end_date: '2026-10-31', related_ids: ['c1'], programs: [] }];
+  assert.equal(pickHeadlines(coupons, news, { today: TODAY })[0].label, '');
+  news[0].discount_label = '최대 6천원';
+  assert.equal(pickHeadlines(coupons, news, { today: TODAY })[0].label, '최대 6천원');
+});
+
 test('홈 아이콘 아래 줄: 1+1·증정 / 곧 마감 / 통신사 / 페이·포인트 / 신규가입', async () => {
   const { matchesKind, matchesFilters } = await import('../src/engine.js');
   const c = (o) => ({ discount_type: 'price', audience: '전체', programs: [], end_date: null, ...o });

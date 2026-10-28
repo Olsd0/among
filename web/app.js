@@ -1,7 +1,7 @@
 // AMONG 화면 스크립트 (index.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel,
+  PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus,
 } from './engine.js';
 
 // ---------- 설정 ----------
@@ -79,6 +79,8 @@ const state = {
   news: [],
   meta: {},
   loading: true,
+  checkingNetwork: false,
+  loadFailed: false,
   open: new Set(),
   syncing: false,
   nutrition: null,          // { items, updated_at } — 처음 상세를 열 때 불러옴
@@ -111,7 +113,8 @@ const logoAlt = (c) => { const u = brandSite(c); try { return u ? `${new URL(u).
 // 구글 아이콘 서비스는 아이콘이 없으면 16px 지구본을 준다 → 공식 사이트 favicon.ico로 한 번 더, 그래도 없으면 카테고리 아이콘
 const logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; } else img.remove(); };
 const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
-const md = (iso) => (iso ? `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
+// 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
+const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 사진은 https 주소만 (수집기가 공식 행사 페이지에서 고른 것). 못 불러오면 사진 없는 모양으로
 const safeImg = (u) => { try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => { const box = img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
@@ -152,8 +155,8 @@ function demoData() {
       c({ id: 'd10', brand: 'H치킨', category: '치킨', menu: '오리지널 치킨', item_type: '단품', discount_type: 'free_item', channels: ['픽업'], end_date: plus(2), conditions: '매주 수요일 1+1', first_seen: now }),
     ],
     news: [
-      { id: 'n1', brand: 'F피자', category: '피자', title: 'F피자 화요일 포장 반값', summary: '매주 화요일 F피자 앱에서 포장 주문하면 모든 피자를 반값에 살 수 있어요. KT 멤버십 회원은 쿠폰을 받아 함께 쓸 수 있어요.', discount_label: '50%', start_date: plus(-2), end_date: plus(2), programs: [], image_url: '', related_ids: ['d8'], source_url: 'https://example.com/event', first_seen: now },
-      { id: 'n2', brand: 'E커피', category: '카페', title: 'E커피 아메리카노 1,900원 주간', summary: '이번 주 E커피 앱 주문 시 아메리카노(R)를 1,900원에 팔아요.', discount_label: '1,900원', start_date: plus(-1), end_date: plus(4), programs: [], image_url: '', related_ids: ['d6'], source_url: 'https://example.com/event2', first_seen: now },
+      { id: 'n1', brand: 'F피자', category: '피자', title: 'F피자 화요일 포장 반값', summary: '매주 화요일 F피자 앱에서 포장 주문하면 모든 피자를 반값에 살 수 있어요. KT 멤버십 회원은 쿠폰을 받아 함께 쓸 수 있어요.', discount_label: '50%', start_date: plus(-2), end_date: plus(2), programs: [], image_url: '', related_ids: ['d8'], source_url: 'https://example.com/event', first_seen: now, checked_at: now },
+      { id: 'n2', brand: 'E커피', category: '카페', title: 'E커피 아메리카노 1,900원 주간', summary: '이번 주 E커피 앱 주문 시 아메리카노(R)를 1,900원에 팔아요.', discount_label: '1,900원', start_date: plus(-1), end_date: plus(4), programs: [], image_url: '', related_ids: ['d6'], source_url: 'https://example.com/event2', first_seen: now, checked_at: now },
     ],
   };
 }
@@ -166,10 +169,15 @@ const DEMO_NUTRITION = [
 // ---------- 서버 통신 ----------
 async function api(action) {
   const u = new URL(API); u.searchParams.set('action', action);
-  const res = await fetch(u, { redirect: 'follow' });
-  const j = await res.json();
-  if (!j.ok) throw new Error(j.error || '응답 오류');
-  return j;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(u, { redirect: 'follow', signal: controller.signal });
+    if (!res.ok) throw new Error('서버 연결 오류');
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || '응답 오류');
+    return j;
+  } finally { clearTimeout(timeout); }
 }
 async function apiPost(body) {
   const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
@@ -186,21 +194,26 @@ function track(type, extra = {}) {
   fetch(API, { method: 'POST', body, keepalive: true, mode: 'no-cors', headers: { 'content-type': 'text/plain;charset=utf-8' } }).catch(() => {});
 }
 
-async function loadCoupons({ quiet = false } = {}) {
-  if (DEMO) { applyData(demoData()); return; }
+async function loadCoupons() {
+  if (DEMO) { applyData(demoData()); return true; }
   const cached = store.get('among_cache', null);
-  if (cached && !state.coupons.length) applyData(cached);
+  if (cached && Array.isArray(cached.coupons) && (!cached.news || Array.isArray(cached.news)) && !state.coupons.length) {
+    state.checkingNetwork = true;
+    applyData(cached);
+  }
   try {
     const data = await api('coupons');
+    if (!Array.isArray(data.coupons) || (data.news && !Array.isArray(data.news))) throw new Error('잘못된 혜택 응답');
     store.set('among_cache', { coupons: data.coupons, news: data.news || [], last_checked_at: data.last_checked_at });
+    state.checkingNetwork = false;
+    state.loadFailed = false;
     applyData(data);
-    $('#errNote').hidden = true;
+    return true;
   } catch (e) {
-    if (!quiet) {
-      $('#errNote').hidden = false;
-      $('#errNote').textContent = cached ? '연결이 불안정해 마지막으로 받은 쿠폰을 보여드려요.' : '쿠폰을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
-    }
+    state.checkingNetwork = false;
+    state.loadFailed = true;
     state.loading = false; render();
+    return false;
   }
 }
 function applyData(data) {
@@ -260,7 +273,9 @@ function hotCard(h, i) {
   </button>`;
 }
 function renderHot() {
-  const hot = state.q ? [] : pickHeadlines(state.coupons, state.news, { today: todayKST(), profile: profileObj(), limit: 8 });
+  // 오래됐거나 확인 시각을 알 수 없는 출처는 '오늘의' 핫딜로 추천하지 않는다.
+  const fresh = (x) => verificationStatus(x.checked_at) === 'fresh';
+  const hot = state.q ? [] : pickHeadlines(state.coupons.filter(fresh), state.news.filter(fresh), { today: todayKST(), profile: profileObj(), limit: 8 });
   state.hot = hot;
   $('#hot').hidden = !hot.length;
   if (!hot.length) return;
@@ -313,13 +328,14 @@ function badges(c) {
   else if (progs.length) out.push(`<span class="badge b-prog">${esc(progs.length > 2 ? '통신사 멤버십' : progs.map(progLabel).join(' · '))}</span>`);
   if (c.audience === '신규회원' || c.audience === '개인' || (c.audience === '멤버십' && !progs.length)) out.push(`<span class="badge b-aud">${esc(AUD[c.audience])}</span>`);
   if (c.app_only) out.push('<span class="badge b-app">앱 전용</span>');
+  if (verificationStatus(c.checked_at) !== 'fresh') out.push('<span class="badge b-stale">출처 재확인 필요</span>');
   if (isFresh(c, todayKST(), visit.since)) out.push(`<span class="badge b-new">${visit.since ? '지난 방문 후 새로' : '새로 생김'}</span>`);
   return out.join('');
 }
 
 function ctaLabel(c) {
   const hit = LINK_LABELS.find(([re]) => re.test(safeUrl(c.official_link)));
-  return hit ? `${hit[1]} 확인` : '앱에서 확인';
+  return hit ? `${hit[1]} 확인` : '공식 페이지';
 }
 
 /** 쓰는 법: 페이지에 적힌 방법이 있으면 그것, 없으면 조건으로 안내 문장을 만든다 */
@@ -332,8 +348,8 @@ function howTo(c) {
     if (tel.length) steps.push(`${tel.map(progLabel).join(' 또는 ')} 앱에서 바코드·쿠폰을 준비해요`);
     if (progs.includes('해피포인트')) steps.push('계산할 때 해피포인트 앱 바코드를 보여줘요');
     ['네이버페이', '카카오페이', '토스페이'].filter((p) => progs.includes(p)).forEach((p) => steps.push(`${p}로 결제해요`));
-    if (c.audience === '신규회원') steps.push(`${c.brand} 앱에 새로 가입하면 쿠폰함에 들어와요`);
-    else if (c.app_only && !progs.length) steps.push(`${c.brand} 앱 쿠폰함에서 받아 주문할 때 적용해요`);
+    if (c.audience === '신규회원') steps.push(`${c.brand} 앱에서 신규 회원 혜택과 적용 조건을 확인해요`);
+    else if (c.app_only && !progs.length) steps.push(`${c.brand} 앱의 행사 안내에서 적용 방법을 확인해요`);
   }
   const ch = c.channels || [];
   if (ch.length) steps.push(`${ch.join(' · ')} 주문에 쓸 수 있어요`);
@@ -361,7 +377,7 @@ function detailHtml(c, today) {
   const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${won(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
   const period = c.end_date
     ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${daysLeft(c.end_date, today) === 0 ? '오늘 끝나요' : daysLeft(c.end_date, today) + '일 남음'})`
-    : '끝나는 날 공지 없음 · 매일 다시 확인해요';
+    : '종료일 정보 없음 · 공식 페이지에서 확인해요';
   const need = progs.length ? `${progs.map(progLabel).join(' 또는 ')}${c.program_note ? ` (${c.program_note})` : ''}`
     : c.audience === '전체' ? (c.app_only ? `${c.brand} 앱 회원 누구나` : '누구나') : AUD[c.audience];
   const src = safeUrl(c.source_url);
@@ -376,7 +392,7 @@ function detailHtml(c, today) {
       ${c.stackable === 'no' ? '<dt>중복</dt><dd class="warn-line">다른 쿠폰·할인과 같이 못 써요</dd>' : c.stackable === 'yes' ? '<dt>중복</dt><dd>다른 할인과 같이 쓸 수 있어요</dd>' : ''}
     </dl></section>
     <div data-nut="${esc(c.id)}">${nutritionBlock(c)}</div>
-    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a>${c.checked_at ? ` · ${esc(fmtChecked(c.checked_at))} 확인` : ''}${safeImg(c.image_url) ? ` · 사진도 공식 페이지의 이미지예요 (${esc(host(c.image_url))})` : ''}</p></section>` : ''}
+    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${safeImg(c.image_url) ? ` · 사진도 공식 페이지의 이미지예요 (${esc(host(c.image_url))})` : ''}</p></section>` : ''}
     <div class="acts">
       <button class="act-btn" data-save="${esc(c.id)}" aria-pressed="${saved}">${ICON.heart}${saved ? '찜함' : '찜'}</button>
       <button class="act-btn" data-share="${esc(c.id)}">${ICON.share}공유</button>
@@ -463,8 +479,21 @@ function renderMeBar() {
   $('#meBtn').innerHTML = $('#meBtn').innerHTML.replace(/<span class="dot"><\/span>/, '') + (p ? '<span class="dot"></span>' : '');
 }
 
+function renderFreshness() {
+  let message = '';
+  if (state.loadFailed) message = state.coupons.length || state.news.length
+    ? '연결이 불안정해 마지막으로 받은 혜택을 보여드려요. 결제 전 공식 페이지에서 확인해 주세요.'
+    : '혜택을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
+  else if (state.checkingNetwork) message = '저장된 혜택을 먼저 보여드려요. 최신 정보를 확인하고 있어요.';
+  else if (!state.loading && verificationStatus(state.meta.last_checked_at) !== 'fresh') message = '최근 확인 시각이 오래됐거나 확인되지 않아요. 결제 전 공식 페이지를 확인해 주세요.';
+  else if (!state.loading && [...state.coupons, ...state.news].some((x) => verificationStatus(x.checked_at) !== 'fresh')) message = '일부 혜택의 출처를 최근에 확인하지 못했어요. 재확인 표시와 공식 페이지를 살펴봐 주세요.';
+  $('#errNote').textContent = message;
+  $('#errNote').hidden = !message;
+}
+
 function render() {
   const today = todayKST();
+  renderFreshness();
   renderMeBar();
   renderGrid();
   renderHot();
@@ -491,13 +520,15 @@ function render() {
   if (!shown.length) {
     const inCat = state.coupons.some((c) => state.category === '전체' || c.category === state.category);
     const anyQuick = Object.values(state.quick).some(Boolean);
-    list.innerHTML = inCat
+    list.innerHTML = state.loadFailed && !state.coupons.length
+      ? '<div class="empty"><b>혜택을 불러오지 못했어요</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 불러오기</button></div>'
+      : inCat
       ? `<div class="empty"><b>조건에 맞는 혜택이 없어요</b>${anyQuick || state.kind ? '위 아이콘이나 빠른 필터를 꺼 보세요.' : '필터나 검색어를 바꿔 보세요.'}${anyQuick || state.kind ? '<br><button class="chip-btn" data-clear-quick>조건 모두 끄기</button>' : ''}</div>`
       : `<div class="empty"><b>${esc(state.category)} 혜택은 준비 중이에요</b>브랜드를 차례로 늘려가고 있어요.</div>`;
   } else {
     list.innerHTML = shown.map((c) => card(c, today)).join('');
   }
-  $('#lastChecked').textContent = state.meta.last_checked_at ? `공식 페이지를 매일 자동으로 확인해요 · 마지막 확인 ${fmtChecked(state.meta.last_checked_at)}` : '';
+  $('#lastChecked').textContent = fmtChecked(state.meta.last_checked_at) ? `매일 공식 페이지 확인을 시도해요 · 마지막 수집 ${fmtChecked(state.meta.last_checked_at)}` : '';
 }
 
 let toastTimer;
@@ -523,8 +554,9 @@ async function pollUntilDone(sinceIso) {
     try { st = await api('status'); } catch { continue; }
     if (st.state === 'running') setSync(true, '공식 페이지를 확인하고 있어요… 보통 3~5분 걸려요.');
     if (st.state === 'idle' && (!sinceIso || (st.last_finished_at && st.last_finished_at > sinceIso))) {
-      await loadCoupons({ quiet: true });
+      const loaded = await loadCoupons();
       setSync(false);
+      if (!loaded) { toast('갱신한 혜택을 가져오지 못했어요. 다시 시도해 주세요.'); return; }
       const added = state.coupons.filter((c) => !before.has(c.id)).length;
       toast(st.last_state === 'failed' ? '일부 출처를 확인하지 못했어요. 나중에 다시 시도해 주세요.' : added ? `갱신 완료 · 새 혜택 ${added}개` : '갱신 완료 · 바뀐 혜택이 없어요');
       return;
@@ -656,6 +688,7 @@ $('#quick').addEventListener('click', (e) => {
 });
 
 $('#list').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-retry]')) { state.loading = true; state.loadFailed = false; render(); loadCoupons(); return; }
   const cta = e.target.closest('[data-click]');
   if (cta) { const c = state.coupons.find((x) => x.id === cta.dataset.click); track('click', { coupon_id: c?.id, brand: c?.brand }); return; }
   const rep = e.target.closest('[data-report]');
@@ -670,7 +703,7 @@ $('#list').addEventListener('click', async (e) => {
 });
 $('#list').addEventListener('keydown', (e) => {
   const main = e.target.closest('.body');
-  if (main && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCard(main); }
+  if (main && !e.target.closest('a, button, input, select, textarea') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCard(main); }
 });
 function toggleCard(main) {
   const id = main.closest('.card').dataset.id;

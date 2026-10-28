@@ -103,6 +103,24 @@ test('동시에 몰리면(잠금 실패) 기록을 버리고, 제보는 다시 �
   assert.deepEqual(gas.post({ action: 'report', sid: SID, reason: '기타' }), { ok: false, error: 'busy' });
   gas.lockBusy.value = false;
   assert.equal(rows(gas, 'events').length, 0);
+  assert.equal(gas.cache.size, 0, '잠금에 실패한 요청은 횟수 제한도 소모하지 않음');
+});
+
+test('공개 기록의 빈도 검사와 시트 쓰기는 같은 잠금 안에서 처리한다', () => {
+  const { gas } = boot();
+  let held = false;
+  const getLock = gas.ctx.LockService.getScriptLock;
+  gas.ctx.LockService.getScriptLock = () => {
+    const lock = getLock();
+    return { ...lock, tryLock: (ms) => { const ok = lock.tryLock(ms); held = ok; return ok; }, releaseLock: () => { held = false; lock.releaseLock(); } };
+  };
+  const getCache = gas.ctx.CacheService.getScriptCache;
+  gas.ctx.CacheService.getScriptCache = () => {
+    const cache = getCache();
+    return { ...cache, put: (key, value, ttl) => { if (key.startsWith('rl_')) assert.equal(held, true); cache.put(key, value, ttl); } };
+  };
+  assert.equal(gas.post({ action: 'event', sid: SID, type: 'visit' }).ok, true);
+  assert.equal(held, false);
 });
 
 test('탭의 마지막 행을 넘어도 기록이 멈추지 않음 (500행씩 늘림)', () => {
@@ -136,6 +154,19 @@ test('보관 기간: 이용 기록 180일·제보 365일이 지나면 수집 마
   assert.deepEqual(finish(gas, token).purged, { events: 1, reports: 1 });
   assert.equal(rows(gas, 'events').length, 0);
   assert.equal(gas.sheet('events').data[0][0], 'ts');
+});
+
+test('보관 기간 정리: 오래된 행이 중간에 있어도 삭제하고 시각이 잘못된 행은 보존', () => {
+  const { gas, token } = boot(T0 - 400 * DAY);
+  gas.clock.now = T0 - 10 * DAY;
+  gas.post({ action: 'event', sid: 'recent_user1', type: 'visit' });
+  gas.clock.now = T0 - 400 * DAY;
+  gas.post({ action: 'event', sid: 'old_user_one', type: 'visit' });
+  gas.ctx.appendRow_('events', { ts: 'invalid', sid: 'unknown_user', type: 'visit' });
+  gas.post({ action: 'event', sid: 'old_user_two', type: 'visit' });
+  gas.clock.now = T0;
+  assert.equal(finish(gas, token).purged.events, 2);
+  assert.deepEqual(rows(gas, 'events').map((e) => e.sid), ['recent_user1', 'unknown_user']);
 });
 
 test('바로 갱신: 하루 6번까지 (00시 정시 수집과는 별개), 다음 날 다시', () => {

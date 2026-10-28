@@ -40,6 +40,16 @@ test('날짜 파싱: 여러 표기와 연도 추론', () => {
   assert.equal(parseDate('상시', NOW), null);
 });
 
+test('출처 확인 시각은 48시간을 넘기거나 알 수 없으면 최신으로 취급하지 않는다', async () => {
+  const { verificationStatus } = await import('../src/engine.js');
+  const now = Date.parse('2026-10-28T03:00:00Z');
+  assert.equal(verificationStatus('2026-10-26T03:00:00Z', now), 'fresh');
+  assert.equal(verificationStatus('2026-10-26T02:59:59Z', now), 'stale');
+  assert.equal(verificationStatus('', now), 'unknown');
+  assert.equal(verificationStatus('잘못된 날짜', now), 'unknown');
+  assert.equal(verificationStatus('2026-10-28T03:06:00Z', now), 'unknown');
+});
+
 test('D-day 계산', () => {
   assert.equal(daysLeft('2026-10-28', '2026-10-25'), 3);
   assert.equal(daysLeft('2026-10-25', '2026-10-25'), 0);
