@@ -1,42 +1,239 @@
 {
   "_comment": "자사앱이 있는 주요 프랜차이즈 후보. probe.js가 홈에서 이벤트·프로모션·쿠폰 페이지를 찾아 수집 가능성을 점검한다. home 주소가 틀리면 결과에 '접속 실패'로 나온다.",
   "brands": [
-    { "id": "mcd", "brand": "맥도날드", "category": "햄버거", "home": "https://www.mcdonalds.co.kr/kor/main.do" },
-    { "id": "bk", "brand": "버거킹", "category": "햄버거", "home": "https://www.burgerking.co.kr/" },
-    { "id": "lotteria", "brand": "롯데리아", "category": "햄버거", "home": "https://www.lotteeatz.com/" },
-    { "id": "moms", "brand": "맘스터치", "category": "햄버거", "home": "https://momstouch.co.kr/" },
-    { "id": "kfc", "brand": "KFC", "category": "햄버거", "home": "https://www.kfckorea.com/" },
-    { "id": "frank", "brand": "프랭크버거", "category": "햄버거", "home": "https://frankburger.co.kr/" },
-    { "id": "nobrand", "brand": "노브랜드버거", "category": "햄버거", "home": "https://www.shinsegaefood.com/nobrandburger/" },
-
-    { "id": "starbucks", "brand": "스타벅스", "category": "카페", "home": "https://www.starbucks.co.kr/" },
-    { "id": "twosome", "brand": "투썸플레이스", "category": "카페", "home": "https://www.twosome.co.kr/" },
-    { "id": "ediya", "brand": "이디야", "category": "카페", "home": "https://www.ediya.com/" },
-    { "id": "mega", "brand": "메가MGC커피", "category": "카페", "home": "https://www.mega-mgccoffee.com/" },
-    { "id": "compose", "brand": "컴포즈커피", "category": "카페", "home": "https://composecoffee.com/" },
-    { "id": "paik", "brand": "빽다방", "category": "카페", "home": "https://paikdabang.com/" },
-    { "id": "hollys", "brand": "할리스", "category": "카페", "home": "https://www.hollys.co.kr/" },
-    { "id": "pascucci", "brand": "파스쿠찌", "category": "카페", "home": "https://www.caffe-pascucci.co.kr/" },
-    { "id": "paulbassett", "brand": "폴바셋", "category": "카페", "home": "https://www.baristapaulbassett.co.kr/" },
-    { "id": "coffeebean", "brand": "커피빈", "category": "카페", "home": "https://www.coffeebeankorea.com/" },
-
-    { "id": "bbq", "brand": "BBQ", "category": "치킨", "home": "https://bbq.co.kr/" },
-    { "id": "bhc", "brand": "bhc", "category": "치킨", "home": "https://www.bhc.co.kr/" },
-    { "id": "kyochon", "brand": "교촌치킨", "category": "치킨", "home": "https://www.kyochon.com/" },
-    { "id": "goobne", "brand": "굽네치킨", "category": "치킨", "home": "https://www.goobne.co.kr/" },
-    { "id": "purak", "brand": "푸라닭", "category": "치킨", "home": "https://www.puradakchicken.com/" },
-    { "id": "nene", "brand": "네네치킨", "category": "치킨", "home": "https://nenechicken.com/" },
-    { "id": "cheogajip", "brand": "처갓집양념치킨", "category": "치킨", "home": "https://www.cheogajip.co.kr/" },
-
-    { "id": "dominos", "brand": "도미노피자", "category": "피자", "home": "https://web.dominos.co.kr/" },
-    { "id": "pizzahut", "brand": "피자헛", "category": "피자", "home": "https://www.pizzahut.co.kr/" },
-    { "id": "papajohns", "brand": "파파존스", "category": "피자", "home": "https://www.pji.co.kr/" },
-    { "id": "mrpizza", "brand": "미스터피자", "category": "피자", "home": "https://www.mrpizza.co.kr/" },
-
-    { "id": "paris", "brand": "파리바게뜨", "category": "베이커리", "home": "https://www.paris.co.kr/" },
-    { "id": "tlj", "brand": "뚜레쥬르", "category": "베이커리", "home": "https://www.tlj.co.kr/" },
-    { "id": "baskin", "brand": "배스킨라빈스", "category": "디저트", "home": "https://www.baskinrobbins.co.kr/" },
-    { "id": "dunkin", "brand": "던킨", "category": "디저트", "home": "https://www.dunkindonuts.co.kr/" },
-    { "id": "subway", "brand": "서브웨이", "category": "샌드위치", "home": "https://www.subway.co.kr/" }
+    {
+      "id": "mcd",
+      "brand": "맥도날드",
+      "category": "햄버거",
+      "home": "https://www.mcdonalds.co.kr/kor/main.do"
+    },
+    {
+      "id": "bk",
+      "brand": "버거킹",
+      "category": "햄버거",
+      "home": "https://www.burgerking.co.kr/"
+    },
+    {
+      "id": "lotteria",
+      "brand": "롯데리아",
+      "category": "햄버거",
+      "home": "https://www.lotteeatz.com/"
+    },
+    {
+      "id": "moms",
+      "brand": "맘스터치",
+      "category": "햄버거",
+      "home": "https://momstouch.co.kr/"
+    },
+    {
+      "id": "kfc",
+      "brand": "KFC",
+      "category": "햄버거",
+      "home": "https://www.kfckorea.com/"
+    },
+    {
+      "id": "frank",
+      "brand": "프랭크버거",
+      "category": "햄버거",
+      "home": "https://frankburger.co.kr/"
+    },
+    {
+      "id": "nobrand",
+      "brand": "노브랜드버거",
+      "category": "햄버거",
+      "home": "https://www.shinsegaefood.com/nobrandburger/"
+    },
+    {
+      "id": "starbucks",
+      "brand": "스타벅스",
+      "category": "카페",
+      "home": "https://www.starbucks.co.kr/"
+    },
+    {
+      "id": "twosome",
+      "brand": "투썸플레이스",
+      "category": "카페",
+      "home": "https://www.twosome.co.kr/"
+    },
+    {
+      "id": "ediya",
+      "brand": "이디야",
+      "category": "카페",
+      "home": "https://www.ediya.com/"
+    },
+    {
+      "id": "mega",
+      "brand": "메가MGC커피",
+      "category": "카페",
+      "home": "https://www.mega-mgccoffee.com/"
+    },
+    {
+      "id": "compose",
+      "brand": "컴포즈커피",
+      "category": "카페",
+      "home": "https://composecoffee.com/"
+    },
+    {
+      "id": "paik",
+      "brand": "빽다방",
+      "category": "카페",
+      "home": "https://paikdabang.com/"
+    },
+    {
+      "id": "hollys",
+      "brand": "할리스",
+      "category": "카페",
+      "home": "https://www.hollys.co.kr/"
+    },
+    {
+      "id": "pascucci",
+      "brand": "파스쿠찌",
+      "category": "카페",
+      "home": "https://www.caffe-pascucci.co.kr/"
+    },
+    {
+      "id": "paulbassett",
+      "brand": "폴바셋",
+      "category": "카페",
+      "home": "https://www.baristapaulbassett.co.kr/"
+    },
+    {
+      "id": "coffeebean",
+      "brand": "커피빈",
+      "category": "카페",
+      "home": "https://www.coffeebeankorea.com/"
+    },
+    {
+      "id": "bbq",
+      "brand": "BBQ",
+      "category": "치킨",
+      "home": "https://bbq.co.kr/"
+    },
+    {
+      "id": "bhc",
+      "brand": "bhc",
+      "category": "치킨",
+      "home": "https://www.bhc.co.kr/"
+    },
+    {
+      "id": "kyochon",
+      "brand": "교촌치킨",
+      "category": "치킨",
+      "home": "https://www.kyochon.com/"
+    },
+    {
+      "id": "goobne",
+      "brand": "굽네치킨",
+      "category": "치킨",
+      "home": "https://www.goobne.co.kr/"
+    },
+    {
+      "id": "purak",
+      "brand": "푸라닭",
+      "category": "치킨",
+      "home": "https://www.puradakchicken.com/"
+    },
+    {
+      "id": "nene",
+      "brand": "네네치킨",
+      "category": "치킨",
+      "home": "https://nenechicken.com/"
+    },
+    {
+      "id": "cheogajip",
+      "brand": "처갓집양념치킨",
+      "category": "치킨",
+      "home": "https://www.cheogajip.co.kr/"
+    },
+    {
+      "id": "dominos",
+      "brand": "도미노피자",
+      "category": "피자",
+      "home": "https://web.dominos.co.kr/"
+    },
+    {
+      "id": "pizzahut",
+      "brand": "피자헛",
+      "category": "피자",
+      "home": "https://www.pizzahut.co.kr/"
+    },
+    {
+      "id": "papajohns",
+      "brand": "파파존스",
+      "category": "피자",
+      "home": "https://www.pji.co.kr/"
+    },
+    {
+      "id": "mrpizza",
+      "brand": "미스터피자",
+      "category": "피자",
+      "home": "https://www.mrpizza.co.kr/"
+    },
+    {
+      "id": "paris",
+      "brand": "파리바게뜨",
+      "category": "베이커리",
+      "home": "https://www.paris.co.kr/"
+    },
+    {
+      "id": "tlj",
+      "brand": "뚜레쥬르",
+      "category": "베이커리",
+      "home": "https://www.tlj.co.kr/"
+    },
+    {
+      "id": "baskin",
+      "brand": "배스킨라빈스",
+      "category": "디저트",
+      "home": "https://www.baskinrobbins.co.kr/"
+    },
+    {
+      "id": "dunkin",
+      "brand": "던킨",
+      "category": "디저트",
+      "home": "https://www.dunkindonuts.co.kr/"
+    },
+    {
+      "id": "subway",
+      "brand": "서브웨이",
+      "category": "샌드위치",
+      "home": "https://www.subway.co.kr/"
+    },
+    {
+      "id": "happypoint",
+      "brand": "해피포인트",
+      "category": "디저트",
+      "home": "https://www.happypointcard.com/"
+    },
+    {
+      "id": "npay",
+      "brand": "네이버페이",
+      "category": "카페",
+      "home": "https://new-m.pay.naver.com/"
+    },
+    {
+      "id": "npay-campaign",
+      "brand": "네이버페이",
+      "category": "카페",
+      "home": "https://campaign2.naver.com/npay/cafe/"
+    },
+    {
+      "id": "tworld",
+      "brand": "SKT T멤버십",
+      "category": "카페",
+      "home": "https://m.tworld.co.kr/membership/benefit/brand"
+    },
+    {
+      "id": "shakeshack",
+      "brand": "쉐이크쉑",
+      "category": "햄버거",
+      "home": "https://www.shakeshack.kr/"
+    },
+    {
+      "id": "spc",
+      "brand": "SPC",
+      "category": "디저트",
+      "home": "https://www.spc.co.kr/"
+    }
   ]
 }

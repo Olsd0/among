@@ -69,7 +69,7 @@ const emit = (list, tag) => {
   const lines = list.map(line);
   console.log(`::notice title=브랜드 탐색 ${tag}::${lines.join('\n').replace(/[\r]/g, ' ').replace(/%/g, '%25').replace(/\n/g, '%0A')}`);
 };
-const line = (r) => `${r.verdict}|${r.category}|${r.brand}|${r.best ? `${r.best.url}|가격${r.best.prices}|%${r.best.pcts}|img${r.best.imgs}|${(r.best.label || '').replace(/\|/g, '/')}` : (r.homeError || r.homeBlocked || (r.candidates || []).slice(0, 2).join(' ; ') || '-')}`;
+const line = (r) => `${r.verdict}|${r.category}|${r.brand}|${r.best ? `${r.best.url}|가격${r.best.prices}|%${r.best.pcts}|img${r.best.imgs}|${(r.best.label || '').replace(/\|/g, '/')}` : (r.homeError || r.homeBlocked || '-')}|후보 ${(r.candidates || []).slice(0, 5).map((c) => c.split('|').slice(-1)[0]).join(' ')}`;
 
 async function probeBrand(b) {
   const r = { ...b, pages: [] };
