@@ -1,0 +1,26 @@
+# 의존성 취약점·새 버전 알림 (주 1회 PR). 수집기는 playwright 하나뿐이고, 워크플로 액션은 커밋 해시로 고정돼 있다.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /collector
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "의존성"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "워크플로"

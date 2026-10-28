@@ -17,6 +17,14 @@
  *   GITHUB_WORKFLOW   collect.yml (기본값)
  *   GITHUB_REF        main (기본값)
  *   REFRESH_COOLDOWN_MIN  10 (기본값)
+ *   REFRESH_DAILY_MAX     6 (기본값, '바로 갱신' 버튼 하루 상한 — AI 무료 한도 보호)
+ *
+ * 보안 (v6):
+ *   - 공개 POST(refresh·event·report)는 시트의 쿠폰·소식·출처를 바꿀 수 없다. 바꾸는 요청은 모두 토큰 필요
+ *   - 공개 요청은 크기 4KB 이하, 브라우저 id 형식 검사, 빈도 제한(CacheService), 동시 기록은 잠금으로 순서대로
+ *   - 공개 입력은 시트 수식으로 해석되지 않게 막고(=,+,-,@ 시작), 제보 메모의 전화번호·메일 주소는 지워서 저장
+ *   - 이용 기록 180일·제보 365일이 지나면 수집 마무리(run_finish) 때 자동 삭제
+ *   - 토큰 없는 요청에는 내부 오류 문구를 돌려주지 않음 (server_error)
  *
  * 최초 1회: 편집기에서 setup() 실행 → 탭·머리글 생성, 예시 출처 입력.
  */
@@ -74,6 +82,18 @@ const NEW_SOURCES = {
 const NUM_FIELDS = ['regular_price', 'coupon_price', 'discount_rate', 'discount_value', 'max_discount', 'min_order', 'confidence'];
 const EVENT_TYPES = ['visit', 'click', 'detail', 'refresh', 'share', 'filter'];
 const REPORT_REASONS = ['가격이 달라요', '이미 끝났어요', '조건이 달라요', '공식 앱에 없어요', '기타'];
+// 공개 API 남용 방지 (v6): [횟수, 초] — 브라우저 하나(sid)와 전체에 각각 적용
+const PUBLIC_POST = ['refresh', 'event', 'report'];
+const PUBLIC_BODY_MAX = 4000;
+const PUBLIC_LIMITS = {
+  event: { sid: [120, 600], all: [3000, 3600] },
+  report: { sid: [5, 3600], all: [60, 3600] },
+};
+const REFRESH_DAILY_MAX = 6;
+const RETENTION_DAYS = { events: 180, reports: 365 };   // 개인정보처리방침의 보관 기간과 같아야 함
+const MAX_ROWS = { events: 200000, reports: 5000 };     // 넘으면 오래된 것부터 지움 (시트 용량 보호)
+const SID_RE = /^[A-Za-z0-9_-]{8,40}$/;
+const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 const STALE_MIN = 30;           // queued/running 상태가 이보다 오래되면 멈춘 것으로 본다
 const CACHE_KEY = 'coupons_v5';
 const NUTRITION_CACHE_KEY = 'nutrition_v1';
@@ -91,32 +111,40 @@ function doGet(e) {
       default: return json_({ ok: false, error: 'unknown action' });
     }
   } catch (err) {
-    return json_({ ok: false, error: String(err && err.message || err) });
+    console.error(err);
+    return json_({ ok: false, error: 'server_error' });
   }
 }
 
 function doPost(e) {
+  const raw = String((e && e.postData && e.postData.contents) || '{}');
   let body = {};
-  try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (err) { return json_({ ok: false, error: 'bad json' }); }
+  try { body = JSON.parse(raw); } catch (err) { return json_({ ok: false, error: 'bad json' }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json_({ ok: false, error: 'bad json' });
+  if (PUBLIC_POST.indexOf(body.action) >= 0 && raw.length > PUBLIC_BODY_MAX) return json_({ ok: false, error: 'too large' });
+  let authed = false;
   try {
     migrate_();
     switch (body.action) {
-      // 공개
+      // 공개 (토큰 없음 — 쿠폰·소식·출처는 바꿀 수 없다)
       case 'refresh': return json_(requestRefresh_());
       case 'event': return json_(logEvent_(body));
       case 'report': return json_(logReport_(body));
       // 수집기
-      case 'run_start': auth_(body, 'COLLECTOR_TOKEN'); return json_(runStart_(body));
-      case 'sources': auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, sources: getSources_() });
-      case 'ingest': auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingest_(body)) });
-      case 'run_finish': auth_(body, 'COLLECTOR_TOKEN'); return json_(runFinish_(body.report || {}));
-      case 'nutrition_ingest': auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingestNutrition_(body)) });
+      case 'run_start': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(runStart_(body));
+      case 'sources': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, sources: getSources_() });
+      case 'ingest': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingest_(body)) });
+      case 'run_finish': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(runFinish_(body.report || {}));
+      case 'nutrition_ingest': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingestNutrition_(body)) });
       // 관리
-      case 'metrics': auth_(body, 'ADMIN_TOKEN'); return json_(getMetrics_(body));
+      case 'metrics': authed = auth_(body, 'ADMIN_TOKEN'); return json_(getMetrics_(body));
       default: return json_({ ok: false, error: 'unknown action' });
     }
   } catch (err) {
-    return json_({ ok: false, error: String(err && err.message || err) });
+    console.error(err);
+    const msg = String(err && err.message || err);
+    // 토큰을 확인한 요청(수집기·관리)에만 자세한 오류를 돌려준다
+    return json_({ ok: false, error: msg === 'unauthorized' || authed ? msg : 'server_error' });
   }
 }
 
@@ -201,10 +229,19 @@ function requestRefresh_() {
     const since = Math.max(lastReq, lastFinished);
     const remain = Math.ceil((since + cooldownMin * 60000 - Date.now()) / 1000);
     if (remain > 0) return { ok: true, accepted: false, reason: 'cooldown', retry_after_s: remain, status: getStatus_() };
+    // 하루 상한: 누구나 누를 수 있는 버튼이 AI 무료 한도를 다 써서 00시 수집을 막지 않게
+    const day = todayKST_();
+    const used = p.getProperty('REFRESH_DAY') === day ? Number(p.getProperty('REFRESH_COUNT') || 0) : 0;
+    const max = Number(p.getProperty('REFRESH_DAILY_MAX') || REFRESH_DAILY_MAX);
+    if (used >= max) return { ok: true, accepted: false, reason: 'daily_limit', status: getStatus_() };
 
     const res = dispatchWorkflow_('button');
-    if (!res.ok) return { ok: false, error: res.error };
-    p.setProperty('LAST_REFRESH_REQ_MS', String(Date.now()));
+    if (!res.ok) {
+      // 자세한 원인(토큰 미설정·GitHub 응답)은 관리 지표에서만 보이게
+      p.setProperties({ LAST_REFRESH_ERROR: String(res.error).slice(0, 200), LAST_REFRESH_ERROR_AT: nowIso_() });
+      return { ok: false, error: 'refresh_unavailable' };
+    }
+    p.setProperties({ LAST_REFRESH_REQ_MS: String(Date.now()), REFRESH_DAY: day, REFRESH_COUNT: String(used + 1) });
     setState_(p, 'queued');
     appendRow_('events', { ts: nowIso_(), sid: '', type: 'refresh', coupon_id: '', brand: '', value: 'dispatched' });
     return { ok: true, accepted: true, status: getStatus_() };
@@ -235,20 +272,85 @@ function dispatchWorkflow_(trigger) {
 function logEvent_(b) {
   const type = String(b.type || '');
   if (EVENT_TYPES.indexOf(type) < 0) return { ok: false, error: 'bad type' };
-  appendRow_('events', {
-    ts: nowIso_(), sid: clip_(b.sid, 40), type: type,
-    coupon_id: clip_(b.coupon_id, 40), brand: clip_(b.brand, 30), value: clip_(b.value, 100),
+  const sid = String(b.sid || '');
+  if (!SID_RE.test(sid)) return { ok: false, error: 'bad sid' };
+  // 너무 잦은 기록은 조용히 버린다 (화면 동작에는 영향 없음)
+  if (!rateOk_('event', sid)) return { ok: true, dropped: true };
+  const saved = appendPublic_('events', {
+    ts: nowIso_(), sid: sid, type: type,
+    coupon_id: idOrEmpty_(b.coupon_id), brand: text_(b.brand, 30), value: text_(b.value, 100),
   });
-  return { ok: true };
+  return saved ? { ok: true } : { ok: true, dropped: true };
 }
 
 function logReport_(b) {
+  const sid = String(b.sid || '');
+  if (!SID_RE.test(sid)) return { ok: false, error: 'bad sid' };
+  if (!rateOk_('report', sid)) return { ok: false, error: 'too_many' };
   const reason = REPORT_REASONS.indexOf(b.reason) >= 0 ? b.reason : '기타';
-  appendRow_('reports', {
-    ts: nowIso_(), sid: clip_(b.sid, 40), coupon_id: clip_(b.coupon_id, 40), brand: clip_(b.brand, 30),
-    menu: clip_(b.menu, 80), reason: reason, memo: clip_(b.memo, 500), status: '새 제보',
+  const saved = appendPublic_('reports', {
+    ts: nowIso_(), sid: sid, coupon_id: idOrEmpty_(b.coupon_id), brand: text_(b.brand, 30),
+    menu: text_(b.menu, 80), reason: reason, memo: text_(scrubPersonal_(b.memo), 500, true), status: '새 제보',
   });
-  return { ok: true };
+  return saved ? { ok: true } : { ok: false, error: 'busy' };
+}
+
+/** 공개 요청 빈도 제한: 브라우저(sid)별·전체 횟수를 시간 창마다 센다 (CacheService, 대략적인 값이면 충분) */
+function rateOk_(kind, sid) {
+  const L = PUBLIC_LIMITS[kind];
+  const now = Date.now();
+  const keys = [
+    ['rl_' + kind + '_a_' + Math.floor(now / (L.all[1] * 1000)), L.all],
+    ['rl_' + kind + '_s_' + sid + '_' + Math.floor(now / (L.sid[1] * 1000)), L.sid],
+  ];
+  const cache = CacheService.getScriptCache();
+  const got = cache.getAll(keys.map((k) => k[0])) || {};
+  if (keys.some((k) => Number(got[k[0]] || 0) >= k[1][0])) return false;
+  keys.forEach((k) => cache.put(k[0], String(Number(got[k[0]] || 0) + 1), k[1][1] + 60));
+  return true;
+}
+
+/** 공개 기록은 잠금 안에서 한 줄씩 (동시에 와도 서로 덮어쓰지 않게). 잠금을 못 얻으면 false */
+function appendPublic_(name, obj) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return false;
+  try { appendRow_(name, obj); return true; } finally { lock.releaseLock(); }
+}
+
+/** 공개 입력 → 시트에 넣을 안전한 글자: 제어문자 제거, 길이 제한, 수식으로 해석될 시작 글자(= + - @) 무력화 */
+function text_(v, n, multiline) {
+  let s = String(v === undefined || v === null ? '' : v)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F​-‏‪-‮⁦-⁩]/g, '');
+  s = multiline ? s.replace(/\r\n?/g, '\n') : s.replace(/[\r\n\t]+/g, ' ');
+  s = s.replace(/^\s+/, '').slice(0, n);
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
+function idOrEmpty_(v) { const s = String(v === undefined || v === null ? '' : v); return ID_RE.test(s) ? s : ''; }
+
+/** 제보 메모에 적힌 전화번호·메일 주소는 저장하지 않는다 (개인정보 최소 수집) */
+function scrubPersonal_(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[메일 주소 지움]')
+    .replace(/(?:\+?82[-\s.]?)?0?1[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g, '[전화번호 지움]');
+}
+
+/** 보관 기간이 지난 이용 기록·제보를 지운다 (오래된 것부터 · 행 수 상한도 함께). 수집 마무리 때 실행 */
+function purgeOld_() {
+  const out = {};
+  Object.keys(RETENTION_DAYS).forEach((name) => {
+    const sh = sheet_(name);
+    const last = sh.getLastRow();
+    if (last < 2) { out[name] = 0; return; }
+    const cutoff = new Date(Date.now() - RETENTION_DAYS[name] * 86400000).toISOString();
+    const ts = sh.getRange(2, 1, last - 1, 1).getValues().map((r) => (r[0] instanceof Date ? r[0].toISOString() : String(r[0])));
+    let n = 0;
+    while (n < ts.length && ts[n] && ts[n] < cutoff) n++;
+    n += Math.max(0, ts.length - n - MAX_ROWS[name]);
+    if (n >= last - 1) sh.getRange(2, 1, last - 1, Math.max(1, sh.getLastColumn())).clearContent();
+    else if (n > 0) sh.deleteRows(2, n);
+    out[name] = n;
+  });
+  return out;
 }
 
 // ============ 수집기 ============
@@ -428,7 +530,11 @@ function runFinish_(rep) {
   p.setProperties({ LAST_FINISHED_AT: rep.finished_at || nowIso_(), LAST_STATE: rep.state || '' });
   if ((rep.state === 'success' || rep.state === 'partial') && rep.trigger !== 'e2e') p.setProperty('LAST_SUCCESS_AT', rep.finished_at || nowIso_());
   CacheService.getScriptCache().remove(CACHE_KEY);
-  return { ok: true };
+  // 매일 수집이 끝날 때 보관 기간이 지난 이용 기록·제보를 지운다 (실패해도 수집 결과에는 영향 없음)
+  let purged = null;
+  try { purged = withLock_(() => purgeOld_()); } catch (err) { console.error(err); }
+  if (purged) p.setProperties({ LAST_PURGE_AT: nowIso_(), LAST_PURGE: JSON.stringify(purged) });
+  return { ok: true, purged: purged };
 }
 
 // ============ 관리: 지표 ============
@@ -542,6 +648,18 @@ function getMetrics_(b) {
       open: reports.filter((r) => r.status === '새 제보').length,
       recent: reports.slice(-20).reverse(),
     },
+    security: (() => {
+      const p = PropertiesService.getScriptProperties();
+      return {
+        refresh_today: p.getProperty('REFRESH_DAY') === today ? Number(p.getProperty('REFRESH_COUNT') || 0) : 0,
+        refresh_daily_max: Number(p.getProperty('REFRESH_DAILY_MAX') || REFRESH_DAILY_MAX),
+        last_refresh_error: p.getProperty('LAST_REFRESH_ERROR') || '',
+        last_refresh_error_at: p.getProperty('LAST_REFRESH_ERROR_AT') || '',
+        retention_days: RETENTION_DAYS,
+        last_purge_at: p.getProperty('LAST_PURGE_AT') || '',
+        last_purge: p.getProperty('LAST_PURGE') || '',
+      };
+    })(),
   };
 }
 
@@ -1235,7 +1353,8 @@ function json_(o) {
 
 function auth_(body, key) {
   const expected = PropertiesService.getScriptProperties().getProperty(key);
-  if (!expected || body.token !== expected) throw new Error('unauthorized');
+  if (!expected || typeof body.token !== 'string' || body.token !== expected) throw new Error('unauthorized');
+  return true;
 }
 
 function withLock_(fn) {
@@ -1273,6 +1392,7 @@ function writeTable_(sh, headers, rows) {
   const last = sh.getLastRow();
   if (last > 1) sh.getRange(2, 1, last - 1, headers.length).clearContent();
   if (data.length) {
+    ensureRows_(sh, data.length + 1);
     const range = sh.getRange(2, 1, data.length, headers.length);
     range.setNumberFormat('@');
     range.setValues(data);
@@ -1284,9 +1404,19 @@ function appendRow_(name, obj) {
   const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const row = headers.map((h) => (obj[h] === undefined || obj[h] === null ? '' : String(obj[h])));
   const r = sh.getLastRow() + 1;
+  ensureRows_(sh, r);
   const range = sh.getRange(r, 1, 1, headers.length);
   range.setNumberFormat('@');
   range.setValues([row]);
+}
+
+/** 시트의 행이 모자라면 500행씩 늘린다 (탭의 마지막 행을 넘으면 기록이 실패하므로). 새 행도 글자 서식 */
+function ensureRows_(sh, need) {
+  const max = sh.getMaxRows();
+  if (need <= max) return;
+  const add = Math.max(need - max, 500);
+  sh.insertRowsAfter(max, add);
+  sh.getRange(max + 1, 1, add, Math.max(1, sh.getMaxColumns())).setNumberFormat('@');
 }
 
 function clip_(v, n) { return String(v === undefined || v === null ? '' : v).slice(0, n); }

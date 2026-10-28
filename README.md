@@ -32,7 +32,9 @@ Apps Script 웹앱 → 구글시트 (coupons · news · sources · run_log · ev
 | `apps-script/Code.gs` | 시트 백엔드 (공개 API · 수집기 API · 지표) |
 | `.github/workflows/collect.yml` | 00시 예약 + 수동/버튼 실행, `mode=check` 점검 |
 | `.github/workflows/pages.yml` | `web/` GitHub Pages 배포 |
-| `web/` | 비교 화면, 지표 대시보드, PWA 파일 |
+| `web/` | 비교 화면(`index.html` + `app.js`), 지표 대시보드(`admin.html` + `admin.js`), 안내 페이지(`about`·`privacy`·`terms` + `doc.css`·`doc.js`), PWA 파일 |
+| `web/_headers` | 독립 도메인 + Cloudflare Pages/Netlify로 옮길 때 쓰는 보안 헤더 (GitHub Pages는 무시) |
+| `SECURITY.md` · `.github/dependabot.yml` | 보안 신고 창구, 의존성·액션 업데이트 알림 |
 
 ## 로컬에서
 
@@ -110,6 +112,20 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
 - 반영: push → Apps Script에 새 `Code.gs` → 배포 관리 → 새 버전. 첫 요청에서 `news` 탭·coupons `image_url` 열·새 출처(`tworld-benefit`) 자동 추가
 - 숨기기: 소식이 틀리면 news 탭 해당 행 `status`를 `hidden` (자동 수집이 되살리지 않음)
 
+## v6 (2026-10-28) — 광고 심사 전 보안 · 개인정보 정비
+
+- **공개 API 남용 방지 (Apps Script)**: 공개 POST(refresh·event·report)는 4KB 이하·브라우저 id 형식 검사·빈도 제한(이용 기록 브라우저당 10분 120건/전체 1시간 3000건, 제보 브라우저당 1시간 5건/전체 60건). 넘치면 이용 기록은 조용히 버리고 제보는 `too_many`
+- **바로 갱신 하루 상한**: `REFRESH_DAILY_MAX`(기본 6). 00시 정시 수집과는 별개. 실패 원인은 화면에 안 보이고 지표(`security.last_refresh_error`)에서만
+- **시트 보호**: 공개 입력은 수식으로 해석되지 않게(`= + - @` 시작이면 앞에 `'`), 제어문자 제거, 제보 메모의 전화번호·메일 주소는 지우고 저장. 공개 기록은 잠금 안에서 한 줄씩. 탭 행이 모자라면 500행씩 자동 확장
+- **보관 기간**: 이용 기록 180일·제보 365일 지나면 `run_finish` 때 자동 삭제 (`purgeOld_`, 개인정보처리방침과 같은 값)
+- **오류 문구**: 토큰 없는 요청에는 `server_error`만 (내부 탭 이름·GitHub 응답 숨김)
+- **화면 CSP**: 스크립트를 `app.js`·`admin.js`로 분리, 인라인 처리기 제거 → `script-src 'self'`. 데이터는 `script.google.com`에서만, 사진은 https만, 공식 링크도 https만. 관리 화면은 외부 글꼴 없이
+- **개인정보**: 개인정보처리방침에 `이용 기록 보내기` 스위치·`이 기기 정보 지우기`. 브라우저의 추적 거부(GPC) 신호를 존중
+- **안내 페이지**: 서비스 소개(`about.html`)·개인정보처리방침(`privacy.html`, 광고 쿠키 안내 포함)·이용약관(`terms.html`), 홈 하단 링크
+- **문의 메일**: `web/config.js`의 `contactEmail` 또는 저장소 변수 `CONTACT_EMAIL` (비우면 '준비 중' 안내)
+- **워크플로**: 외부 액션 커밋 해시 고정, `persist-credentials: false`, `npm ci`(잠금 파일 `collector/package-lock.json`), 실행 결과는 JSON만 3일(화면 사진은 올리지 않음). Dependabot 주 1회
+- **광고를 붙일 때**: `index.html` CSP에 광고 주소 추가(`script-src`·`frame-src`·`connect-src`·`img-src`), 핫딜·정렬은 광고와 무관하게 유지, 광고 영역은 '광고' 표시로 목록과 분리, 개인정보처리방침 7번 갱신 + 시행 7일 전 공지, 독립 도메인 루트에 `ads.txt`
+
 ## 운영
 
 - **브랜드 추가**: sources 탭에 행 추가 (id·brand·category·url, 필요하면 follow)
@@ -121,7 +137,7 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
 
 ## 지키는 원칙
 
-- 공개 공식 페이지만, robots.txt(일반 + AI 수집 거부) 준수, 하루 1회 + 버튼(10분 쿨다운), 페이지 간 1.5초 간격
+- 공개 공식 페이지만, robots.txt(일반 + AI 수집 거부) 준수, 하루 1회 + 버튼(10분 쿨다운·하루 6회), 페이지 간 1.5초 간격
 - 앱 내부 API·로그인 영역·자동 조작은 하지 않는다. 브랜드 로고·이미지는 쓰지 않는다 (텍스트 표기)
 - AI는 읽기만. 숫자가 페이지에 실제로 있는지 엔진이 대조하고, 애매하면 게시하지 않는다(보류)
-- 이용 기록은 브라우저별 무작위 id만 (개인정보 없음)
+- 이용 기록은 브라우저별 무작위 id만 (이름·연락처 없음, 180일 보관, 끌 수 있음). 비밀값은 GitHub Secrets·스크립트 속성에만

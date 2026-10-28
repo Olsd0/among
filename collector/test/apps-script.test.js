@@ -139,17 +139,19 @@ test('즉시 갱신 버튼: 워크플로 호출 · 실행 중 거절 · 10분 �
   gas.clock.now += 31 * MIN;
   assert.equal(gas.get({ action: 'status' }).state, 'idle');
 
-  // GitHub 오류는 그대로 알려준다
+  // GitHub 오류는 화면에는 짧게만, 자세한 원인은 관리 지표용 속성에 (v6)
   gas.clock.now += 11 * MIN;
   gas.setFetchResponse(404, 'Not Found');
   r = gas.post({ action: 'refresh' });
   assert.equal(r.ok, false);
-  assert.match(r.error, /GitHub 404/);
+  assert.equal(r.error, 'refresh_unavailable');
+  assert.match(gas.props.get('LAST_REFRESH_ERROR'), /GitHub 404/);
 });
 
 test('이용 기록·제보 → 지표 (이동률 · 2개 브랜드 비교율 · 7일 재방문율)', () => {
   const { gas, admin } = boot(T0 - 10 * DAY);
-  const ev = (sid, type, brand = '', coupon_id = '') => gas.post({ action: 'event', sid, type, brand, coupon_id });
+  const S = (sid) => `${sid}_browser_id`;   // 브라우저 id는 8자 이상 (v6)
+  const ev = (sid, type, brand = '', coupon_id = '') => gas.post({ action: 'event', sid: S(sid), type, brand, coupon_id });
   // 10/15: s1, s2 첫 방문
   ev('s1', 'visit'); ev('s1', 'detail', '맥도날드'); ev('s1', 'click', '버거킹');
   ev('s2', 'visit'); ev('s2', 'detail', '맥도날드');
@@ -157,9 +159,9 @@ test('이용 기록·제보 → 지표 (이동률 · 2개 브랜드 비교율 ·
   gas.clock.now = T0 - 7 * DAY; ev('s1', 'visit');
   // 10/25: s3 첫 방문, 클릭
   gas.clock.now = T0; ev('s3', 'visit'); ev('s3', 'click', '롯데리아');
-  assert.equal(gas.post({ action: 'event', sid: 's3', type: 'hack' }).ok, false);
-  gas.post({ action: 'report', sid: 's3', coupon_id: 'c_1', reason: '가격이 달라요', memo: '앱에선 5,900원' });
-  gas.post({ action: 'report', sid: 's3', coupon_id: 'c_2', reason: '<script>' });
+  assert.equal(gas.post({ action: 'event', sid: S('s3'), type: 'hack' }).ok, false);
+  gas.post({ action: 'report', sid: S('s3'), coupon_id: 'c_1', reason: '가격이 달라요', memo: '앱에선 5,900원' });
+  gas.post({ action: 'report', sid: S('s3'), coupon_id: 'c_2', reason: '<script>' });
 
   assert.equal(gas.post({ action: 'metrics', token: 'wrong' }).error, 'unauthorized');
   const m = gas.post({ action: 'metrics', token: admin, days: 30 });

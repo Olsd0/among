@@ -1,6 +1,6 @@
 // 최소 서비스 워커: 화면 파일은 네트워크 우선, 끊기면 마지막 사본. 쿠폰 API는 캐시하지 않는다.
-const CACHE = 'among-shell-v6';
-const SHELL = ['./', 'index.html', 'engine.js', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
+const CACHE = 'among-shell-v7';
+const SHELL = ['./', 'index.html', 'app.js', 'engine.js', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

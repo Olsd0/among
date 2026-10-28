@@ -35,12 +35,19 @@ class FakeRange {
 }
 
 class FakeSheet {
-  constructor(name) { this.name = name; this.data = []; }
+  constructor(name) { this.name = name; this.data = []; this.maxRows = 1000; }
   trim() { while (this.data.length && this.data.at(-1).every((v) => v === '' || v === undefined)) this.data.pop(); }
   getLastRow() { this.trim(); return this.data.length; }
   getLastColumn() { return Math.max(0, ...this.data.map((r) => r.length)); }
-  getMaxRows() { return 1000; }
-  getRange(r, c, nr = 1, nc = 1) { return new FakeRange(this, r, c, nr, nc); }
+  getMaxRows() { return this.maxRows; }
+  getMaxColumns() { return Math.max(26, this.getLastColumn()); }
+  insertRowsAfter(after, n) { this.maxRows += n; }
+  deleteRows(start, n) { this.data.splice(start - 1, n); this.maxRows -= n; }
+  getRange(r, c, nr = 1, nc = 1) {
+    // 실제 시트처럼 탭의 마지막 행을 넘는 범위는 오류
+    if (r + nr - 1 > this.maxRows) throw new Error(`범위가 시트 크기를 넘음 (${this.name}: ${r + nr - 1} > ${this.maxRows})`);
+    return new FakeRange(this, r, c, nr, nc);
+  }
   getDataRange() {
     const nr = Math.max(1, this.getLastRow());
     const nc = Math.max(1, this.getLastColumn());
@@ -61,6 +68,7 @@ export function loadAppsScript(path, { now = Date.parse('2026-10-25T03:00:00Z') 
   const cache = new Map();
   const fetches = [];
   const triggers = [];
+  const lockBusy = { value: false };
   let fetchResponse = { code: 204, body: '' };
 
   const RealDate = Date;
@@ -89,11 +97,12 @@ export function loadAppsScript(path, { now = Date.parse('2026-10-25T03:00:00Z') 
     CacheService: {
       getScriptCache: () => ({
         get: (k) => cache.get(k) ?? null,
+        getAll: (ks) => Object.fromEntries(ks.filter((k) => cache.has(k)).map((k) => [k, cache.get(k)])),
         put: (k, v) => { if (v.length > 100000) throw new Error('too large'); cache.set(k, v); },
         remove: (k) => cache.delete(k),
       }),
     },
-    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => !lockBusy.value, releaseLock() {} }) },
     UrlFetchApp: {
       fetch: (url, opts) => {
         fetches.push({ url, opts });
@@ -132,7 +141,7 @@ export function loadAppsScript(path, { now = Date.parse('2026-10-25T03:00:00Z') 
 
   const parse = (out) => JSON.parse(out.content);
   return {
-    ctx, sheets, props, cache, fetches, clock, triggers,
+    ctx, sheets, props, cache, fetches, clock, triggers, lockBusy,
     setFetchResponse: (code, body = '') => { fetchResponse = { code, body }; },
     get: (params) => parse(ctx.doGet({ parameter: params })),
     post: (body) => parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } })),

@@ -1,0 +1,13 @@
+# 독립 도메인 + Cloudflare Pages / Netlify로 옮길 때 쓰는 보안 헤더 (GitHub Pages는 이 파일을 무시함)
+# 페이지별 세부 정책(CSP)은 각 HTML의 <meta>에 있고, 여기에는 meta로는 걸 수 없는 것만 둔다.
+/*
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000
+
+/admin.html
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store

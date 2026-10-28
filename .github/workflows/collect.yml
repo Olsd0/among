@@ -27,6 +27,8 @@ concurrency:
   group: collect
   cancel-in-progress: false
 
+# 보안: 이 워크플로의 GITHUB_TOKEN은 읽기만 (저장소에 쓰거나 배포할 수 없음). 비밀값은 필요한 단계에만 넘긴다.
+# 외부 액션은 태그 대신 커밋 해시로 고정 (Dependabot이 새 버전을 알려 줌)
 permissions:
   contents: read
 
@@ -43,15 +45,16 @@ jobs:
       run:
         working-directory: collector
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
-      - name: 의존성 설치
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+      - name: 의존성 설치 (잠금 파일의 버전·무결성 해시 그대로)
+        run: npm ci --no-fund
 
       - name: 브라우저 · 한글 글꼴 설치
         run: |
@@ -117,7 +120,6 @@ jobs:
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
           ONLY: ${{ inputs.only }}
           DRY_RUN: ${{ (inputs.mode == 'dry' || (github.event_name == 'schedule' && env.PUBLISH_APPROVED != 'true')) && '1' || '' }}
-          SAVE_SHOTS: '1'
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$GEMINI_API_KEY" ]; then
             echo "::notice title=수집 건너뜀::AI 키(ANTHROPIC_API_KEY 또는 GEMINI_API_KEY)가 아직 등록되지 않아 수집을 건너뜁니다. 키를 등록하면 다음 실행부터 자동으로 수집합니다."
@@ -137,10 +139,13 @@ jobs:
           FORCE: ${{ inputs.mode == 'nutrition' && '1' || '' }}
         run: node src/nutrition.js
 
-      - name: 실행 결과 보관 (스크린샷·추출 결과, 7일)
+      # 공개 저장소의 실행 결과는 로그인한 누구나 받을 수 있으므로 화면 사진(브랜드 이미지)은 남기지 않고, 추출 결과만 3일
+      - name: 실행 결과 보관 (추출 결과 JSON, 3일)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: run-${{ github.run_id }}
-          path: collector/out/
-          retention-days: 7
+          path: |
+            collector/out/*.json
+          if-no-files-found: ignore
+          retention-days: 3

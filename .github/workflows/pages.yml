@@ -7,6 +7,7 @@ on:
     paths: ['web/**', 'collector/src/engine.js']
   workflow_dispatch:
 
+# 보안: 배포에 필요한 권한만 (저장소 쓰기 없음). 외부 액션은 커밋 해시로 고정
 permissions:
   contents: read
   pages: write
@@ -25,19 +26,33 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: 엔진 사본 확인
         run: cmp collector/src/engine.js web/engine.js || (echo "web/engine.js가 오래됐습니다. collector에서 npm run sync-web 실행 후 커밋하세요." && exit 1)
-      - name: 화면 설정 주입 (APPS_SCRIPT_URL)
+      # 저장소 변수가 있으면 그 값으로 바꾸고(없으면 저장소의 값 유지), JSON으로 안전하게 써 넣는다.
+      # API 주소는 화면 보안 정책(CSP)이 허용한 script.google.com만, 문의 메일은 메일 형식만 받는다.
+      - name: 화면 설정 주입 (APPS_SCRIPT_URL · CONTACT_EMAIL)
         env:
           APPS_SCRIPT_URL: ${{ vars.APPS_SCRIPT_URL }}
+          CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
         run: |
-          if [ -n "$APPS_SCRIPT_URL" ]; then
-            printf 'window.AMONG_CONFIG = { apiUrl: "%s" };\n' "$APPS_SCRIPT_URL" > web/config.js
-          fi
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+          node -e '
+            const fs = require("fs"), vm = require("vm");
+            const box = { window: {} };
+            vm.runInNewContext(fs.readFileSync("web/config.js", "utf8"), box);
+            const cfg = { apiUrl: "", contactEmail: "", ...box.window.AMONG_CONFIG };
+            if (process.env.APPS_SCRIPT_URL) cfg.apiUrl = process.env.APPS_SCRIPT_URL.trim();
+            if (process.env.CONTACT_EMAIL) cfg.contactEmail = process.env.CONTACT_EMAIL.trim();
+            if (cfg.apiUrl && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(cfg.apiUrl)) { console.error("APPS_SCRIPT_URL 형식이 아님"); process.exit(1); }
+            if (cfg.contactEmail && !/^[^\s@<>\x22\x27]+@[^\s@<>\x22\x27]+\.[A-Za-z]{2,}$/.test(cfg.contactEmail)) { console.error("CONTACT_EMAIL 형식이 아님"); process.exit(1); }
+            fs.writeFileSync("web/config.js", "window.AMONG_CONFIG = " + JSON.stringify(cfg) + ";\n");
+            console.log("설정: API " + (cfg.apiUrl ? "있음" : "없음(예시 모드)") + " · 문의 메일 " + (cfg.contactEmail ? "있음" : "없음"));
+          '
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: web
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
