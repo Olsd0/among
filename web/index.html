@@ -362,7 +362,7 @@
     <p id="lastChecked"></p>
     <p class="fine">AMONG은 각 브랜드·통신사와 제휴하지 않은 독립 서비스로, 공개된 공식 페이지의 행사 정보를 매일 자동으로 모아 같은 기준으로 정리합니다.
       쿠폰·소식 사진은 그 혜택이 실린 브랜드 공식 행사 페이지의 이미지를 그 주소 그대로 보여줄 뿐 저장하지 않으며, 사진이 없는 혜택은 사진 없이 보여드려요. 소식은 공식 이벤트·공지의 사실만 짧게 정리하고 원문 링크를 함께 둡니다.
-      영양성분은 식품의약품안전처 공공데이터를 사용합니다. 이름·연락처 같은 개인정보는 받지 않으며, 브라우저마다 만든 무작위 번호로 익명 이용 기록(방문·이동·고른 할인 수단 종류)만 서비스 개선에 씁니다(끌 수 있어요). 통신사·결제수단 설정은 이 기기에만 저장돼요.
+      영양성분은 식품의약품안전처 공공데이터를 사용합니다. 가입 없이 이용할 수 있으며, 브라우저별 무작위 번호를 이용한 이용 기록(방문·이동·고른 할인 수단 종류)은 서비스 개선에 씁니다(끌 수 있어요). 제보 메모에는 이름·연락처 등 개인정보를 적지 말아 주세요. 통신사·결제수단 설정은 이 기기에만 저장돼요.
       <br><button class="link-btn" id="themeBtn">화면 테마 바꾸기</button></p>
     <nav class="legal" aria-label="서비스 정보">
       <a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a>
@@ -375,7 +375,7 @@
 <dialog id="meSheet" aria-labelledby="meTitle">
   <form method="dialog" class="sheet">
     <h2 id="meTitle">내 할인 수단</h2>
-    <p class="lead">알려주시면 내가 실제로 쓸 수 있는 할인만 골라 위에 보여드려요. 설정은 이 기기에 저장되고, 어떤 수단이 많이 쓰이는지만 익명으로 세어요.</p>
+    <p class="lead">알려주시면 내가 실제로 쓸 수 있는 할인만 골라 위에 보여드려요. 설정은 이 기기에 저장되고, 선택한 수단 종류는 무작위 번호와 함께 이용 기록에 남을 수 있어요.</p>
     <div class="group"><span>통신사 멤버십</span><div class="seg" data-me="telecom">
       <button type="button" class="chip-btn" data-v="SKT">SKT</button><button type="button" class="chip-btn" data-v="KT">KT</button><button type="button" class="chip-btn" data-v="LGU+">LG U+</button><button type="button" class="chip-btn" data-v="">알뜰폰·없음</button>
     </div></div>
@@ -418,6 +418,7 @@
     </div>
     <label class="sr" for="memo">자세한 내용</label>
     <textarea id="memo" name="memo" maxlength="500" placeholder="자세히 알려주시면 더 빨리 고칠 수 있어요 (선택)"></textarea>
+    <p class="lead">이름·전화번호·이메일 등 개인정보는 적지 말아 주세요.</p>
     <div class="btns"><button type="button" class="btn ghost" id="reportCancel">취소</button><button class="btn primary" value="send">보내기</button></div>
   </form>
 </dialog>

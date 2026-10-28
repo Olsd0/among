@@ -111,7 +111,8 @@ const logoAlt = (c) => { const u = brandSite(c); try { return u ? `${new URL(u).
 // 구글 아이콘 서비스는 아이콘이 없으면 16px 지구본을 준다 → 공식 사이트 favicon.ico로 한 번 더, 그래도 없으면 카테고리 아이콘
 const logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; } else img.remove(); };
 const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
-const md = (iso) => (iso ? `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
+// 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
+const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 사진은 https 주소만 (수집기가 공식 행사 페이지에서 고른 것). 못 불러오면 사진 없는 모양으로
 const safeImg = (u) => { try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => { const box = img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };

@@ -1042,7 +1042,7 @@ export function normalizeNews(raw = {}, ctx = {}) {
   const period = (!sd0 || !ed0) ? inferPeriod([raw.evidence, raw.summary, raw.title].map(clean).join(' '), now) : null;
   const pageSq = squash(ctx.pageText || '');
   // 라벨의 숫자(10 이상)는 페이지에 있어야 한다 — 없으면 라벨만 지운다
-  // 라벨은 크게 보이는 짧은 혜택 표시 — 12자를 넘으면 쓰지 않는다 (연결된 쿠폰의 혜택으로 대신)
+  // 라벨은 크게 보이는 짧은 혜택 표시 — 12자를 넘으면 쓰지 않는다.
   let label = clean(raw.discount_label).replace(/\s+/g, ' ');
   if (label.length > 12) label = '';
   if (label && pageSq) {
@@ -1181,7 +1181,8 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
     if (!mineOrOpen(n)) score -= 30;
     out.push({
       kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
-      label: n.discount_label || (rel[0] ? benefitLabel(rel[0]) : ''), start_date: n.start_date || null, end_date: n.end_date || null,
+      // 같은 페이지의 연결 쿠폰은 다른 행사일 수 있으므로 빈 소식 라벨을 쿠폰 혜택으로 채우지 않는다.
+      label: n.discount_label || '', start_date: n.start_date || null, end_date: n.end_date || null,
       image_url: n.image_url || rel.find((c) => c.image_url)?.image_url || '', programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
     });
