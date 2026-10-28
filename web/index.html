@@ -57,7 +57,8 @@
   .shell { max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 
   /* 머리글 */
-  header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); padding-top: env(safe-area-inset-top); }
+  header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); padding-top: env(safe-area-inset-top); border-bottom: 1px solid transparent; transition: border-color .2s; }
+  header.top.scrolled { border-bottom-color: var(--line); }
   .bar { display: flex; align-items: center; gap: 4px; padding: 12px 12px 8px 16px; }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; letter-spacing: -.02em; text-decoration: none; }
   .logo img { width: 36px; height: 36px; border-radius: 10px; }
@@ -75,12 +76,49 @@
   }
   .search input:focus { border-color: var(--primary); }
 
-  /* 카테고리 */
-  nav.cats { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
-  nav.cats::-webkit-scrollbar { display: none; }
-  .cat { flex: 1 0 58px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px 9px; color: var(--muted); font-size: 13px; position: relative; }
-  .cat[aria-selected="true"] { color: var(--primary); font-weight: 700; }
-  .cat[aria-selected="true"]::after { content: ""; position: absolute; left: 16%; right: 16%; bottom: -1px; height: 3px; border-radius: 3px; background: var(--primary); }
+  /* ① 오늘의 핫딜 (가로로 넘기는 카드) */
+  .sec-h { display: flex; align-items: baseline; gap: 8px; padding: 14px 16px 8px; }
+  .sec-h h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+  .sec-h small { color: var(--muted); font-size: 12.5px; }
+  .sec-h .sp { flex: 1; }
+  .sec-h .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hot[hidden] { display: none; }
+  .rail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 16px 4px; scrollbar-width: none; scroll-padding: 0 16px; }
+  .rail::-webkit-scrollbar { display: none; }
+  .hcard { position: relative; flex: 0 0 84%; max-width: 360px; height: 168px; border-radius: 20px; overflow: hidden; scroll-snap-align: start; color: #fff; text-align: left; display: block; isolation: isolate; background: var(--hbg, linear-gradient(135deg, #8f7bff, #5b3df5)); }
+  .hcard .ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+  .hcard::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(0,0,0,.08) 0%, rgba(0,0,0,.18) 45%, rgba(0,0,0,.62) 100%); }
+  .hcard.noph::before { background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.18) 100%); }
+  .hcard .art { position: absolute; right: -10px; top: 14px; width: 118px; height: 118px; z-index: -1; opacity: .95; filter: drop-shadow(0 8px 14px rgba(0,0,0,.18)); }
+  .hcard.has-ph .art { display: none; }
+  .hcard .top { position: absolute; left: 14px; top: 12px; right: 14px; display: flex; gap: 6px; align-items: center; }
+  .hcard .why { font-size: 11.5px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.92); color: #e5283b; }
+  .hcard .why.n { color: #12805a; }
+  .hcard .why.d { color: #2457c5; }
+  .hcard .kind { font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.28); color: #fff; backdrop-filter: blur(4px); }
+  .hcard .lbl { position: absolute; left: 14px; top: 42px; font-size: 30px; font-weight: 900; letter-spacing: -.03em; line-height: 1; text-shadow: 0 2px 10px rgba(0,0,0,.18); max-width: 70%; }
+  .hcard .lbl small { font-size: 16px; font-weight: 800; }
+  .hcard .bt { position: absolute; left: 14px; right: 14px; bottom: 12px; }
+  .hcard .br { font-size: 12.5px; font-weight: 700; opacity: .92; }
+  .hcard .tt { font-size: 16px; font-weight: 800; line-height: 1.3; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .dots { display: flex; justify-content: center; gap: 5px; padding: 8px 0 2px; }
+  .dots i { width: 5px; height: 5px; border-radius: 3px; background: var(--line-strong); transition: width .2s; }
+  .dots i.on { width: 14px; background: var(--primary); }
+
+  /* ② 아이콘 (위: 음식 종류, 아래: 혜택 종류) */
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 4px; padding: 14px 10px 6px; }
+  .gi { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text-2); font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+  .gi .ic { width: 54px; height: 54px; border-radius: 18px; display: grid; place-items: center; background: var(--tint, var(--surface-2)); transition: transform .12s; }
+  .gi .ic svg { width: 40px; height: 40px; }
+  .gi:active .ic { transform: scale(.94); }
+  .gi[aria-pressed="true"] { color: var(--primary); font-weight: 800; }
+  .gi[aria-pressed="true"] .ic { box-shadow: 0 0 0 2px var(--primary) inset, 0 0 0 3px var(--bg); }
+  .gi .n { position: absolute; top: -4px; right: calc(50% - 34px); min-width: 20px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--text); color: var(--bg); font-size: 11px; font-weight: 800; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+  .gi .n.z { background: var(--line-strong); color: var(--muted); }
+  .grid hr { grid-column: 1 / -1; border: 0; border-top: 1px dashed var(--line); margin: 2px 8px; }
+  :root { --t-bun: #fff3e2; --t-cafe: #f6ece4; --t-chk: #fff5df; --t-piz: #ffece7; --t-des: #ffeef5; --t-vio: #f0edff; --t-red: #ffeef0; --t-blue: #eaf1ff; --t-grn: #e6f7ef; --t-gold: #fff6dc; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-vio: #24203a; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617; } }
+  :root[data-theme="dark"] { --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-vio: #24203a; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617; }
 
   /* 내 혜택 안내 */
   .me { margin: 10px 16px 0; padding: 12px 14px; border-radius: 14px; background: var(--primary-soft); color: var(--text); display: flex; gap: 10px; align-items: center; font-size: 14px; }
@@ -91,7 +129,10 @@
   .me .x { flex: none; width: 28px; height: 28px; display: grid; place-items: center; color: var(--muted); border-radius: 8px; }
 
   /* 정렬 · 빠른 필터 */
-  .tools { display: flex; align-items: center; gap: 8px; padding: 12px 16px 4px; }
+  .tools { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
+  .list-h { display: flex; align-items: baseline; gap: 8px; padding: 12px 16px 0; }
+  .list-h h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+  .list-h .clear { margin-left: auto; font-size: 12.5px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
   .chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
   .chips::-webkit-scrollbar { display: none; }
   .chip-btn { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13.5px; color: var(--text-2); white-space: nowrap; background: var(--bg); }
@@ -111,48 +152,79 @@
   .notice.err { background: var(--sale-soft); color: var(--sale); }
   .notice[hidden] { display: none; }
 
-  /* 카드 */
+  /* ④ 쿠폰 티켓 */
   main { flex: 1; padding: 8px 16px 8px; display: flex; flex-direction: column; gap: 12px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; scroll-margin-top: 150px; }
-  .card.flash { outline: 2px solid var(--primary); outline-offset: -2px; }
-  .card-main { display: grid; grid-template-columns: 76px 1fr auto; gap: 14px; padding: 16px 16px 10px; align-items: start; cursor: pointer; }
-  .tile { width: 76px; height: 76px; border-radius: 14px; background: var(--surface-2); color: var(--text-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 6px; }
-  .tile .logo { width: 32px; height: 32px; border-radius: 8px; background: #fff; object-fit: contain; padding: 3px; box-shadow: 0 0 0 1px var(--line, rgba(0,0,0,.08)); }
-  .tile .logo + .cat-ico { display: none; }
-  .tile span { font-size: 12px; font-weight: 700; line-height: 1.15; color: var(--text); overflow-wrap: anywhere; }
-  .info { min-width: 0; }
-  .menu { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; overflow-wrap: anywhere; }
-  .prow { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--muted); }
-  .prow + .prow { margin-top: 2px; }
-  .prow .lbl { min-width: 38px; flex: none; white-space: nowrap; }
-  .prow s { color: var(--muted); }
-  .prow.cp .lbl { color: var(--primary); font-weight: 600; }
-  .prow.cp b { font-size: 26px; font-weight: 800; color: var(--primary); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .prow.cp em { font-style: normal; font-size: 15px; font-weight: 600; margin-left: 2px; letter-spacing: 0; }
-  .prow b.sm { font-size: 14px; font-weight: 700; }
-  .rate { min-width: 64px; padding: 8px 8px 7px; border-radius: 12px; background: var(--sale-soft); color: var(--sale); text-align: center; line-height: 1.1; }
-  .rate b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
-  .rate b small { font-size: 13px; font-weight: 700; }
-  .rate span { font-size: 12px; font-weight: 600; }
-  .rate.none { background: var(--surface-2); color: var(--muted); }
-  .rate.none b { font-size: 14px; padding: 6px 0 2px; }
-  .rate.pt { background: var(--good-soft); color: var(--good); }
-  .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .card { scroll-margin-top: 90px; }
+  .card.flash .ticket { outline: 2px solid var(--primary); outline-offset: -2px; }
+  .tk { filter: drop-shadow(0 1px 1px rgba(23,22,28,.05)) drop-shadow(0 6px 14px rgba(23,22,28,.07)); }
+  :root[data-theme="dark"] .tk { filter: none; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tk { filter: none; } }
+  .ticket { --stub: 104px; --r: 9px; position: relative; display: grid; grid-template-columns: var(--stub) 1fr; min-height: 132px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    -webkit-mask: radial-gradient(circle var(--r) at var(--stub) 0, #0000 97%, #000) top / 100% 51% no-repeat, radial-gradient(circle var(--r) at var(--stub) 100%, #0000 97%, #000) bottom / 100% 51% no-repeat;
+    mask: radial-gradient(circle var(--r) at var(--stub) 0, #0000 97%, #000) top / 100% 51% no-repeat, radial-gradient(circle var(--r) at var(--stub) 100%, #0000 97%, #000) bottom / 100% 51% no-repeat; }
+  .ticket::after { content: ""; position: absolute; left: calc(var(--stub) - 1px); top: calc(var(--r) + 3px); bottom: calc(var(--r) + 3px); border-left: 2px dashed var(--line-strong); pointer-events: none; }
+  .stub { position: relative; overflow: hidden; border-radius: 15px 0 0 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px 6px; background: var(--sale-soft); color: var(--sale); }
+  .stub.pt { background: var(--good-soft); color: var(--good); }
+  .stub.gift { background: var(--primary-soft); color: var(--primary); }
+  .stub.plain { background: var(--surface-2); color: var(--text-2); }
+  .stub .big { font-size: 28px; font-weight: 900; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stub .big small { font-size: 15px; font-weight: 800; letter-spacing: 0; }
+  .stub .sub { margin-top: 5px; font-size: 12px; font-weight: 700; opacity: .9; }
+  .stub .cat-art { position: absolute; right: -12px; bottom: -12px; width: 54px; height: 54px; opacity: .16; }
+  .stub img.ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .stub.has-ph { justify-content: flex-end; padding: 0; color: #fff; background: var(--surface-2); }
+  .stub.has-ph .cat-art { display: none; }
+  .stub.has-ph .lbl-w { position: relative; width: 100%; padding: 22px 6px 8px; background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.62)); }
+  .stub.has-ph .big { font-size: 21px; }
+  .stub.has-ph .big small { font-size: 12px; }
+  .stub.has-ph .sub { margin-top: 2px; font-size: 11px; }
+  .body { min-width: 0; padding: 12px 12px 10px 14px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+  .body .who { display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 26px; position: relative; }
+  .body .who .bn { font-size: 12.5px; font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .body .who .chn { font-weight: 500; color: var(--muted); }
+  .body .who .logo { position: absolute; right: 0; top: -2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; object-fit: contain; padding: 2px; box-shadow: 0 0 0 1px var(--line-strong); }
+  .menu { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -.02em; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .price s { color: var(--muted); }
+  .price b { font-size: 18px; font-weight: 900; color: var(--text); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .price .what { color: var(--text-2); font-weight: 700; font-size: 13.5px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 4px; }
   .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
   .badge.b-aud { background: var(--warn-soft); color: var(--warn); }
   .badge.b-app { background: var(--primary-soft); color: var(--primary); }
   .badge.b-prog { background: var(--info-soft); color: var(--info); }
   .badge.b-mine { background: var(--primary); color: var(--primary-ink); }
   .badge.b-new { background: var(--good-soft); color: var(--good); }
-  .card-foot { display: flex; align-items: center; gap: 6px; padding: 0 16px 14px; flex-wrap: wrap; }
-  .chip { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--line-strong); font-size: 13px; color: var(--text-2); white-space: nowrap; }
-  .chip.due { border-color: color-mix(in srgb, var(--sale) 55%, transparent); color: var(--sale); }
-  .chip.soon { border-color: var(--line-strong); color: var(--info); }
-  .cta { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 12px; border-radius: 9px; background: var(--primary); color: var(--primary-ink); font-size: 14px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .foot { display: flex; align-items: center; gap: 5px; margin-top: auto; padding-top: 4px; flex-wrap: nowrap; min-width: 0; }
+  .foot .chip { flex: none; }
+  .foot .chip.ch { flex: 0 1 auto; min-width: 0; }
+  .foot .chip.ch .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .chip { display: inline-flex; align-items: center; gap: 3px; height: 26px; padding: 0 6px; border-radius: 7px; border: 1px solid var(--line-strong); font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .chip svg { width: 13px; height: 13px; flex: none; }
+  .chip.due { border-color: color-mix(in srgb, var(--sale) 55%, transparent); color: var(--sale); font-weight: 700; }
+  .chip.soon { color: var(--info); }
+  .cta { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 0; height: 30px; padding: 0 6px 0 10px; border-radius: 9px; background: var(--primary); color: var(--primary-ink); font-size: 13px; font-weight: 800; text-decoration: none; white-space: nowrap; }
   .cta:active { transform: translateY(1px); }
+  .card > .detail { margin: 6px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+
+  /* 소식 상세 시트 */
+  .news-hero { position: relative; height: 150px; margin: -18px -18px 14px; border-radius: 22px 22px 0 0; overflow: hidden; background: var(--hbg, linear-gradient(135deg, #8f7bff, #5b3df5)); color: #fff; isolation: isolate; }
+  .news-hero img.ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+  .news-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)); }
+  .news-hero .art { position: absolute; right: 8px; top: 10px; width: 120px; height: 120px; z-index: -1; }
+  .news-hero.has-ph .art { display: none; }
+  .news-hero .lbl { position: absolute; left: 18px; bottom: 14px; font-size: 32px; font-weight: 900; letter-spacing: -.03em; }
+  .news-meta { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+  .news-title { margin: 0 0 10px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1.3; }
+  .news-sum { margin: 0 0 14px; font-size: 15px; color: var(--text); line-height: 1.6; }
+  .news-rel { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 12px; }
+  .rel { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); text-align: left; width: 100%; }
+  .rel b { color: var(--sale); font-weight: 900; font-size: 15px; white-space: nowrap; }
+  .rel span { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .news-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 
   /* 상세: 쓰는 법 → 조건 → 영양 → 출처 */
-  .detail { border-top: 1px dashed var(--line-strong); margin: 0 16px; padding: 12px 0 14px; font-size: 13.5px; }
+  .detail { font-size: 13.5px; }
   .detail[hidden] { display: none; }
   .detail h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
   .detail section { margin-top: 14px; }
@@ -179,7 +251,7 @@
   .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
   .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
   .empty button { margin-top: 12px; }
-  .skel { height: 150px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface-2) 0%, var(--line) 50%, var(--surface-2) 100%); background-size: 200% 100%; animation: sh 1.2s infinite; }
+  .skel { height: 132px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface-2) 0%, var(--line) 50%, var(--surface-2) 100%); background-size: 200% 100%; animation: sh 1.2s infinite; }
   @keyframes sh { to { background-position: -200% 0; } }
 
   footer.bottom { text-align: center; color: var(--muted); font-size: 12.5px; padding: 18px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); margin-top: 8px; line-height: 1.55; }
@@ -201,6 +273,8 @@
   .btn { flex: 1; height: 48px; border-radius: 12px; font-weight: 700; }
   .btn.primary { background: var(--primary); color: var(--primary-ink); }
   .btn.ghost { background: var(--surface-2); }
+  a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+  .x-close { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; background: rgba(0,0,0,.35); color: #fff; display: grid; place-items: center; font-size: 16px; z-index: 2; }
   .reasons label { display: flex; align-items: center; gap: 10px; padding: 9px 0; }
   .reasons input { accent-color: var(--primary); width: 18px; height: 18px; }
   textarea { width: 100%; min-height: 72px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--text); font: inherit; padding: 10px 12px; resize: vertical; }
@@ -211,6 +285,19 @@
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <linearGradient id="g-bun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd58a"/><stop offset="1" stop-color="#ee9128"/></linearGradient>
+  <linearGradient id="g-coffee" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d59a6a"/><stop offset="1" stop-color="#8a4f2e"/></linearGradient>
+  <linearGradient id="g-chk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd06a"/><stop offset="1" stop-color="#df7414"/></linearGradient>
+  <linearGradient id="g-cheese" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#f5b52e"/></linearGradient>
+  <linearGradient id="g-donut" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb3d2"/><stop offset="1" stop-color="#e2558c"/></linearGradient>
+  <linearGradient id="g-vio" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b5a6ff"/><stop offset="1" stop-color="#5b3df5"/></linearGradient>
+  <linearGradient id="g-red" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8f99"/><stop offset="1" stop-color="#e0283b"/></linearGradient>
+  <linearGradient id="g-blue" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8dbbff"/><stop offset="1" stop-color="#2d63d6"/></linearGradient>
+  <linearGradient id="g-grn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7fe3b0"/><stop offset="1" stop-color="#139a63"/></linearGradient>
+  <linearGradient id="g-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9a3"/><stop offset="1" stop-color="#f0ad12"/></linearGradient>
+  <mask id="m-donut" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><rect width="48" height="48" fill="#fff"/><circle cx="24" cy="24.5" r="4.8" fill="#000"/></mask>
+</defs></svg>
 <div class="shell">
   <header class="top">
     <div class="bar">
@@ -227,7 +314,6 @@
       </button>
     </div>
     <div class="search" id="searchRow"><label class="sr" for="q">메뉴·브랜드 검색</label><input id="q" type="search" placeholder="메뉴·브랜드·통신사 검색 (예: 불고기, KT)" autocomplete="off"></div>
-    <nav class="cats" id="cats" role="tablist" aria-label="카테고리"></nav>
   </header>
 
   <div class="notice demo" id="demoNote" hidden>
@@ -239,6 +325,15 @@
 
   <div class="me" id="meBar" hidden></div>
 
+  <section class="hot" id="hot" hidden aria-label="오늘의 핫딜">
+    <div class="sec-h"><h2>오늘의 핫딜</h2><small>공식 이벤트·공지에서 매일 골라요</small><span class="sp"></span><span class="count" id="hotCount"></span></div>
+    <div class="rail" id="hotRail"></div>
+    <div class="dots" id="hotDots" aria-hidden="true"></div>
+  </section>
+
+  <nav class="grid" id="grid" aria-label="종류별로 보기"></nav>
+
+  <div class="list-h"><h2 id="listTitle">전체 혜택</h2><button class="clear" id="clearGrid" hidden>전체 보기</button></div>
   <div class="tools" role="toolbar" aria-label="정렬과 필터">
     <label class="sr" for="sortSel">정렬</label>
     <select class="sort" id="sortSel">
@@ -260,10 +355,13 @@
     <p>실제 혜택과 영양정보는 공식 앱·매장에서 최종 확인하세요.</p>
     <p id="lastChecked"></p>
     <p class="fine">AMONG은 각 브랜드·통신사와 제휴하지 않은 독립 서비스로, 공개된 공식 페이지의 행사 정보를 매일 자동으로 모아 같은 기준으로 정리합니다.
+      쿠폰·소식 사진은 그 혜택이 실린 브랜드 공식 행사 페이지의 이미지를 그 주소 그대로 보여줄 뿐 저장하지 않으며, 사진이 없는 혜택은 사진 없이 보여드려요. 소식은 공식 이벤트·공지의 사실만 짧게 정리하고 원문 링크를 함께 둡니다.
       영양성분은 식품의약품안전처 공공데이터를 사용합니다. 개인정보는 수집하지 않으며, 익명 이용 기록(방문·이동·고른 할인 수단 종류)만 서비스 개선에 씁니다. 통신사·결제수단 설정 자체는 이 기기에 저장돼요.
       <br><button class="link-btn" id="themeBtn">화면 테마 바꾸기</button></p>
   </footer>
 </div>
+
+<dialog id="newsSheet" aria-labelledby="newsTitle"><div class="sheet" id="newsBody" style="position:relative"></div></dialog>
 
 <dialog id="meSheet" aria-labelledby="meTitle">
   <form method="dialog" class="sheet">
@@ -320,7 +418,7 @@
 <script type="module">
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isFresh, isOpenToEveryone,
+  PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel,
 } from './engine.js';
 
 // ---------- 설정 ----------
@@ -338,6 +436,26 @@ const CATS = [
   { id: '디저트', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M8 7.5l.5 1M15.5 7l-.6 1M17 13l-1 .2M7 14.5l1-.3"/>' },
   { id: '전체', icon: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>' },
 ];
+// 우리가 직접 그린 아이콘 (브랜드 상품 그림이 아님). 그라데이션은 body 맨 위 <defs>
+const ART = {
+  햄버거: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M8 22c0-8 7.2-13 16-13s16 5 16 13z" fill="url(#g-bun)"/><g fill="#fff7e3"><ellipse cx="17" cy="15" rx="1.3" ry=".8"/><ellipse cx="24" cy="12.5" rx="1.3" ry=".8"/><ellipse cx="30.5" cy="16" rx="1.3" ry=".8"/></g><path d="M7 23.5h34l-2.8 3.2-3-2-3 2-3-2-3 2-3-2-3 2-3-2-3 2-3-2z" fill="#5cc46b"/><rect x="8" y="27" width="32" height="6.5" rx="3.2" fill="#7a3d20"/><path d="M8.5 35.5h31a0 0 0 0 1 0 0 4.5 4.5 0 0 1-4.5 4.5H13a4.5 4.5 0 0 1-4.5-4.5z" fill="url(#g-bun)"/></svg>',
+  카페: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M13.5 15h21l-2.4 25a3 3 0 0 1-3 2.7H19a3 3 0 0 1-3-2.7z" fill="url(#g-coffee)"/><rect x="11" y="11" width="26" height="5" rx="2.5" fill="#4a2a19"/><path d="M15.5 8.5h17l1.3 2.5H14.2z" fill="#6c3b22"/><rect x="15" y="23" width="18" height="8" rx="1.5" fill="#f4e1cb"/><path d="M21 27h6" stroke="#b07a52" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  치킨: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M29 30.5l6.5 6.5" stroke="#f6eadb" stroke-width="5" stroke-linecap="round"/><circle cx="37.8" cy="35.6" r="3.3" fill="#f6eadb"/><circle cx="34.6" cy="39.2" r="3.3" fill="#f6eadb"/><ellipse cx="21.5" cy="20.5" rx="13" ry="10.5" transform="rotate(-38 21.5 20.5)" fill="url(#g-chk)"/><path d="M14 17c2-3 5-5 8-5.5" stroke="#ffe7b0" stroke-width="2" stroke-linecap="round" fill="none"/></svg>',
+  피자: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M24 43 7.5 12.5a31 31 0 0 1 33 0z" fill="url(#g-cheese)"/><path d="M7.5 12.5a31 31 0 0 1 33 0l-2.3 4.3a26.5 26.5 0 0 0-28.4 0z" fill="#c8752c"/><circle cx="19.5" cy="22" r="3.2" fill="#e2442f"/><circle cx="28.5" cy="26" r="2.8" fill="#e2442f"/><circle cx="23.5" cy="33" r="2.3" fill="#e2442f"/><path d="M30 19.5l2 1M16 29l1.6-1" stroke="#5aa64d" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  디저트: '<svg viewBox="0 0 48 48" width="100%" height="100%"><g mask="url(#m-donut)"><circle cx="24" cy="25" r="16" fill="#e7b170"/><path d="M24 11.5c8 0 14 6 14 13.5 0 1.5-1.6 2.2-2.6 1.2-1.3-1.2-2.6.6-4 0-1.5-.7-2.4 1.6-4.2 1-1.4-.5-2.2 1.3-3.6.8-1.6-.6-2.7 1.4-4.3.5-1.3-.7-2.6.6-3.8-.3-1.2-.8-2.6.3-3.6-.6-.8-.7-1.5-1-1.5-2.4 0-7.5 6-13.5 13.6-13.7z" fill="url(#g-donut)"/></g><g stroke-width="1.8" stroke-linecap="round"><path d="M17 17.5l1.6 1" stroke="#fff"/><path d="M30 16l-1.2 1.4" stroke="#ffe27a"/><path d="M33 22.5l-1.8.2" stroke="#7fd3ff"/><path d="M15.5 23.5l1.7-.5" stroke="#ffe27a"/><path d="M22 14.5l.6 1.6" stroke="#7fd3ff"/></g></svg>',
+  free: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="9" y="21" width="30" height="19" rx="3" fill="url(#g-vio)"/><rect x="7" y="15" width="34" height="8" rx="3" fill="#8d79ff"/><rect x="21.8" y="15" width="4.4" height="25" fill="#ffd34d"/><path d="M24 15c-4-6.5-11-5.5-9.5-1.5 1.2 3 6.5 1.8 9.5 1.5zM24 15c4-6.5 11-5.5 9.5-1.5-1.2 3-6.5 1.8-9.5 1.5z" fill="#ffc21a"/></svg>',
+  ending: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M12 10l-4 4M36 10l4 4" stroke="#ff8f99" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="26" r="15" fill="url(#g-red)"/><circle cx="24" cy="26" r="11" fill="#fff"/><path d="M24 19v7.5l5 3" stroke="#e0283b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M17 41l-2 3M31 41l2 3" stroke="#e0283b" stroke-width="3" stroke-linecap="round"/></svg>',
+  telecom: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="13" y="6" width="22" height="37" rx="5" fill="url(#g-blue)"/><rect x="16" y="11" width="16" height="25" rx="2" fill="#eaf2ff"/><g fill="#2d63d6"><rect x="18.5" y="27" width="2.6" height="5" rx="1"/><rect x="22.7" y="23.5" width="2.6" height="8.5" rx="1"/><rect x="26.9" y="19" width="2.6" height="13" rx="1"/></g><circle cx="24" cy="39.6" r="1.4" fill="#eaf2ff"/></svg>',
+  pay: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="6" y="13" width="32" height="24" rx="4.5" fill="url(#g-grn)"/><path d="M6 19h32" stroke="#0f7e51" stroke-width="3"/><rect x="26" y="24" width="12" height="8" rx="3" fill="#0f7e51"/><circle cx="35" cy="34" r="8.5" fill="url(#g-gold)"/><path d="M31.8 31.2l1.4 5.6 1.8-4.2 1.8 4.2 1.4-5.6M31.2 33.4h7.6" stroke="#9a6700" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+  new: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M24 5l5.4 11.2 12.3 1.7-9 8.6 2.2 12.2L24 33l-10.9 5.7 2.2-12.2-9-8.6 12.3-1.7z" fill="url(#g-gold)"/><path d="M24 12.5l3 6.3 6.9 1" stroke="#fff6cf" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="39" cy="38" r="3" fill="#ffb3d2"/><circle cx="9" cy="37" r="2.2" fill="#8dbbff"/></svg>',
+};
+const TINT = { 햄버거: '--t-bun', 카페: '--t-cafe', 치킨: '--t-chk', 피자: '--t-piz', 디저트: '--t-des', free: '--t-vio', ending: '--t-red', telecom: '--t-blue', pay: '--t-grn', new: '--t-gold' };
+// 핫딜 카드 바탕 (사진이 없을 때): 카테고리 색 그라데이션 + 우리 아이콘 — 브랜드 배너처럼 보이지 않게
+const HBG = {
+  햄버거: 'linear-gradient(135deg, #ffb54d 0%, #f2702c 100%)', 카페: 'linear-gradient(135deg, #c18a5e 0%, #6f3f22 100%)',
+  치킨: 'linear-gradient(135deg, #ffc451 0%, #e2711a 100%)', 피자: 'linear-gradient(135deg, #ff8063 0%, #d33a2b 100%)',
+  디저트: 'linear-gradient(135deg, #ff9fc6 0%, #cf4a83 100%)', '': 'linear-gradient(135deg, #9a87ff 0%, #5b3df5 100%)',
+};
 const ICON = {
   store: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-4h4v4"/></svg>',
   cal: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
@@ -362,9 +480,12 @@ const sid = (() => {
 })();
 
 // ---------- 상태 ----------
-const prefs = store.get('among_prefs', {});
+const prefs0 = store.get('among_prefs', {});
+// v5 홈: 카테고리 탭 대신 아이콘. 예전 설정의 기본 탭(햄버거)·빠른 칩(통신사·곧 끝나는)은 아이콘으로 옮겨져 처음 한 번 초기화
+const prefs = prefs0.v === 5 ? prefs0 : { ...prefs0, category: '전체', kind: '', quick: { ...(prefs0.quick || {}), programsOnly: false, endingSoon: false } };
 const state = {
-  category: CATS.some((c) => c.id === prefs.category) ? prefs.category : '햄버거',
+  category: CATS.some((c) => c.id === prefs.category) ? prefs.category : '전체',
+  kind: KINDS.some((k) => k.id === prefs.kind) ? prefs.kind : '',
   sort: ['best', 'price', 'rate', 'deadline'].includes(prefs.sort) ? prefs.sort : 'best',
   filters: { itemType: '', channel: '', everyoneOnly: false, maxPrice: '', ...(prefs.filters || {}) },
   quick: { mine: false, programsOnly: false, fresh: false, endingSoon: false, saved: false, ...(prefs.quick || {}) },
@@ -372,6 +493,7 @@ const state = {
   saved: new Set(store.get('among_saved', [])),
   q: '',
   coupons: [],
+  news: [],
   meta: {},
   loading: true,
   open: new Set(),
@@ -388,7 +510,7 @@ const visit = (() => {
   store.set('among_visit', { ...v, last: now });
   return { since: v.prev ? new Date(v.prev).toISOString() : null };
 })();
-const savePrefs = () => store.set('among_prefs', { category: state.category, sort: state.sort, filters: state.filters, quick: { ...state.quick, saved: false } });
+const savePrefs = () => store.set('among_prefs', { v: 5, category: state.category, kind: state.kind, sort: state.sort, filters: state.filters, quick: { ...state.quick, saved: false } });
 const profileObj = () => (state.profile ? { programs: [state.profile.telecom, ...(state.profile.pays || [])].filter(Boolean), newMember: state.profile.newMember !== false } : null);
 
 const $ = (s) => document.querySelector(s);
@@ -406,6 +528,10 @@ const logoAlt = (c) => { const u = brandSite(c); try { return u ? `${new URL(u).
 window.logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; } else img.remove(); };
 window.logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
 const md = (iso) => (iso ? `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
+// 사진은 https 주소만 (수집기가 공식 행사 페이지에서 고른 것). 못 불러오면 사진 없는 모양으로
+const safeImg = (u) => (/^https:\/\//i.test(String(u || '')) ? String(u) : '');
+window.phFail = (img) => { const box = img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
+window.phCheck = (img) => { if (img.naturalWidth && img.naturalWidth < 80) window.phFail(img); };
 
 function fmtChecked(iso) {
   if (!iso) return '';
@@ -436,6 +562,11 @@ function demoData() {
       c({ id: 'd7', brand: 'E커피', category: '카페', menu: '전 메뉴', item_type: '기타', coupon_price: null, discount_type: 'point_back', discount_value: 500, discount_rate: null, min_order: 2000, channels: ['매장'], programs: ['네이버페이'], app_only: false, end_date: plus(6), conditions: '현장결제(QR) 2천원 이상, 기간 중 1회' }),
       c({ id: 'd8', brand: 'F피자', category: '피자', menu: '모든 피자', item_type: '기타', coupon_price: null, discount_type: 'percent', discount_value: 50, discount_rate: 50, channels: ['픽업'], audience: '멤버십', programs: ['KT'], program_note: '방문포장 · 2만5천원 이상', app_only: false, end_date: plus(2), stackable: 'no', official_link: 'https://membership.kt.com/discount/partner/PartnerList.do', how_to_use: 'KT 멤버십 앱에서 쿠폰 받기 → F피자 앱 포장 주문 때 쿠폰번호 입력' }),
       c({ id: 'd9', brand: 'G베이커리', category: '디저트', menu: '전 제품', item_type: '기타', coupon_price: null, discount_type: 'percent', discount_value: 20, discount_rate: 20, channels: ['매장'], programs: ['해피포인트'], app_only: true, end_date: plus(1), conditions: '해피포인트 앱 바코드 스캔 시', first_seen: now }),
+      c({ id: 'd10', brand: 'H치킨', category: '치킨', menu: '오리지널 치킨', item_type: '단품', discount_type: 'free_item', channels: ['픽업'], end_date: plus(2), conditions: '매주 수요일 1+1', first_seen: now }),
+    ],
+    news: [
+      { id: 'n1', brand: 'F피자', category: '피자', title: 'F피자 화요일 포장 반값', summary: '매주 화요일 F피자 앱에서 포장 주문하면 모든 피자를 반값에 살 수 있어요. KT 멤버십 회원은 쿠폰을 받아 함께 쓸 수 있어요.', discount_label: '50%', start_date: plus(-2), end_date: plus(2), programs: [], image_url: '', related_ids: ['d8'], source_url: 'https://example.com/event', first_seen: now },
+      { id: 'n2', brand: 'E커피', category: '카페', title: 'E커피 아메리카노 1,900원 주간', summary: '이번 주 E커피 앱 주문 시 아메리카노(R)를 1,900원에 팔아요.', discount_label: '1,900원', start_date: plus(-1), end_date: plus(4), programs: [], image_url: '', related_ids: ['d6'], source_url: 'https://example.com/event2', first_seen: now },
     ],
   };
 }
@@ -472,7 +603,7 @@ async function loadCoupons({ quiet = false } = {}) {
   if (cached && !state.coupons.length) applyData(cached);
   try {
     const data = await api('coupons');
-    store.set('among_cache', { coupons: data.coupons, last_checked_at: data.last_checked_at });
+    store.set('among_cache', { coupons: data.coupons, news: data.news || [], last_checked_at: data.last_checked_at });
     applyData(data);
     $('#errNote').hidden = true;
   } catch (e) {
@@ -485,6 +616,7 @@ async function loadCoupons({ quiet = false } = {}) {
 }
 function applyData(data) {
   state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, programs: c.programs || [] }));
+  state.news = (data.news || []).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();
@@ -509,11 +641,43 @@ async function loadNutrition() {
 }
 
 // ---------- 화면 조각 ----------
-function renderCats() {
-  $('#cats').innerHTML = CATS.map((c) => `
-    <button class="cat" role="tab" aria-selected="${c.id === state.category}" data-cat="${c.id}">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${c.icon}</svg>${c.id}
-    </button>`).join('');
+const KIND_LABEL = Object.fromEntries(KINDS.map((k) => [k.id, k.label]));
+/** 아이콘 그리드: 위 줄 음식 종류, 아래 줄 혜택 종류. 숫자 = 그 아이콘을 눌렀을 때 보일 개수 */
+function renderGrid() {
+  const n = (over) => visibleWith(over).length;
+  const tile = (key, val, label, art, on, count) => `<button class="gi" data-${key}="${esc(val)}" aria-pressed="${on}" style="--tint: var(${TINT[val]})"><span class="ic" aria-hidden="true">${art}</span>${esc(label)}<span class="n${count ? '' : ' z'}">${count}</span></button>`;
+  const cats = CATS.filter((c) => c.id !== '전체').map((c) => tile('cat', c.id, c.id, ART[c.id], state.category === c.id, n({ category: c.id })));
+  const kinds = KINDS.map((k) => tile('kind', k.id, k.label, ART[k.id], state.kind === k.id, n({ kind: k.id })));
+  $('#grid').innerHTML = cats.join('') + '<hr>' + kinds.join('');
+  const kl = state.kind ? KIND_LABEL[state.kind] : '';
+  $('#listTitle').textContent = state.category === '전체' && !kl ? '전체 혜택' : `${[state.category === '전체' ? '' : state.category, kl].filter(Boolean).join(' · ')} 혜택`;
+  $('#clearGrid').hidden = state.category === '전체' && !state.kind;
+}
+
+/** 오늘의 핫딜: 공식 소식 + 마감 임박·새로 시작한 큰 혜택 (엔진 pickHeadlines) */
+function hotCard(h, i) {
+  const img = safeImg(h.image_url);
+  const why = h.reason || '';
+  const whyCls = /마감|D-/.test(why) ? '' : why === 'NEW' ? ' n' : ' d';
+  const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : h.title;
+  const lbl = h.label || '';
+  const size = lbl.length > 9 ? 'font-size:20px' : lbl.length > 6 ? 'font-size:24px' : '';
+  return `<button class="hcard${img ? ' has-ph' : ' noph'}" style="--hbg:${HBG[h.category] || HBG['']}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
+    ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="${i ? 'lazy' : 'eager'}" referrerpolicy="no-referrer" onload="phCheck(this)" onerror="phFail(this)">` : ''}
+    <span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span>
+    <span class="top">${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}<span class="kind">${h.kind === 'news' ? '공식 소식' : (h.programs || []).length ? esc((h.programs || []).map(progLabel).join('·')) : '누구나'}</span></span>
+    ${lbl ? `<span class="lbl" style="${size}">${esc(lbl)}</span>` : ''}
+    <span class="bt">${title.includes(h.brand) ? '' : `<span class="br">${esc(h.brand)}</span>`}<span class="tt">${esc(title)}</span></span>
+  </button>`;
+}
+function renderHot() {
+  const hot = state.q ? [] : pickHeadlines(state.coupons, state.news, { today: todayKST(), profile: profileObj(), limit: 8 });
+  state.hot = hot;
+  $('#hot').hidden = !hot.length;
+  if (!hot.length) return;
+  $('#hotRail').innerHTML = hot.map(hotCard).join('');
+  $('#hotDots').innerHTML = hot.length > 1 ? hot.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
+  $('#hotCount').textContent = hot.length > 1 ? `1 / ${hot.length}` : '';
 }
 
 function dueChip(c, today) {
@@ -525,23 +689,28 @@ function dueChip(c, today) {
 }
 
 const upTo = (c) => /^최대/.test(c.program_note || '');
-function rateBox(c) {
-  if (c.discount_type === 'point_back') return `<div class="rate pt"><b>${has(c.discount_rate) ? `${c.discount_rate}<small>%</small>` : `${won(c.discount_value)}<small>원</small>`}</b><span>적립</span></div>`;
-  if (c.discount_type === 'free_item') return `<div class="rate"><b>${c.discount_rate ? c.discount_rate + '%' : '증정'}</b><span>${c.discount_rate ? '체감 할인' : '1+1·증정'}</span></div>`;
-  if (c.discount_type === 'amount' && !has(c.coupon_price) && c.discount_value) return `<div class="rate"><b>${c.discount_value >= 1000 && c.discount_value % 1000 === 0 ? c.discount_value / 1000 + '천' : won(c.discount_value)}<small>원</small></b><span>${upTo(c) ? '최대 할인' : '할인'}</span></div>`;
-  if (!has(c.discount_rate)) return '<div class="rate none"><b>특가</b><span>정상가 미표기</span></div>';
-  return `<div class="rate"><b>${c.discount_rate}%</b><span>${upTo(c) ? '최대 할인' : '할인'}</span></div>`;
+// 금액을 짧게: 20000 → 2만원, 5000 → 5천원, 5500 → 5,500원
+const shortWon = (n) => (n >= 10000 && n % 10000 === 0 ? `${n / 10000}만<small>원</small>` : n >= 1000 && n % 1000 === 0 ? `${n / 1000}천<small>원</small>` : `${won(n)}<small>원</small>`);
+const isOnePlusOne = (c) => /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''}`);
+/** 티켓 왼쪽(절취선 앞) 큰 글자 */
+function stubParts(c) {
+  const up = upTo(c);
+  if (c.discount_type === 'point_back') return { tone: 'pt', big: has(c.discount_rate) ? `${c.discount_rate}<small>%</small>` : shortWon(+c.discount_value), sub: `${up ? '최대 ' : ''}적립` };
+  if (c.discount_type === 'free_item') return { tone: 'gift', big: isOnePlusOne(c) ? '1+1' : '증정', sub: c.discount_rate ? `${c.discount_rate}% 효과` : isOnePlusOne(c) ? '하나 더' : '함께 드려요' };
+  if (has(c.discount_rate)) return { tone: 'sale', big: `${c.discount_rate}<small>%</small>`, sub: up ? '최대 할인' : '할인' };
+  if (c.discount_type === 'amount' && c.discount_value) return { tone: 'sale', big: shortWon(+c.discount_value), sub: up ? '최대 할인' : '할인' };
+  if (has(c.coupon_price)) return { tone: 'plain', big: shortWon(+c.coupon_price), sub: '특가' };
+  return { tone: 'plain', big: '혜택', sub: '앱에서 확인' };
 }
-
-// 쿠폰가가 있으면 쿠폰가, 없으면 주문 전체 할인 (정률·정액) 또는 적립
-function priceRow(c) {
-  if (has(c.coupon_price) && c.discount_type !== 'free_item') return `<div class="prow cp"><span class="lbl">쿠폰가</span><b>${won(c.coupon_price)}<em>원</em></b></div>`;
-  const lbl = upTo(c) ? '최대 할인' : '주문 할인';
-  if (c.discount_type === 'percent' && c.discount_rate) return `<div class="prow cp"><span class="lbl">${lbl}</span><b>${c.discount_rate}<em>%</em></b></div>`;
-  if (c.discount_type === 'amount' && c.discount_value) return `<div class="prow cp"><span class="lbl">${lbl}</span><b>${won(c.discount_value)}<em>원</em></b></div>`;
-  if (c.discount_type === 'point_back' && c.discount_value) return `<div class="prow cp"><span class="lbl">결제 후 적립</span><b>${has(c.discount_rate) ? `${c.discount_rate}<em>%</em>` : `${won(c.discount_value)}<em>원</em>`}</b></div>`;
-  if (c.discount_type === 'free_item') return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">1+1 · 증정</b></div>';
-  return '<div class="prow cp"><span class="lbl">혜택</span><b class="sm">공식 앱에서 확인</b></div>';
+/** 티켓 오른쪽 가격 줄 */
+function priceLine(c) {
+  if (has(c.coupon_price) && c.discount_type !== 'free_item') return `${c.regular_price && c.discount_type !== 'point_back' ? `<s>${won(c.regular_price)}원</s>` : ''}<b>${won(c.coupon_price)}원</b>`;
+  const up = upTo(c) ? '최대 ' : '';
+  if (c.discount_type === 'percent' && c.discount_rate) return `<span class="what">주문 금액 ${up}${c.discount_rate}% 할인</span>`;
+  if (c.discount_type === 'amount' && c.discount_value) return `<span class="what">${up}${won(c.discount_value)}원 할인</span>`;
+  if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${c.discount_rate}%` : `${won(c.discount_value)}원`} 적립</span>`;
+  if (c.discount_type === 'free_item') return `<span class="what">${isOnePlusOne(c) ? '하나 사면 하나 더' : '함께 증정'}</span>`;
+  return '<span class="what">공식 앱에서 확인</span>';
 }
 
 const AUD = { 신규회원: '앱 신규가입 혜택', 멤버십: '멤버십 회원', 개인: '받은 사람만 (개인 쿠폰)' };
@@ -561,7 +730,7 @@ function badges(c) {
 
 function ctaLabel(c) {
   const hit = LINK_LABELS.find(([re]) => re.test(safeUrl(c.official_link)));
-  return hit ? `${hit[1]}에서 확인` : '공식 앱에서 확인';
+  return hit ? `${hit[1]} 확인` : '앱에서 확인';
 }
 
 /** 쓰는 법: 페이지에 적힌 방법이 있으면 그것, 없으면 조건으로 안내 문장을 만든다 */
@@ -618,7 +787,7 @@ function detailHtml(c, today) {
       ${c.stackable === 'no' ? '<dt>중복</dt><dd class="warn-line">다른 쿠폰·할인과 같이 못 써요</dd>' : c.stackable === 'yes' ? '<dt>중복</dt><dd>다른 할인과 같이 쓸 수 있어요</dd>' : ''}
     </dl></section>
     <div data-nut="${esc(c.id)}">${nutritionBlock(c)}</div>
-    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a>${c.checked_at ? ` · ${esc(fmtChecked(c.checked_at))} 확인` : ''}</p></section>` : ''}
+    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a>${c.checked_at ? ` · ${esc(fmtChecked(c.checked_at))} 확인` : ''}${safeImg(c.image_url) ? ` · 사진도 공식 페이지의 이미지예요 (${esc(host(c.image_url))})` : ''}</p></section>` : ''}
     <div class="acts">
       <button class="act-btn" data-save="${esc(c.id)}" aria-pressed="${saved}">${ICON.heart}${saved ? '찜함' : '찜'}</button>
       <button class="act-btn" data-share="${esc(c.id)}">${ICON.share}공유</button>
@@ -631,44 +800,49 @@ function card(c, today) {
   const link = safeUrl(c.official_link) || safeUrl(c.source_url);
   const ch = (c.channels || []).length ? c.channels.join(' · ') : '';
   const b = badges(c);
+  const st = stubParts(c);
+  const img = safeImg(c.image_url);
+  const bigLen = st.big.replace(/<[^>]+>/g, '').length;
   return `
   <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
-    <div class="card-main" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
-      <div class="tile" aria-hidden="true">
-        ${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="32" height="32" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}" onload="logoCheck(this)" onerror="logoFail(this)">` : ''}
-        <svg class="cat-ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${(CATS.find((x) => x.id === c.category) || CATS[0]).icon}</svg>
-        <span>${esc(c.brand)}</span>
+    <div class="tk"><div class="ticket">
+      <div class="stub ${st.tone}${img ? ' has-ph' : ''}" aria-hidden="true">
+        ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onload="phCheck(this)" onerror="phFail(this)">` : ''}
+        <span class="cat-art">${ART[c.category] || ''}</span>
+        <div class="lbl-w"><div class="big"${bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${st.big}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>
-      <div class="info">
+      <div class="body" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
+        <div class="who"><span class="bn">${esc(c.brand)}${ch ? `<span class="chn"> · ${esc(ch)}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}" onload="logoCheck(this)" onerror="logoFail(this)">` : ''}</div>
         ${b ? `<div class="badges">${b}</div>` : ''}
         <h3 class="menu"><span class="sr">${esc(c.brand)} </span>${esc(c.menu)}</h3>
-        ${c.regular_price && c.discount_type !== 'point_back' ? `<div class="prow"><span class="lbl">정상가</span><s>${won(c.regular_price)}원</s></div>` : ''}
-        ${priceRow(c)}
+        <div class="price">${priceLine(c)}</div>
+        <div class="foot">
+          ${dueChip(c, today)}
+          ${link ? `<a class="cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">${esc(ctaLabel(c))}${ICON.chev}</a>` : ''}
+        </div>
       </div>
-      ${rateBox(c)}
-    </div>
-    <div class="card-foot">
-      ${ch ? `<span class="chip">${ICON.store}${esc(ch)}</span>` : ''}
-      ${dueChip(c, today)}
-      ${link ? `<a class="cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">${esc(ctaLabel(c))}${ICON.chev}</a>` : ''}
-    </div>
+    </div></div>
     <div class="detail" id="dt-${esc(c.id)}" ${open ? '' : 'hidden'}>${open ? detailHtml(c, today) : ''}</div>
   </article>`;
 }
 
 // ---------- 목록 ----------
+// 통신사·곧 마감은 아이콘(아래 줄)으로 옮김
 const QUICK = [
   { key: 'mine', label: '내가 쓸 수 있는' },
-  { key: 'programsOnly', label: '통신사·페이 할인' },
-  { key: 'fresh', label: '새로 생긴' },   // 지난 방문 이후 (첫 방문이면 어제·오늘)
-  { key: 'endingSoon', label: '곧 끝나는' },
+  { key: 'fresh', label: '새로 생긴' },   // 지난 방문 이후 (첫 방문이면 오늘)
   { key: 'saved', label: '찜' },
 ];
 function baseFilters() {
-  return { category: state.category, ...state.filters, q: state.q };
+  return { category: state.category, kind: state.kind, ...state.filters, q: state.q };
+}
+/** 지금 조건에서 카테고리·혜택 종류만 바꿔 보면 몇 개인지 (아이콘 숫자용) */
+function visibleWith(over) {
+  const ctx = { today: todayKST(), profile: profileObj() || {}, since: visit.since };
+  return state.coupons.filter((c) => matchesFilters(c, { ...baseFilters(), ...quickFilters(), ...over }, ctx));
 }
 function quickFilters(q = state.quick) {
-  return { mine: q.mine, programsOnly: q.programsOnly, fresh: q.fresh, endingSoon: q.endingSoon, ids: q.saved ? state.saved : null };
+  return { mine: q.mine, fresh: q.fresh, ids: q.saved ? state.saved : null };
 }
 function visible(extra = quickFilters()) {
   const today = todayKST();
@@ -680,7 +854,7 @@ function renderQuick() {
   // 각 칩 옆 숫자 = 그 칩만 켰을 때 지금 화면에서 보일 개수
   $('#quick').innerHTML = QUICK.map(({ key, label }) => {
     if (key === 'saved' && !state.saved.size) return '';
-    const n = visible({ ...quickFilters({ mine: false, programsOnly: false, fresh: false, endingSoon: false, saved: false }), ...quickFilters({ [key]: true }) }).length;
+    const n = visible({ ...quickFilters({ mine: false, fresh: false, saved: false }), ...quickFilters({ [key]: true }) }).length;
     if (!n && !state.quick[key] && key !== 'mine') return '';
     return `<button class="chip-btn" data-quick="${key}" aria-pressed="${!!state.quick[key]}">${label} <span class="n">${n}</span></button>`;
   }).join('');
@@ -702,8 +876,9 @@ function renderMeBar() {
 
 function render() {
   const today = todayKST();
-  renderCats();
   renderMeBar();
+  renderGrid();
+  renderHot();
   $('#sortSel').value = state.sort;
   const f = state.filters;
   $('#filterBtn').dataset.on = String(!!(f.itemType || f.channel || f.everyoneOnly || f.maxPrice));
@@ -721,14 +896,14 @@ function render() {
   const brands = new Set(shown.map((c) => c.brand)).size;
   const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;
   $('#summary').textContent = shown.length
-    ? `${state.category} 혜택 ${shown.length}개 · 브랜드 ${brands}곳${profileObj() ? ` · 내가 쓸 수 있는 것 ${usable}개` : ''}`
+    ? `${shown.length}개 · 브랜드 ${brands}곳${profileObj() ? ` · 내가 쓸 수 있는 것 ${usable}개` : ''}`
     : '';
 
   if (!shown.length) {
     const inCat = state.coupons.some((c) => state.category === '전체' || c.category === state.category);
     const anyQuick = Object.values(state.quick).some(Boolean);
     list.innerHTML = inCat
-      ? `<div class="empty"><b>조건에 맞는 혜택이 없어요</b>${anyQuick ? '빠른 필터를 꺼 보세요.' : '필터나 검색어를 바꿔 보세요.'}${anyQuick ? '<br><button class="chip-btn" data-clear-quick>빠른 필터 모두 끄기</button>' : ''}</div>`
+      ? `<div class="empty"><b>조건에 맞는 혜택이 없어요</b>${anyQuick || state.kind ? '위 아이콘이나 빠른 필터를 꺼 보세요.' : '필터나 검색어를 바꿔 보세요.'}${anyQuick || state.kind ? '<br><button class="chip-btn" data-clear-quick>조건 모두 끄기</button>' : ''}</div>`
       : `<div class="empty"><b>${esc(state.category)} 혜택은 준비 중이에요</b>브랜드를 차례로 늘려가고 있어요.</div>`;
   } else {
     list.innerHTML = shown.map((c) => card(c, today)).join('');
@@ -795,9 +970,91 @@ async function checkStatusOnLoad() {
 }
 
 // ---------- 이벤트 ----------
-$('#cats').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-cat]'); if (!b) return;
-  state.category = b.dataset.cat; savePrefs(); render();
+$('#grid').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cat],[data-kind]'); if (!b) return;
+  if (b.dataset.cat) state.category = state.category === b.dataset.cat ? '전체' : b.dataset.cat;
+  else state.kind = state.kind === b.dataset.kind ? '' : b.dataset.kind;
+  state.open.clear(); savePrefs(); render();
+  track('filter', { value: b.dataset.cat ? `cat:${state.category}` : `kind:${state.kind || 'off'}` });
+});
+$('#clearGrid').addEventListener('click', () => { state.category = '전체'; state.kind = ''; savePrefs(); render(); });
+// 핫딜 카드: 소식이면 소식 상세, 쿠폰이면 그 쿠폰으로 이동
+$('#hotRail').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-hot]'); if (!b) return;
+  const [kind, id] = b.dataset.hot.split(/:(.+)/);
+  track('detail', { value: `hot:${kind}`, coupon_id: kind === 'coupon' ? id : '' });
+  if (kind === 'news') openNews(id); else jumpTo(id);
+});
+$('#hotRail').addEventListener('scroll', () => {
+  const rail = $('#hotRail'); const first = rail.firstElementChild; if (!first) return;
+  const i = Math.round(rail.scrollLeft / (first.offsetWidth + 10));
+  $('#hotDots').querySelectorAll('i').forEach((d, k) => d.classList.toggle('on', k === i));
+  if (state.hot && state.hot.length > 1) $('#hotCount').textContent = `${Math.min(i + 1, state.hot.length)} / ${state.hot.length}`;
+}, { passive: true });
+addEventListener('scroll', () => $('header.top').classList.toggle('scrolled', scrollY > 4), { passive: true });
+
+/** 쿠폰 하나로 이동해 펼치기 (핫딜·소식·공유 링크에서) */
+function jumpTo(id) {
+  const c = state.coupons.find((x) => x.id === id);
+  if (!c) { toast('이 혜택은 이미 끝났거나 바뀌었어요.'); return; }
+  state.category = c.category || '전체';
+  state.kind = '';
+  state.q = ''; $('#q').value = '';
+  Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
+  state.open.add(id);
+  render();
+  loadNutrition().then(() => { const box = document.querySelector(`[data-nut="${CSS.escape(id)}"]`); if (box) box.innerHTML = nutritionBlock(c); });
+  const el = document.getElementById(`card-${id}`);
+  if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+}
+
+// 소식 상세 (공식 이벤트·공지를 사실만 짧게 정리 + 원문 링크)
+const newsSheet = $('#newsSheet');
+function openNews(id) {
+  const n = state.news.find((x) => x.id === id);
+  if (!n) { toast('이 소식은 이미 끝났거나 바뀌었어요.'); return; }
+  const today = todayKST();
+  const rel = (n.related_ids || []).map((rid) => state.coupons.find((c) => c.id === rid)).filter(Boolean);
+  const img = safeImg(n.image_url) || safeImg(rel.find((c) => safeImg(c.image_url))?.image_url);
+  const d = daysLeft(n.end_date, today);
+  const period = n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}` : n.start_date ? `${md(n.start_date)}부터` : '끝나는 날 공지 없음';
+  const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
+  const src = safeUrl(n.source_url);
+  $('#newsBody').innerHTML = `
+    <div class="news-hero${img ? ' has-ph' : ''}" style="--hbg:${HBG[n.category] || HBG['']}">
+      ${img ? `<img class="ph" src="${esc(img)}" alt="" referrerpolicy="no-referrer" onload="phCheck(this)" onerror="phFail(this)">` : ''}
+      <span class="art" aria-hidden="true">${ART[n.category] || ART.free}</span>
+      ${n.discount_label ? `<span class="lbl">${esc(n.discount_label)}</span>` : ''}
+      <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
+    </div>
+    <p class="news-meta">${esc(n.brand)} · ${esc(period)}${need ? ` · ${esc(need)}` : ''}</p>
+    <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
+    ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
+    ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}
+    <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">공식 공지 보기</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
+    <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${img ? ' 사진은 공식 페이지의 이미지예요.' : ''}</p>`;
+  if (!newsSheet.open) newsSheet.showModal();
+  history.replaceState(null, '', `${location.pathname}?n=${encodeURIComponent(id)}`);
+}
+// 소식 시트는 저장할 값이 없어서 닫을 때 주소만 정리 (close 이벤트가 오지 않는 웹뷰도 있으므로 닫는 버튼에서도 처리)
+function closeNews() { if (newsSheet.open) newsSheet.close(); history.replaceState(null, '', location.pathname); }
+newsSheet.addEventListener('click', async (e) => {
+  if (e.target === newsSheet || e.target.closest('[data-close]')) { closeNews(); return; }
+  const r = e.target.closest('[data-rel]');
+  if (r) { closeNews(); jumpTo(r.dataset.rel); return; }
+  const sh = e.target.closest('[data-news-share]');
+  if (sh) {
+    const n = state.news.find((x) => x.id === sh.dataset.newsShare); if (!n) return;
+    const url = `${location.origin}${location.pathname}?n=${encodeURIComponent(n.id)}`;
+    track('share', { value: `news:${n.id}`, brand: n.brand });
+    try {
+      if (navigator.share) { await navigator.share({ title: 'AMONG 어몽', text: `${n.title}${n.end_date ? ` (~${md(n.end_date)})` : ''}`, url }); return; }
+      await navigator.clipboard.writeText(`${n.title}\n${url}`); toast('링크를 복사했어요.');
+    } catch { /* 공유 취소 */ }
+    return;
+  }
+  const out = e.target.closest('[data-news-src]');
+  if (out) { const n = state.news.find((x) => x.id === out.dataset.newsSrc); track('click', { value: `news:${out.dataset.newsSrc}`, brand: n?.brand }); }
 });
 $('#sortSel').addEventListener('change', (e) => { state.sort = e.target.value; savePrefs(); render(); });
 $('#quick').addEventListener('click', (e) => {
@@ -817,12 +1074,12 @@ $('#list').addEventListener('click', async (e) => {
   if (sv) { toggleSave(sv.dataset.save, sv); return; }
   const sh = e.target.closest('[data-share]');
   if (sh) { shareCoupon(sh.dataset.share); return; }
-  if (e.target.closest('[data-clear-quick]')) { Object.keys(state.quick).forEach((k) => { state.quick[k] = false; }); savePrefs(); render(); return; }
-  const main = e.target.closest('.card-main');
+  if (e.target.closest('[data-clear-quick]')) { Object.keys(state.quick).forEach((k) => { state.quick[k] = false; }); state.kind = ''; savePrefs(); render(); return; }
+  const main = e.target.closest('.body');
   if (main) toggleCard(main);
 });
 $('#list').addEventListener('keydown', (e) => {
-  const main = e.target.closest('.card-main');
+  const main = e.target.closest('.body');
   if (main && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCard(main); }
 });
 function toggleCard(main) {
@@ -996,19 +1253,12 @@ $('#themeBtn').addEventListener('click', () => {
   toast({ system: '기기 설정을 따라요', light: '밝은 화면', dark: '어두운 화면' }[theme]);
 });
 
-// 공유 링크(?c=쿠폰id)로 들어오면 그 쿠폰을 펼쳐서 보여준다
+// 공유 링크로 들어오면: ?c=쿠폰id → 그 쿠폰을 펼쳐서, ?n=소식id → 소식 상세
 function openFromLink() {
+  const n = params.get('n');
+  if (n) { openNews(n); return; }
   const id = params.get('c');
-  if (!id) return;
-  const c = state.coupons.find((x) => x.id === id);
-  if (!c) { toast('공유된 혜택이 이미 끝났거나 바뀌었어요.'); return; }
-  state.category = c.category || '전체';
-  Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
-  state.open.add(id);
-  render();
-  loadNutrition().then(() => { const box = document.querySelector(`[data-nut="${CSS.escape(id)}"]`); if (box) box.innerHTML = nutritionBlock(c); });
-  const el = document.getElementById(`card-${id}`);
-  if (el) { el.scrollIntoView({ block: 'start' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+  if (id) jumpTo(id);
 }
 
 // ---------- 시작 ----------

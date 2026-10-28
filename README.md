@@ -12,7 +12,7 @@ Claude 추출 (tool use로 JSON 고정, "읽기"만)           collector/src/ext
    ▼
 규칙 엔진: 적용가 계산 · 근거 대조 · 게시/보류/버림   collector/src/engine.js
    ▼
-Apps Script 웹앱 → 구글시트 (coupons · sources · run_log · events · reports)
+Apps Script 웹앱 → 구글시트 (coupons · news · sources · run_log · events · reports · nutrition)
    ▼
 비교 화면 web/index.html  ·  지표 대시보드 web/admin.html  (GitHub Pages)
 ```
@@ -26,6 +26,7 @@ Apps Script 웹앱 → 구글시트 (coupons · sources · run_log · events · 
 | `collector/src/fetch.js` · `robots.js` | 렌더링, 상세 페이지 따라가기, robots.txt |
 | `collector/src/run.js` | 전체 실행 + 실행 기록 |
 | `collector/src/check-sources.js` | 출처 점검 (Claude 호출 없이 접속·텍스트·스크린샷만) |
+| `collector/src/engine.js` (v5) | `pickImage`·`normalizeNews`·`linkNews`·`pickHeadlines`·`matchesKind`·`benefitLabel` |
 | `collector/src/nutrition.js` | 영양성분 가져오기 (식약처 공공데이터 → 우리 브랜드 → 1개 기준 환산 → 열량 검산 → 시트). AI 호출 없음 |
 | `collector/sources.example.json` | 출처 초기값 (브랜드 자체 페이지 + 통신사 멤버십·네이버페이·SPC 브랜드) |
 | `apps-script/Code.gs` | 시트 백엔드 (공개 API · 수집기 API · 지표) |
@@ -98,6 +99,16 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
 - AI가 기간을 비우거나 날짜가 아닌 글자를 넣으면 엔진이 근거 문구의 "(8/19~8/21)", "(~12/31)"에서 기간을 읽는다 (주석에 '기간은 근거 문구에서 읽음'). 지난 행사는 버린다
 - 통신사 등급별 할인은 가장 낮은 등급 값(등급별 가격이면 가장 낮은 등급 %), '최대 N%' 홍보 문구와 실제 등급 값이 따로 잡히면 낮은 값 하나만 남긴다
 - `check`·`dry` 모드는 `only`에 시트에 아직 없는 출처 id를 넣으면 `sources.example.json`에서 가져와 시험한다 (시트에 넣기 전 확인용)
+
+## v5 (2026-10-28) — 홈 개편 · 소식(핫딜) · 쿠폰 사진
+
+- **홈**: 오늘의 핫딜(가로로 넘기는 카드) → 아이콘(위: 음식 종류, 아래: 1+1·곧 마감·통신사·페이·신규가입) → 쿠폰 티켓 목록. 소식 상세는 `?n=소식id`
+- **소식(핫딜)**: 따로 뉴스를 모으지 않는다. 쿠폰을 가져오는 공식 이벤트·공지 페이지(브랜드 이벤트, T world 혜택, 네이버페이 캠페인, SPC 브랜드 페이지)를 **같은 수집 때 함께** 읽어 `news` 탭을 갱신한다. 쿠폰과 같은 검증(근거 문구·기간·카드·배달앱)을 거친 것만 게시. 제목·요약은 사실만 우리 문장으로, 원문 링크를 함께 둔다
+- **핫딜 선정** `pickHeadlines()`: 공식 소식 + 남은 기간 3일 이하 큰 혜택(30% 이상·1+1) + 오늘·어제 처음 잡힌 큰 혜택. 같은 브랜드 2장까지, 내 할인 수단으로 못 쓰는 것은 뒤로
+- **사진**: 쿠폰을 읽은 **바로 그 공식 페이지**의 이미지일 때만 (메뉴 이름·근거 문구 옆 이미지, 또는 행사 1개짜리 상세 페이지의 공유용 대표 이미지). 주소만 저장하고 파일은 받지도 저장하지도 않는다. 맞는 사진이 없으면 사진 없이(할인 크기 표시). 예시·무료 사진으로 채우지 않는다. 로고·아이콘·띠 배너·http 이미지는 제외
+- **robots 거부**: 출처 첫 페이지가 robots.txt(일반·AI 수집 거부)로 막히면 그 출처의 쿠폰·소식을 내린다 (주석에 `⊘`, sources 탭에서 `active=FALSE` 권장)
+- 반영: push → Apps Script에 새 `Code.gs` → 배포 관리 → 새 버전. 첫 요청에서 `news` 탭·coupons `image_url` 열·새 출처(`tworld-benefit`) 자동 추가
+- 숨기기: 소식이 틀리면 news 탭 해당 행 `status`를 `hidden` (자동 수집이 되살리지 않음)
 
 ## 운영
 

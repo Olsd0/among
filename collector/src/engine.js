@@ -993,8 +993,10 @@ export function pickImage(item = {}, page = {}, brand = '') {
     if (ev.length >= 6 && near.includes(ev)) s += 2;
     return s;
   };
+  // 점수가 같으면 정사각형에 가까운 사진 (작은 칸에 넣어도 잘리지 않게: 모바일용 배너가 PC용보다 나음)
+  const squareness = (i) => ((+i.w || 0) && (+i.h || 0) ? Math.abs(Math.log(i.w / i.h)) : 9);
   let best = null, bestS = 0;
-  for (const i of imgs) { const s = score(i); if (s > bestS) { best = i; bestS = s; } }
+  for (const i of imgs) { const s = score(i); if (s > bestS || (s === bestS && best && squareness(i) < squareness(best))) { best = i; bestS = s; } }
   if (best && bestS >= 2) return best.src;
   if (page.isDetail) {
     if (page.ogImage && !isNonPhoto({ src: page.ogImage, alt: '' }, brand)) return page.ogImage;
@@ -1002,6 +1004,15 @@ export function pickImage(item = {}, page = {}, brand = '') {
     if (big.length === 1) return big[0].src;
   }
   return '';
+}
+
+const WEEKDAYS = '일월화수목금토';
+/** '매주 화요일 도미노스데이', '목요일 Special Day'처럼 요일마다 돌아오는 행사면 요일 번호(일=0), 아니면 null */
+export function weeklyDay(text) {
+  const s = String(text || '');
+  const m = s.match(/([월화수목금토일])요일/);
+  if (!m || !/매주|마다|데이|day/i.test(s)) return null;
+  return WEEKDAYS.indexOf(m[1]);
 }
 
 /**
@@ -1025,7 +1036,9 @@ export function normalizeNews(raw = {}, ctx = {}) {
   const period = (!sd0 || !ed0) ? inferPeriod([raw.evidence, raw.summary, raw.title].map(clean).join(' '), now) : null;
   const pageSq = squash(ctx.pageText || '');
   // 라벨의 숫자(10 이상)는 페이지에 있어야 한다 — 없으면 라벨만 지운다
-  let label = clean(raw.discount_label).replace(/\s+/g, ' ').slice(0, 20);
+  // 라벨은 크게 보이는 짧은 혜택 표시 — 12자를 넘으면 쓰지 않는다 (연결된 쿠폰의 혜택으로 대신)
+  let label = clean(raw.discount_label).replace(/\s+/g, ' ');
+  if (label.length > 12) label = '';
   if (label && pageSq) {
     const nums = (label.match(/\d[\d,]*/g) || []).map((x) => +x.replace(/,/g, '')).filter((x) => x >= 10);
     const thousand = /(\d+)\s*천/.exec(label);
@@ -1062,12 +1075,42 @@ export function normalizeNews(raw = {}, ctx = {}) {
   if (!PROMO_WORDS.test(allText)) reject.push('혜택 소식이 아님');
   const hold = [];
   const ev = squash(n.evidence);
-  if (raw.evidence_source !== 'image' && pageSq && ev.length >= 4 && !pageSq.includes(ev)) { hold.push('근거 문구가 페이지에 없음'); n.confidence = Math.max(0, +(n.confidence - RULES.evidencePenalty).toFixed(2)); }
+  if (raw.evidence_source !== 'image' && pageSq && ev.length >= 4 && !pageSq.includes(ev)) {
+    // 근거를 요약해 옮겼어도 라벨의 숫자가 페이지에 있으면 감점을 작게 (쿠폰과 같은 기준)
+    const numsOk = /\d{2,}/.test(n.discount_label);
+    n.issues.push(numsOk ? '근거 문구 요약됨 (숫자는 확인)' : '근거 문구가 페이지에 없음');
+    n.confidence = Math.max(0, +(n.confidence - (numsOk ? RULES.evidencePenalty / 3 : RULES.evidencePenalty)).toFixed(2));
+  }
   if (n.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
+  // 핫딜은 기간이 있는 행사만 (끝나는 날이 있거나 요일마다 돌아오는 행사). 상시 혜택·가입 혜택은 쿠폰 목록에만
+  if (!n.end_date && weeklyDay(allText) === null) hold.push('기간 없는 상시 행사');
   if (period?.end && !ed0) n.issues.push('기간은 근거 문구에서 읽음');
   n.issues.unshift(...reject, ...hold);
   n.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
   return n;
+}
+
+/**
+ * 같은 행사가 목록·상세 페이지에서 소식 두 개로 잡히면 하나로: 같은 브랜드이고 연결된 쿠폰이 겹치거나,
+ * 끝나는 날이 같고 제목이 비슷하면. 게시 > 보류, 라벨 있음, 연결 쿠폰 많음, 신뢰도 높은 쪽을 남기고 연결 쿠폰은 합친다
+ */
+export function mergeNews(list) {
+  const rank = (n) => (n.status === 'published' ? 100 : n.status === 'pending' ? 50 : 0) + (n.discount_label ? 10 : 0) + (n.related_ids || []).length + (n.confidence || 0);
+  const out = [];
+  for (const n of [...list].sort((a, b) => rank(b) - rank(a))) {
+    if (n.status === 'rejected') { out.push(n); continue; }
+    const dup = out.find((o) => o.status !== 'rejected' && o.brand === n.brand && (
+      (o.related_ids || []).some((id) => (n.related_ids || []).includes(id))
+      || ((o.end_date || '') === (n.end_date || '') && similarMenu(o.title, n.title, 4))));
+    if (dup) {
+      dup.related_ids = [...new Set([...(dup.related_ids || []), ...(n.related_ids || [])])].slice(0, 6);
+      if (!dup.image_url && n.image_url) dup.image_url = n.image_url;
+      if (!dup.start_date && n.start_date) dup.start_date = n.start_date;
+      continue;
+    }
+    out.push({ ...n });
+  }
+  return out;
 }
 
 /** 소식과 같은 페이지·같은 브랜드(멀티 브랜드 출처면 같은 프로그램)의 게시 쿠폰을 연결 (최대 6개) */
@@ -1110,18 +1153,22 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
   const byId = new Map(coupons.map((c) => [c.id, c]));
   const used = new Set();
   const out = [];
+  const todayDow = new Date(`${today}T00:00:00Z`).getUTCDay();
   for (const n of news) {
     if ((n.status && n.status !== 'published') || !live(n)) continue;
+    // 요일 행사(끝나는 날 없음)는 그 요일에만 올린다
+    const wd = n.end_date ? null : weeklyDay(`${n.title} ${n.summary || ''}`);
+    if (!n.end_date && wd !== todayDow) continue;
     const rel = (n.related_ids || []).map((id) => byId.get(id)).filter(Boolean);
     rel.forEach((c) => used.add(c.id));
     const best = rel.reduce((m, c) => Math.max(m, size(c)), 0);
-    let score = 40 + best * 0.6 + urgency(n.end_date) + newness(n.first_seen) + (!(n.programs || []).length ? 8 : 0);
+    let score = 40 + best * 0.6 + (wd !== null ? 30 : urgency(n.end_date)) + newness(n.first_seen) + (!(n.programs || []).length ? 8 : 0);
     if (!mineOrOpen(n)) score -= 30;
     out.push({
       kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
       label: n.discount_label || (rel[0] ? benefitLabel(rel[0]) : ''), start_date: n.start_date || null, end_date: n.end_date || null,
       image_url: n.image_url || rel.find((c) => c.image_url)?.image_url || '', programs: n.programs || [], related_ids: rel.map((c) => c.id),
-      reason: reasonOf(n), score,
+      reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
     });
   }
   for (const c of coupons) {

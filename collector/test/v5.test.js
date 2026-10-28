@@ -63,7 +63,7 @@ test('소식: 근거가 페이지에 있는 기간 한정 행사만 게시, 지�
   const card = normalizeNews({ title: '현대카드 20%', summary: '현대카드 결제 시 20% 청구 할인', programs: [], evidence: '현대카드 20% 청구 할인', evidence_source: 'image', confidence: 0.9 }, ctx);
   assert.equal(card.status, 'rejected');
   // 여러 브랜드 출처(네이버페이)의 공통 행사는 프로그램 이름으로
-  const np = normalizeNews({ brand: '', title: '카페 현장결제 첫 이용 적립', summary: '네이버페이 현장결제를 처음 쓰면 최대 5,000원 적립', discount_label: '최대 5,000원 적립', programs: ['네이버페이'], evidence: '현장결제가 처음이라면 최대 5,000원 적립', evidence_source: 'text', confidence: 0.9 },
+  const np = normalizeNews({ brand: '', title: '카페 현장결제 첫 이용 적립', summary: '네이버페이 현장결제를 처음 쓰면 최대 5,000원 적립', discount_label: '최대 5,000원 적립', end_date: '2026-11-01', programs: ['네이버페이'], evidence: '현장결제가 처음이라면 최대 5,000원 적립', evidence_source: 'text', confidence: 0.9 },
     { now: NOW, brand: '', category: '카페', programs: ['네이버페이'], sourceId: 'npay-cafe', sourceUrl: 'https://n.kr/c', pageText: '현장결제가 처음이라면 최대 5,000원 적립 월요일 2,000원' });
   assert.equal(np.status, 'published');
   assert.equal(np.brand, '네이버페이');
@@ -140,7 +140,7 @@ test('홈 아이콘 아래 줄: 1+1·증정 / 곧 마감 / 통신사 / 페이·�
 
 test('소식: 멤버십·결제 출처의 소식은 우리 브랜드이거나 외식·카페 업종만', () => {
   const ctx = { now: NOW, brand: '', category: '', programs: ['SKT'], sourceId: 'tworld-benefit', sourceUrl: 'https://t.kr/b', pageText: 'CGV 영화 50% 할인 T day 배스킨라빈스 싱글레귤러 50% 카페 아메리카노 30%' };
-  const base = { summary: '', discount_label: '50%', programs: ['SKT'], evidence_source: 'text', confidence: 0.9 };
+  const base = { summary: '', discount_label: '50%', end_date: '2026-10-31', programs: ['SKT'], evidence_source: 'text', confidence: 0.9 };
   assert.equal(normalizeNews({ ...base, brand: 'CGV', title: 'T day CGV 50%', evidence: 'CGV 영화 50% 할인' }, ctx).status, 'rejected');
   const br = normalizeNews({ ...base, brand: '배스킨라빈스', title: 'T day 배스킨 싱글레귤러 50%', evidence: 'T day 배스킨라빈스 싱글레귤러 50%' }, ctx);
   assert.equal(br.status, 'published');
@@ -149,4 +149,38 @@ test('소식: 멤버십·결제 출처의 소식은 우리 브랜드이거나 �
   const cafe = normalizeNews({ ...base, brand: '', title: 'T멤버십 카페 30%', discount_label: '30%', evidence: '카페 아메리카노 30%' }, ctx);
   assert.equal(cafe.status, 'published');
   assert.equal(cafe.brand, 'SKT T멤버십');
+});
+
+test('핫딜 소식은 기간이 있어야 함: 상시 혜택은 보류, 요일 행사는 그 요일에만, 같은 행사 두 개는 하나로, 긴 라벨은 지움', async () => {
+  const { weeklyDay, mergeNews } = await import('../src/engine.js');
+  const pageText = '목요일 Special Day 한판 더! 매주 수요일 치킨 1+1 신규 회원 웰컴 쿠폰팩 구매금액 100원당 5포인트 적립';
+  const ctx = { now: NOW, brand: 'KFC', category: '치킨', sourceId: 'k', sourceUrl: 'https://k.kr', pageText };
+  const evergreen = normalizeNews({ title: 'KFC 신규 회원 웰컴 쿠폰팩', summary: '신규 가입하면 쿠폰 3종', discount_label: '쿠폰 3종', programs: [], evidence: '신규 회원 웰컴 쿠폰팩', evidence_source: 'text', confidence: 0.9 }, ctx);
+  assert.equal(evergreen.status, 'pending');
+  assert.ok(evergreen.issues.includes('기간 없는 상시 행사'));
+  const weekly = normalizeNews({ title: 'KFC 수요일 치킨 1+1', summary: '매주 수요일 치킨 1+1', discount_label: '1+1', programs: [], evidence: '매주 수요일 치킨 1+1', evidence_source: 'text', confidence: 0.9 }, ctx);
+  assert.equal(weekly.status, 'published', '요일마다 돌아오는 행사는 기간이 있는 것으로 봄');
+  assert.equal(weeklyDay('목요일 Special Day 한판 더'), 4);
+  assert.equal(weeklyDay('매주 수요일 치킨 1+1'), 3);
+  assert.equal(weeklyDay('수요일 오픈'), null, '요일만 나오고 반복 표현이 없으면 아님');
+  const long = normalizeNews({ title: '맥도날드 포인트', summary: '', discount_label: '구매금액 100원당 5포인트 적립', end_date: '2026-11-30', programs: [], evidence: '구매금액 100원당 5포인트 적립', evidence_source: 'text', confidence: 0.9 }, ctx);
+  assert.equal(long.discount_label, '');
+  // 수요일(10/28)에는 수요일 행사만 핫딜에, 목요일 행사는 빠짐
+  const news = [
+    { id: 'w3', status: 'published', brand: 'KFC', title: 'KFC 수요일 치킨 1+1', summary: '매주 수요일', discount_label: '1+1', end_date: null, programs: [], related_ids: [] },
+    { id: 'w4', status: 'published', brand: '도미노피자', title: '목요일 Special Day 한판 더', summary: '', discount_label: '1+1', end_date: null, programs: [], related_ids: [] },
+  ];
+  const h = pickHeadlines([], news, { today: TODAY });
+  assert.deepEqual(h.map((x) => x.id), ['w3']);
+  assert.equal(h[0].reason, '오늘(수)만');
+  // 목록·상세에서 두 번 잡힌 같은 행사
+  const m = mergeNews([
+    { id: 'a', status: 'published', brand: '배스킨라빈스', title: '블록팩 4개 12,000원 특가', discount_label: '12,000원', end_date: '2026-10-30', related_ids: ['c1'], confidence: 0.9 },
+    { id: 'b', status: 'published', brand: '배스킨라빈스', title: '배스킨라빈스 블록팩 4개 12,000원 특가', discount_label: '', end_date: '2026-10-30', related_ids: ['c1', 'c2'], image_url: 'https://b.kr/x.jpg', confidence: 0.9 },
+    { id: 'c', status: 'published', brand: '배스킨라빈스', title: '31데이 사전예약 혜택', discount_label: '사이즈업', end_date: '2026-10-30', related_ids: ['c9'], confidence: 0.9 },
+  ]);
+  assert.equal(m.length, 2);
+  const keep = m.find((x) => x.id === 'a');
+  assert.deepEqual(keep.related_ids, ['c1', 'c2']);
+  assert.equal(keep.image_url, 'https://b.kr/x.jpg');
 });

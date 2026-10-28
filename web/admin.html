@@ -227,6 +227,8 @@
       tile('제보', num(data.reports.total), `미처리 ${num(data.reports.open)}`),
       tile('통신사·페이 혜택', num(Object.values(c.published_by_program || {}).reduce((a, b) => a + b, 0)), Object.entries(c.published_by_program || {}).map(([k, v]) => `${k} ${v}`).join(' · ') || '아직 없음'),
       tile('영양정보 메뉴', num(c.nutrition_items || 0), c.nutrition_updated_at ? `갱신 ${kst(c.nutrition_updated_at)}` : '공공데이터 키 등록 후 주 1회 자동'),
+      tile('오늘의 소식', num(c.news_published || 0), '공식 이벤트·공지에서 수집 때 함께 갱신'),
+      tile('사진 있는 쿠폰', num(c.coupons_with_image || 0), `게시 중 ${num(live)}개 중 · 공식 행사 페이지 이미지`),
     ].join('');
     barChart($('#chVisitors'), u.daily, 'visitors', '방문자');
     barChart($('#chClicks'), u.daily, 'clicks', '이동');
