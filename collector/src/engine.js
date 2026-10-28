@@ -114,7 +114,8 @@ export function normPrograms(list) {
   return PROGRAMS.filter((p) => out.has(p));
 }
 
-const PROGRAM_NAME_WORDS = /SKT|SK\s*텔레콤|T\s*멤버십|KT|LG\s*U\s*\+|U\s*\+|유플러스|네이버\s*페이|N\s*pay|카카오\s*페이|토스\s*페이|해피\s*포인트\s*(플러스)?|CJ\s*ONE/gi;
+// 전체 문구가 프로그램 이름·일반 혜택 단어로만 이루어진 경우에만 일반 메뉴로 바꾼다.
+const PROGRAM_ONLY_MENU = /^(?:SKT|SK\s*텔레콤|T\s*멤버십|KT|LG\s*U\s*\+|U\s*\+|유플러스|네이버\s*페이|N\s*pay|카카오\s*페이|토스\s*페이|해피\s*포인트\s*(?:플러스)?|CJ\s*ONE|적립|할인|결제|혜택|이벤트|쿠폰|회원|멤버십|앱|\s|[+·,/()])+$/i;
 const DELIVERY_APPS = /쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|위메프오|먹깨비/;
 const DELIVERY_EXCLUDED = /(쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|배달\s*앱)[^.·\n]{0,20}(제외|불가|미적용|적용\s*(안|않|불가)|사용\s*(안|불가))/;
 /** 외부 배달앱 전용 행사인가 (경쟁 서비스가 이미 다루는 영역이라 제외, D7·HANDOFF 4장) */
@@ -551,7 +552,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
 
   // 메뉴 자리에 프로그램 이름만 적힌 경우('해피포인트 적립', '네이버페이 결제') → '전 메뉴'
   let menu = clean(raw.menu);
-  if (menu && detectPrograms(menu).length && !menu.replace(PROGRAM_NAME_WORDS, '').replace(/적립|할인|결제|혜택|이벤트|쿠폰|회원|멤버십|앱|\s|[+·,/()]/g, '')) menu = '전 메뉴';
+  if (menu && detectPrograms(menu).length && PROGRAM_ONLY_MENU.test(menu)) menu = '전 메뉴';
 
   const c = {
     brand,

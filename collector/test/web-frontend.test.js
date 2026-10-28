@@ -85,6 +85,40 @@ test('연결 실패 시 저장본임을 알리고, 저장본이 없으면 다시
   assert.equal(await second.page.locator('#errNote').isHidden(), true);
 });
 
+test('할인 숫자와 단위를 분리해도 금액·할인·적립 티켓 표시를 유지한다', { timeout: 30000 }, async (t) => {
+  const cases = [
+    ['percent', { discount_type: 'percent', coupon_price: null, discount_rate: 20 }, '20%', '%'],
+    ['amount', { discount_type: 'amount', coupon_price: null, discount_rate: null, discount_value: 20000 }, '2만원', '원'],
+    ['price', { discount_rate: null, coupon_price: 5500 }, '5,500원', '원'],
+    ['points', { discount_type: 'point_back', coupon_price: null, discount_rate: null, discount_value: 5000 }, '5천원', '원'],
+    ['point-rate', { discount_type: 'point_back', coupon_price: null, discount_rate: 5, discount_value: 5 }, '5%', '%'],
+    ['gift', { discount_type: 'free_item', menu: '아메리카노 1+1', coupon_price: null, discount_rate: null }, '1+1', ''],
+  ];
+  const { context, page } = await setup({ ok: true, last_checked_at: ago(1), coupons: cases.map(([id, fields]) => ({ ...coupon(id), ...fields })), news: [] });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.locator('#card-gift').waitFor();
+  for (const [id, , text, unit] of cases) {
+    const label = page.locator(`#card-${id} .big`);
+    assert.equal(await label.innerText(), text, id);
+    assert.deepEqual(await label.locator('small').allTextContents(), unit ? [unit] : [], id);
+  }
+});
+
+test('할인율 응답의 HTML은 티켓과 가격 줄에서 요소로 삽입되지 않는다', { timeout: 30000 }, async (t) => {
+  const payload = '<img src=x data-injected="yes">';
+  const coupons = ['percent', 'point_back'].map((type) => ({ ...coupon(type), discount_type: type, coupon_price: null, discount_rate: payload, discount_value: 5 }));
+  const { context, page } = await setup({ ok: true, last_checked_at: ago(1), coupons, news: [] });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.locator('#card-point_back').waitFor();
+  assert.equal(await page.locator('[data-injected]').count(), 0);
+  for (const type of ['percent', 'point_back']) {
+    assert.equal(await page.locator(`#card-${type} .big`).innerText(), `${payload}%`);
+    assert.ok((await page.locator(`#card-${type} .price`).innerText()).includes(payload));
+  }
+});
+
 test('120개 혜택의 첫 표시와 검색이 모바일 화면에서 동작한다', { timeout: 30000 }, async (t) => {
   const data = { ok: true, last_checked_at: ago(1), coupons: Array.from({ length: 120 }, (_, i) => coupon(String(i))), news: [] };
   const { context, page } = await setup(data);

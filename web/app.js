@@ -294,25 +294,25 @@ function dueChip(c, today) {
 
 const upTo = (c) => /^최대/.test(c.program_note || '');
 // 금액을 짧게: 20000 → 2만원, 5000 → 5천원, 5500 → 5,500원
-const shortWon = (n) => (n >= 10000 && n % 10000 === 0 ? `${n / 10000}만<small>원</small>` : n >= 1000 && n % 1000 === 0 ? `${n / 1000}천<small>원</small>` : `${won(n)}<small>원</small>`);
+const shortWon = (n) => (n >= 10000 && n % 10000 === 0 ? `${n / 10000}만` : n >= 1000 && n % 1000 === 0 ? `${n / 1000}천` : won(n));
 const isOnePlusOne = (c) => /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''}`);
 /** 티켓 왼쪽(절취선 앞) 큰 글자 */
 function stubParts(c) {
   const up = upTo(c);
-  if (c.discount_type === 'point_back') return { tone: 'pt', big: has(c.discount_rate) ? `${c.discount_rate}<small>%</small>` : shortWon(+c.discount_value), sub: `${up ? '최대 ' : ''}적립` };
+  if (c.discount_type === 'point_back') return { tone: 'pt', big: has(c.discount_rate) ? String(c.discount_rate) : shortWon(+c.discount_value), unit: has(c.discount_rate) ? '%' : '원', sub: `${up ? '최대 ' : ''}적립` };
   if (c.discount_type === 'free_item') return { tone: 'gift', big: isOnePlusOne(c) ? '1+1' : '증정', sub: c.discount_rate ? `${c.discount_rate}% 효과` : isOnePlusOne(c) ? '하나 더' : '함께 드려요' };
-  if (has(c.discount_rate)) return { tone: 'sale', big: `${c.discount_rate}<small>%</small>`, sub: up ? '최대 할인' : '할인' };
-  if (c.discount_type === 'amount' && c.discount_value) return { tone: 'sale', big: shortWon(+c.discount_value), sub: up ? '최대 할인' : '할인' };
-  if (has(c.coupon_price)) return { tone: 'plain', big: shortWon(+c.coupon_price), sub: '특가' };
+  if (has(c.discount_rate)) return { tone: 'sale', big: String(c.discount_rate), unit: '%', sub: up ? '최대 할인' : '할인' };
+  if (c.discount_type === 'amount' && c.discount_value) return { tone: 'sale', big: shortWon(+c.discount_value), unit: '원', sub: up ? '최대 할인' : '할인' };
+  if (has(c.coupon_price)) return { tone: 'plain', big: shortWon(+c.coupon_price), unit: '원', sub: '특가' };
   return { tone: 'plain', big: '혜택', sub: '앱에서 확인' };
 }
 /** 티켓 오른쪽 가격 줄 */
 function priceLine(c) {
   if (has(c.coupon_price) && c.discount_type !== 'free_item') return `${c.regular_price && c.discount_type !== 'point_back' ? `<s>${won(c.regular_price)}원</s>` : ''}<b>${won(c.coupon_price)}원</b>`;
   const up = upTo(c) ? '최대 ' : '';
-  if (c.discount_type === 'percent' && c.discount_rate) return `<span class="what">주문 금액 ${up}${c.discount_rate}% 할인</span>`;
+  if (c.discount_type === 'percent' && c.discount_rate) return `<span class="what">주문 금액 ${up}${esc(c.discount_rate)}% 할인</span>`;
   if (c.discount_type === 'amount' && c.discount_value) return `<span class="what">${up}${won(c.discount_value)}원 할인</span>`;
-  if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${c.discount_rate}%` : `${won(c.discount_value)}원`} 적립</span>`;
+  if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${esc(c.discount_rate)}%` : `${won(c.discount_value)}원`} 적립</span>`;
   if (c.discount_type === 'free_item') return `<span class="what">${isOnePlusOne(c) ? '하나 사면 하나 더' : '함께 증정'}</span>`;
   return '<span class="what">공식 앱에서 확인</span>';
 }
@@ -407,14 +407,15 @@ function card(c, today) {
   const b = badges(c);
   const st = stubParts(c);
   const img = safeImg(c.image_url);
-  const bigLen = st.big.replace(/<[^>]+>/g, '').length;
+  // 표시할 글자와 단위를 분리해 HTML을 제거하는 정규식 없이 길이를 계산한다.
+  const bigLen = st.big.length + (st.unit || '').length;
   return `
   <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
     <div class="tk"><div class="ticket">
       <div class="stub ${st.tone}${img ? ' has-ph' : ''}" aria-hidden="true">
         ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
         <span class="cat-art">${ART[c.category] || ''}</span>
-        <div class="lbl-w"><div class="big"${bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${st.big}</div><div class="sub">${esc(st.sub)}</div></div>
+        <div class="lbl-w"><div class="big"${bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>
       <div class="body" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
         <div class="who"><span class="bn">${esc(c.brand)}${ch ? `<span class="chn"> · ${esc(ch)}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</div>

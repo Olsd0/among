@@ -248,6 +248,15 @@ test('등급별 할인은 가장 낮은 등급 값으로 · 메뉴 자리에 프
   assert.equal(v({ menu: '해피포인트 블록팩' }, { brand: '배스킨라빈스', category: '디저트' }).menu, '해피포인트 블록팩', '실제 메뉴 이름은 그대로');
 });
 
+test('프로그램 전용 문구는 전체가 허용된 단어일 때만 전 메뉴로 바꾼다', () => {
+  for (const menu of ['네이버 페이 결제', 'KT 멤버십 할인', 'LG U+ 멤버십 혜택', '해피포인트 플러스 적립', 'CJ ONE 회원 쿠폰']) {
+    assert.equal(v({ menu }).menu, '전 메뉴', menu);
+  }
+  for (const menu of ['네이버페이 라떼', 'KT 멤버십 할인 세트', '해피포인트 <img src=x>', '해피포인트 & 쿠폰']) {
+    assert.equal(v({ menu }).menu, menu, '상품명과 알 수 없는 문자는 삭제하지 않는다');
+  }
+});
+
 test('과장 방지 (2차 시험 실행에서 발견): 최대 표기, 등급별 할인액, 머니·포인트 지급은 적립', async () => {
   const { lowestTierAmount, isUpTo } = await import('../src/engine.js');
   assert.equal(lowestTierAmount('LG유플러스 VVIP 고객 패밀리 9천원 OFF, VIP고객 패밀리 6천원OFF'), 6000);
