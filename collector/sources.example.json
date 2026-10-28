@@ -452,6 +452,24 @@
       "follow_text": ""
     },
     {
+      "id": "tworld-benefit",
+      "active": "TRUE",
+      "brand": "",
+      "category": "",
+      "url": "https://m.tworld.co.kr/v6/benefit",
+      "selector": "",
+      "exclude": "header; footer",
+      "follow": "",
+      "detail_selector": "",
+      "max_follow": 0,
+      "max_shots": 6,
+      "wait_ms": 2500,
+      "official_link": "https://m.tworld.co.kr/v6/benefit",
+      "notes": "[v5] 10/28 탐색: T world 혜택 모음(가격 10·% 12) — T멤버십 이달의 행사·소식용. 우리 브랜드·외식 업종만 추출",
+      "program": "SKT",
+      "follow_text": ""
+    },
+    {
       "id": "kt-membership-food",
       "active": "FALSE",
       "brand": "",

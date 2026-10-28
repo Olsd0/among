@@ -123,3 +123,30 @@ test('혜택 한 줄 표시', () => {
   assert.equal(benefitLabel({ discount_type: 'point_back', discount_value: 2000 }), '2,000원 적립');
   assert.equal(benefitLabel({ discount_type: 'point_back', discount_value: 5, discount_rate: 5 }), '5% 적립');
 });
+
+test('홈 아이콘 아래 줄: 1+1·증정 / 곧 마감 / 통신사 / 페이·포인트 / 신규가입', async () => {
+  const { matchesKind, matchesFilters } = await import('../src/engine.js');
+  const c = (o) => ({ discount_type: 'price', audience: '전체', programs: [], end_date: null, ...o });
+  assert.equal(matchesKind(c({ discount_type: 'free_item' }), 'free'), true);
+  assert.equal(matchesKind(c({ end_date: '2026-10-30' }), 'ending', TODAY), true);
+  assert.equal(matchesKind(c({ end_date: '2026-11-30' }), 'ending', TODAY), false);
+  assert.equal(matchesKind(c({ programs: ['KT'] }), 'telecom'), true);
+  assert.equal(matchesKind(c({ programs: ['해피포인트'] }), 'pay'), true);
+  assert.equal(matchesKind(c({ programs: ['SKT'] }), 'pay'), false);
+  assert.equal(matchesKind(c({ audience: '신규회원' }), 'new'), true);
+  assert.equal(matchesFilters(c({ category: '피자', programs: ['KT'] }), { category: '피자', kind: 'telecom' }, { today: TODAY }), true);
+  assert.equal(matchesFilters(c({ category: '피자' }), { category: '피자', kind: 'telecom' }, { today: TODAY }), false);
+});
+
+test('소식: 멤버십·결제 출처의 소식은 우리 브랜드이거나 외식·카페 업종만', () => {
+  const ctx = { now: NOW, brand: '', category: '', programs: ['SKT'], sourceId: 'tworld-benefit', sourceUrl: 'https://t.kr/b', pageText: 'CGV 영화 50% 할인 T day 배스킨라빈스 싱글레귤러 50% 카페 아메리카노 30%' };
+  const base = { summary: '', discount_label: '50%', programs: ['SKT'], evidence_source: 'text', confidence: 0.9 };
+  assert.equal(normalizeNews({ ...base, brand: 'CGV', title: 'T day CGV 50%', evidence: 'CGV 영화 50% 할인' }, ctx).status, 'rejected');
+  const br = normalizeNews({ ...base, brand: '배스킨라빈스', title: 'T day 배스킨 싱글레귤러 50%', evidence: 'T day 배스킨라빈스 싱글레귤러 50%' }, ctx);
+  assert.equal(br.status, 'published');
+  assert.equal(br.brand, '배스킨라빈스');
+  assert.equal(br.category, '디저트');
+  const cafe = normalizeNews({ ...base, brand: '', title: 'T멤버십 카페 30%', discount_label: '30%', evidence: '카페 아메리카노 30%' }, ctx);
+  assert.equal(cafe.status, 'published');
+  assert.equal(cafe.brand, 'SKT T멤버십');
+});

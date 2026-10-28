@@ -843,13 +843,35 @@ export function myPrograms(c, profile = {}) {
   return (c.programs || []).filter((p) => have.has(p));
 }
 
+// 홈 아이콘 아래 줄(혜택 종류) — 누르면 목록이 그 조건으로 걸러진다 (v5)
+export const PAY_PROGRAMS = ['네이버페이', '카카오페이', '토스페이', '해피포인트', 'CJ ONE'];
+export const KINDS = [
+  { id: 'free', label: '1+1·증정' },
+  { id: 'ending', label: '곧 마감' },
+  { id: 'telecom', label: '통신사' },
+  { id: 'pay', label: '페이·포인트' },
+  { id: 'new', label: '신규가입' },
+];
+export function matchesKind(c, kind, today = todayKST()) {
+  const progs = c.programs || [];
+  switch (kind) {
+    case 'free': return c.discount_type === 'free_item';
+    case 'ending': { const d = daysLeft(c.end_date, today); return d !== null && d <= 3; }
+    case 'telecom': return progs.some((p) => ['SKT', 'KT', 'LGU+'].includes(p));
+    case 'pay': return progs.some((p) => PAY_PROGRAMS.includes(p));
+    case 'new': return c.audience === '신규회원';
+    default: return true;
+  }
+}
+
 /**
- * 화면 필터. f: { category, itemType, channel, everyoneOnly, q, mine, programsOnly, maxPrice, fresh, endingSoon, ids }
+ * 화면 필터. f: { category, kind, itemType, channel, everyoneOnly, q, mine, programsOnly, maxPrice, fresh, endingSoon, ids }
  * ctx: { today, profile, since(지난 방문 시각) }
  */
 export function matchesFilters(c, f = {}, ctx = {}) {
   const today = ctx.today || todayKST();
   if (f.category && f.category !== '전체' && c.category !== f.category) return false;
+  if (f.kind && !matchesKind(c, f.kind, today)) return false;
   if (f.itemType && c.item_type !== f.itemType) return false;
   if (f.channel && !(c.channels || []).includes(f.channel)) return false;
   if (f.everyoneOnly && !isOpenToEveryone(c)) return false;
@@ -1030,6 +1052,8 @@ export function normalizeNews(raw = {}, ctx = {}) {
   const reject = [];
   if (!n.title) reject.push('제목 없음');
   if (!n.brand) reject.push('지원하지 않는 브랜드');
+  // 여러 브랜드가 섞인 출처(멤버십·결제)에서 우리 브랜드가 아닌 소식은 외식·카페 업종일 때만 (영화·쇼핑·여행 등 제외)
+  else if (!fixed && !known && !/카페|커피|버거|치킨|피자|베이커리|빵|디저트|아이스크림|도넛|외식|음료|라떼/.test(allText)) reject.push('다루지 않는 업종');
   if (n.end_date && n.end_date < today) reject.push('이미 종료');
   if (n.start_date && n.end_date && n.start_date > n.end_date) reject.push('기간 역전');
   if (isDeliveryAppOnly(allText)) reject.push('외부 배달앱 전용 행사');

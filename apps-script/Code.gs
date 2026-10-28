@@ -69,7 +69,7 @@ const SCHEMA_VERSION = 5;
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
-  5: [],
+  5: ['tworld-benefit'],
 };
 const NUM_FIELDS = ['regular_price', 'coupon_price', 'discount_rate', 'discount_value', 'max_discount', 'min_order', 'confidence'];
 const EVENT_TYPES = ['visit', 'click', 'detail', 'refresh', 'share', 'filter'];
@@ -1096,6 +1096,24 @@ const SAMPLE_SOURCES_ = [
     "wait_ms": 2500,
     "official_link": "https://m.tworld.co.kr/membership/benefit/brand",
     "notes": "[v4] 10/27 점검·시험: 글자 3.5천자, 11건 추출(파리바게뜨·뚜레쥬르·공차·도미노·롯데리아·폴바셋·던킨·메가·피자헛·파파존스)",
+    "program": "SKT",
+    "follow_text": ""
+  },
+  {
+    "id": "tworld-benefit",
+    "active": "TRUE",
+    "brand": "",
+    "category": "",
+    "url": "https://m.tworld.co.kr/v6/benefit",
+    "selector": "",
+    "exclude": "header; footer",
+    "follow": "",
+    "detail_selector": "",
+    "max_follow": 0,
+    "max_shots": 6,
+    "wait_ms": 2500,
+    "official_link": "https://m.tworld.co.kr/v6/benefit",
+    "notes": "[v5] 10/28 탐색: T world 혜택 모음(가격 10·% 12) — T멤버십 이달의 행사·소식용. 우리 브랜드·외식 업종만 추출",
     "program": "SKT",
     "follow_text": ""
   },
