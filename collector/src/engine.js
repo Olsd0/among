@@ -12,6 +12,13 @@ export const ITEM_TYPES = ['단품', '세트', '기타'];
 export const DISCOUNT_TYPES = ['price', 'amount', 'percent', 'free_item', 'point_back'];
 export const CATEGORIES = ['햄버거', '카페', '치킨', '피자', '디저트'];
 
+// 출처마다 확인에 실패할 수 있으므로 전체 수집 시각과 각 혜택의 확인 시각을 따로 판단한다.
+export function verificationStatus(iso, now = Date.now()) {
+  const checked = Date.parse(iso || '');
+  if (!Number.isFinite(checked) || checked > now + 5 * 60e3) return 'unknown';
+  return now - checked > 48 * 3600e3 ? 'stale' : 'fresh';
+}
+
 // ---------- 브랜드 목록 (여러 브랜드가 한 페이지에 나오는 멤버십·결제 출처에서 브랜드 이름을 맞추는 데 사용) ----------
 // [표준 이름, 카테고리, 같은 브랜드로 볼 표기]
 export const BRANDS = [
