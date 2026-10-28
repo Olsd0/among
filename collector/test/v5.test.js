@@ -184,3 +184,20 @@ test('핫딜 소식은 기간이 있어야 함: 상시 혜택은 보류, 요일 
   assert.deepEqual(keep.related_ids, ['c1', 'c2']);
   assert.equal(keep.image_url, 'https://b.kr/x.jpg');
 });
+
+test('실제 수집(10/28 11:30)에서 본 것: 경품·초청 이벤트 제외, 몇 달짜리 행사는 핫딜 아님, 카페마다 잡힌 같은 캠페인은 하나로', async () => {
+  const { mergeNews } = await import('../src/engine.js');
+  const pageText = '뮤지컬 두도시이야기 초청 이벤트 치즈페스타 최대 1만원 할인 8/31~12/31 현장결제가 처음이라면 최대 5,000원 적립';
+  const ctx = { now: NOW, brand: '파파존스', category: '피자', sourceId: 'p', sourceUrl: 'https://p.kr', pageText };
+  const musical = normalizeNews({ title: '뮤지컬 초청 문화 이벤트', summary: '추첨으로 뮤지컬 티켓 증정', discount_label: '뮤지컬 티켓 1인 2매', end_date: '2026-11-08', programs: [], evidence: '뮤지컬 두도시이야기 초청 이벤트', evidence_source: 'text', confidence: 0.9 }, ctx);
+  assert.equal(musical.status, 'rejected');
+  assert.ok(musical.issues.includes('경품·추첨 이벤트'));
+  const longRun = normalizeNews({ title: '치즈페스타 할인', summary: '', discount_label: '최대 1만원 할인', start_date: '2026-08-31', end_date: '2026-12-31', programs: [], evidence: '치즈페스타 최대 1만원 할인 8/31~12/31', evidence_source: 'text', confidence: 0.9 }, ctx);
+  assert.equal(longRun.status, 'pending');
+  assert.ok(longRun.issues.includes('기간이 긴 상시성 행사'));
+  const camp = (brand, id) => ({ id, status: 'published', source_id: 'npay-cafe', brand, programs: ['네이버페이'], title: '네이버페이 카페 현장결제 포인트 적립', discount_label: '최대 5,000원 적립', end_date: '2026-11-01', related_ids: [id + 'c'], confidence: 0.9 });
+  const m = mergeNews([camp('메가MGC커피', 'a'), camp('이디야', 'b'), camp('컴포즈커피', 'c')]);
+  assert.equal(m.length, 1);
+  assert.equal(m[0].brand, '네이버페이');
+  assert.equal(m[0].related_ids.length, 3);
+});

@@ -1073,6 +1073,8 @@ export function normalizeNews(raw = {}, ctx = {}) {
   if (programs.includes('카드')) reject.push('특정 카드 결제 할인');
   else if (!n.programs.length && needsOtherPayment(allText)) reject.push('특정 결제수단 할인');
   if (!PROMO_WORDS.test(allText)) reject.push('혜택 소식이 아님');
+  // 경품 추첨·초청 이벤트는 할인 소식이 아니다 (할인·1+1이 함께 있으면 그 혜택으로 본다)
+  else if (/추첨|응모|당첨|경품|초청/.test(allText) && !/\d+\s*%|\d[\d,]*\s*원|1\s*\+\s*1|반값|할인/.test(allText)) reject.push('경품·추첨 이벤트');
   const hold = [];
   const ev = squash(n.evidence);
   if (raw.evidence_source !== 'image' && pageSq && ev.length >= 4 && !pageSq.includes(ev)) {
@@ -1084,6 +1086,8 @@ export function normalizeNews(raw = {}, ctx = {}) {
   if (n.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
   // 핫딜은 기간이 있는 행사만 (끝나는 날이 있거나 요일마다 돌아오는 행사). 상시 혜택·가입 혜택은 쿠폰 목록에만
   if (!n.end_date && weeklyDay(allText) === null) hold.push('기간 없는 상시 행사');
+  // 두 달 반이 넘는 행사는 상시 혜택에 가깝다 (쿠폰 목록에는 그대로, 핫딜로는 올리지 않음)
+  else if (n.start_date && n.end_date && diffDays(n.end_date, n.start_date) > 75) hold.push('기간이 긴 상시성 행사');
   if (period?.end && !ed0) n.issues.push('기간은 근거 문구에서 읽음');
   n.issues.unshift(...reject, ...hold);
   n.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
@@ -1099,10 +1103,14 @@ export function mergeNews(list) {
   const out = [];
   for (const n of [...list].sort((a, b) => rank(b) - rank(a))) {
     if (n.status === 'rejected') { out.push(n); continue; }
-    const dup = out.find((o) => o.status !== 'rejected' && o.brand === n.brand && (
+    // 멀티 브랜드 캠페인(네이버페이 카페 8곳 등)이 카페마다 같은 소식으로 잡히면 하나로, 브랜드는 프로그램 이름으로
+    const sameCampaign = (o) => o.source_id && o.source_id === n.source_id && (o.programs || []).length
+      && (o.end_date || '') === (n.end_date || '') && similarMenu(o.title, n.title, 4);
+    const dup = out.find((o) => o.status !== 'rejected' && ((o.brand === n.brand && (
       (o.related_ids || []).some((id) => (n.related_ids || []).includes(id))
-      || ((o.end_date || '') === (n.end_date || '') && similarMenu(o.title, n.title, 4))));
+      || ((o.end_date || '') === (n.end_date || '') && similarMenu(o.title, n.title, 4)))) || sameCampaign(o)));
     if (dup) {
+      if (dup.brand !== n.brand && (dup.programs || []).length) dup.brand = PROGRAM_LABEL[dup.programs[0]] || dup.brand;
       dup.related_ids = [...new Set([...(dup.related_ids || []), ...(n.related_ids || [])])].slice(0, 6);
       if (!dup.image_url && n.image_url) dup.image_url = n.image_url;
       if (!dup.start_date && n.start_date) dup.start_date = n.start_date;
