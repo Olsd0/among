@@ -255,6 +255,8 @@ test('프로그램 전용 문구는 전체가 허용된 단어일 때만 전 메
   for (const menu of ['네이버페이 라떼', 'KT 멤버십 할인 세트', '해피포인트 <img src=x>', '해피포인트 & 쿠폰']) {
     assert.equal(v({ menu }).menu, menu, '상품명과 알 수 없는 문자는 삭제하지 않는다');
   }
+  const repeated = `${'해피포인트 '.repeat(500)}실제 상품`;
+  assert.equal(v({ menu: repeated }).menu, repeated, '긴 반복 문구도 역추적 없이 처리하고 상품명을 보존한다');
 });
 
 test('과장 방지 (2차 시험 실행에서 발견): 최대 표기, 등급별 할인액, 머니·포인트 지급은 적립', async () => {
