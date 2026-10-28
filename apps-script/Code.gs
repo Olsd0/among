@@ -1,8 +1,8 @@
 /**
  * AMONG 시트 백엔드 (Google Apps Script 웹앱)
  * ------------------------------------------------------------
- * 탭: coupons · sources · run_log · events · reports · nutrition
- * 공개 API (토큰 없음): GET coupons · status · nutrition / POST refresh · event · report
+ * 탭: coupons · news · sources · run_log · events · reports · nutrition
+ * 공개 API (토큰 없음): GET coupons(+ 소식 news 포함) · status · nutrition / POST refresh · event · report
  * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish · nutrition_ingest
  *
  * 코드를 새 버전으로 배포하면 첫 요청 때 migrate_()가 새 열·탭·출처를 자동으로 추가한다 (SCHEMA_VERSION).
@@ -45,7 +45,11 @@ const SHEETS = {
     'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only',
     'start_date', 'end_date', 'conditions', 'confidence', 'issues', 'evidence', 'source_id', 'source_url',
     'official_link', 'first_seen', 'checked_at', 'updated_at', 'hash', 'last_run_id',
-    'programs', 'program_note', 'how_to_use', 'stackable'],
+    'programs', 'program_note', 'how_to_use', 'stackable', 'image_url'],
+  // 소식(핫딜·기간 한정 행사): 쿠폰을 가져오는 공식 이벤트·공지 페이지에서 수집 때 함께 갱신 (v5)
+  news: ['id', 'status', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
+    'image_url', 'related_ids', 'evidence', 'issues', 'confidence', 'source_id', 'source_url', 'official_link',
+    'first_seen', 'checked_at', 'updated_at', 'hash', 'last_run_id'],
   sources: ['id', 'active', 'brand', 'category', 'url', 'selector', 'exclude', 'follow', 'detail_selector',
     'max_follow', 'max_shots', 'wait_ms', 'official_link', 'notes', 'last_ok_at', 'last_error', 'program', 'follow_text'],
   nutrition: ['brand', 'name', 'serving', 'kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg', 'source', 'updated_at'],
@@ -57,16 +61,21 @@ const SHEETS = {
 };
 const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate',
   'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only', 'start_date', 'end_date',
-  'conditions', 'source_url', 'official_link', 'first_seen', 'checked_at', 'programs', 'program_note', 'how_to_use', 'stackable'];
+  'conditions', 'source_url', 'official_link', 'first_seen', 'checked_at', 'programs', 'program_note', 'how_to_use', 'stackable', 'image_url'];
+const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
+  'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 4;
-// 이 버전에서 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
-const NEW_SOURCES_V4 = ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'];
+const SCHEMA_VERSION = 5;
+// 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
+const NEW_SOURCES = {
+  4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
+  5: [],
+};
 const NUM_FIELDS = ['regular_price', 'coupon_price', 'discount_rate', 'discount_value', 'max_discount', 'min_order', 'confidence'];
 const EVENT_TYPES = ['visit', 'click', 'detail', 'refresh', 'share', 'filter'];
 const REPORT_REASONS = ['가격이 달라요', '이미 끝났어요', '조건이 달라요', '공식 앱에 없어요', '기타'];
 const STALE_MIN = 30;           // queued/running 상태가 이보다 오래되면 멈춘 것으로 본다
-const CACHE_KEY = 'coupons_v3';
+const CACHE_KEY = 'coupons_v5';
 const NUTRITION_CACHE_KEY = 'nutrition_v1';
 
 // ============ 진입점 ============
@@ -130,9 +139,22 @@ function getCoupons_() {
       return o;
     });
   const props = PropertiesService.getScriptProperties();
-  const out = { ok: true, today: today, last_checked_at: props.getProperty('LAST_SUCCESS_AT') || '', count: rows.length, coupons: rows };
+  const out = { ok: true, today: today, last_checked_at: props.getProperty('LAST_SUCCESS_AT') || '', count: rows.length, coupons: rows, news: getNews_(today) };
   try { cache.put(CACHE_KEY, JSON.stringify(out), 120); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
   return out;
+}
+
+/** 게시 중이고 끝나지 않은 소식 (홈 '오늘의 핫딜'용) */
+function getNews_(today) {
+  return readTable_('news').rows
+    .filter((r) => r.status === 'published' && (!r.end_date || r.end_date >= today))
+    .map((r) => {
+      const o = {};
+      NEWS_PUBLIC.forEach((f) => { o[f] = r[f]; });
+      o.programs = r.programs ? String(r.programs).split(',').filter(String) : [];
+      o.related_ids = r.related_ids ? String(r.related_ids).split(',').filter(String) : [];
+      return o;
+    });
 }
 
 function getStatus_() {
@@ -305,7 +327,59 @@ function ingest_(b) {
   });
 
   writeTable_(sh, headers, rows);
+  // 소식: 예전 수집기(소식을 보내지 않음)면 소식 탭을 건드리지 않는다
+  if (Array.isArray(b.news)) result.news = ingestNews_(b, okSources);
   CacheService.getScriptCache().remove(CACHE_KEY);
+  return result;
+}
+
+/** 소식 반영: 쿠폰과 같은 규칙 (id로 upsert · 성공한 출처에서 안 보이면 gone · 기간 지나면 expired · hidden은 되살리지 않음) */
+function ingestNews_(b, okSources) {
+  const sh = sheet_('news');
+  const t = readTable_('news');
+  const rows = t.rows;
+  const index = {};
+  rows.forEach((r, i) => { index[r.id] = i; });
+  const now = nowIso_();
+  const today = todayKST_();
+  const seen = {};
+  const result = { inserted: 0, updated: 0, unchanged: 0, gone: 0, expired: 0 };
+  b.news.forEach((n) => {
+    if (!n || !n.id || seen[n.id]) return;
+    seen[n.id] = true;
+    const row = {};
+    SHEETS.news.forEach((h) => { row[h] = n[h] === undefined || n[h] === null ? '' : n[h]; });
+    row.programs = (n.programs || []).join(',');
+    row.related_ids = (n.related_ids || []).join(',');
+    row.issues = (n.issues || []).join('; ');
+    row.title = clip_(n.title, 60);
+    row.summary = clip_(n.summary, 300);
+    row.checked_at = b.checked_at || now;
+    row.last_run_id = b.run_id || '';
+    if (n.id in index) {
+      const old = rows[index[n.id]];
+      if (old.status === 'hidden' || (old.hash === row.hash && old.status === row.status)) {
+        old.checked_at = row.checked_at; old.last_run_id = row.last_run_id;
+        result.unchanged++;
+      } else {
+        row.first_seen = old.first_seen || now;
+        row.updated_at = now;
+        rows[index[n.id]] = row;
+        result.updated++;
+      }
+    } else {
+      row.first_seen = now;
+      row.updated_at = now;
+      index[n.id] = rows.length;
+      rows.push(row);
+      result.inserted++;
+    }
+  });
+  rows.forEach((r) => {
+    if (!seen[r.id] && (r.status === 'published' || r.status === 'pending') && okSources[r.source_id]) { r.status = 'gone'; r.updated_at = now; result.gone++; }
+    if (r.status !== 'expired' && r.status !== 'hidden' && r.end_date && r.end_date < today) { r.status = 'expired'; r.updated_at = now; result.expired++; }
+  });
+  writeTable_(sh, t.headers, rows);
   return result;
 }
 
@@ -445,6 +519,8 @@ function getMetrics_(b) {
       published_by_brand: byBrand,
       published_by_program: byProgram,
       nutrition_items: nutritionCount,
+      news_published: readTable_('news').rows.filter((r) => r.status === 'published' && (!r.end_date || r.end_date >= today)).length,
+      coupons_with_image: readTable_('coupons').rows.filter((r) => r.status === 'published' && r.image_url).length,
       nutrition_updated_at: PropertiesService.getScriptProperties().getProperty('NUTRITION_UPDATED_AT') || '',
       pending_reasons: pendingReasons,
       runs: recentRuns,
@@ -516,7 +592,10 @@ function migrate_() {
     Object.keys(SHEETS).forEach((name) => ensureSheet_(ss, name));
     const have = {};
     readTable_('sources').rows.forEach((r) => { have[r.id] = true; });
-    SAMPLE_SOURCES_.filter((x) => NEW_SOURCES_V4.indexOf(x.id) >= 0 && !have[x.id]).forEach((x) => appendRow_('sources', x));
+    const from = Number(p.getProperty('SCHEMA_VERSION') || 0);
+    const add = [];
+    Object.keys(NEW_SOURCES).forEach((v) => { if (Number(v) > from) NEW_SOURCES[v].forEach((id) => add.push(id)); });
+    SAMPLE_SOURCES_.filter((x) => add.indexOf(x.id) >= 0 && !have[x.id]).forEach((x) => appendRow_('sources', x));
     CacheService.getScriptCache().remove(CACHE_KEY);
     p.setProperty('SCHEMA_VERSION', String(SCHEMA_VERSION));
   });

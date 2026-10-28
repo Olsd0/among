@@ -42,7 +42,7 @@ test('자동 마이그레이션: 새 열은 끝에, 기존 데이터 그대로, 
   assert.deepEqual(pub.coupons[0].programs, [], '예전 행은 프로그램 없음');
   const h = gas.sheet('coupons').data[0];
   assert.deepEqual(h.slice(0, OLD_COUPON_HEADERS.length), OLD_COUPON_HEADERS, '기존 열 순서 유지');
-  assert.deepEqual(h.slice(OLD_COUPON_HEADERS.length), ['programs', 'program_note', 'how_to_use', 'stackable']);
+  assert.deepEqual(h.slice(OLD_COUPON_HEADERS.length), ['programs', 'program_note', 'how_to_use', 'stackable', 'image_url']);
   const after = gas.sheet('coupons').objects()[0];
   for (const k of OLD_COUPON_HEADERS) assert.equal(after[k], before[k], k);
   assert.deepEqual(gas.sheet('sources').data[0].slice(-2), ['program', 'follow_text']);
@@ -53,7 +53,7 @@ test('자동 마이그레이션: 새 열은 끝에, 기존 데이터 그대로, 
   assert.equal(kt.program, 'KT');
   assert.ok(kt.follow_text.includes('도미노'));
   assert.ok(gas.sheet('nutrition'));
-  assert.equal(gas.props.get('SCHEMA_VERSION'), '4');
+  assert.equal(gas.props.get('SCHEMA_VERSION'), '5');
   // 사용자가 출처를 지워도 다음 요청에서 되살리지 않음
   const src = gas.sheet('sources');
   src.data = src.data.filter((r) => r[0] !== 'npay-cafe');

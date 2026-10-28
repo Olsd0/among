@@ -75,7 +75,23 @@ export async function renderPage(ctx, url, opts = {}) {
         href: a.href,
         text: [a.innerText, a.getAttribute('title'), a.getAttribute('aria-label'), ...[...a.querySelectorAll('img[alt]')].map((i) => i.alt)].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
       })).filter((l) => l.href) : [];
-      return { title: document.title, text, alts: [...new Set(alts)], links };
+      // 쿠폰과 함께 온 사진 후보 (주소·대체텍스트·크기·주변 글만 — 이미지 파일은 받지도 저장하지도 않음)
+      const nearText = (img) => {
+        let p = img.parentElement;
+        for (let k = 0; p && k < 5; k++, p = p.parentElement) {
+          const t = (p.innerText || '').replace(/\s+/g, ' ').trim();
+          if (t.length >= 4) return t.slice(0, 160);
+        }
+        return '';
+      };
+      const images = [...el.querySelectorAll('img')].slice(0, 300)
+        .map((i) => ({ src: i.currentSrc || i.src || '', alt: (i.alt || i.title || '').trim().slice(0, 80), w: i.naturalWidth || 0, h: i.naturalHeight || 0, near: nearText(i) }))
+        .filter((x) => x.src && x.w >= 150 && x.h >= 100)
+        .slice(0, 60);
+      const og = document.querySelector('meta[property="og:image"], meta[name="og:image"], meta[property="og:image:url"]');
+      let ogImage = '';
+      try { ogImage = og && og.content ? new URL(og.content, location.href).href : ''; } catch (e) { ogImage = ''; }
+      return { title: document.title, text, alts: [...new Set(alts)], links, images, ogImage };
     }, { selector, exclude: opts.exclude || [], follow: opts.follow || '' });
 
     let text = data.text.replace(/\n{3,}/g, '\n\n').trim();
@@ -94,7 +110,7 @@ export async function renderPage(ctx, url, opts = {}) {
       .filter((l) => !textRe || textRe.test(l.text) || textRe.test(decodeURIComponent(l.href)))
       .map((l) => l.href))];
     return {
-      url, finalUrl: page.url(), status, title: data.title, text, links,
+      url, finalUrl: page.url(), status, title: data.title, text, links, images: data.images || [], ogImage: data.ogImage || '',
       screenshots: screenshots.map(({ base64 }) => ({ media_type: 'image/jpeg', data: base64 })),
     };
   } finally {
@@ -143,7 +159,11 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
     seen.add(link);
     await sleep(delayMs);
     try {
-      pages.push(await renderPage(ctx, link, { ...opts, follow: '', selector: detailSelector, name: `${source.id}_d${pages.length}` }));
+      const d = await renderPage(ctx, link, { ...opts, follow: '', selector: detailSelector, name: `${source.id}_d${pages.length}` });
+      d.isDetail = true;
+      // 목록 페이지와 같은 og:image는 사이트 기본 공유 이미지(대개 로고) → 행사 사진이 아님
+      if (d.ogImage && d.ogImage === first.ogImage) d.ogImage = '';
+      pages.push(d);
     } catch (e) {
       pages.push({ url: link, error: e.message });
     }

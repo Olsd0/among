@@ -56,9 +56,29 @@ export const TOOL = {
           required: ['menu', 'discount_type', 'channels', 'audience', 'app_only', 'programs', 'evidence', 'evidence_source', 'confidence'],
         },
       },
+      news: {
+        type: 'array',
+        description: '이 페이지에 공지된 핫딜·기간 한정 행사 소식 (행사 단위, 최대 3건). 없으면 빈 배열',
+        items: {
+          type: 'object',
+          properties: {
+            brand: { type: 'string', description: '행사 브랜드. 여러 브랜드가 함께 나오는 페이지에서 특정 브랜드 행사가 아니면 빈 문자열' },
+            title: { type: 'string', description: '우리 문장으로 쓴 짧은 제목 (25자 이내, 원문 제목을 그대로 베끼지 말 것). 예: 도미노피자 화요일 포장 40%' },
+            summary: { type: 'string', description: '무엇을·언제·누가·어떻게 받는지 사실만 1~2문장 (100자 이내, 우리 문장)' },
+            discount_label: { type: 'string', description: '혜택을 짧게 (예: 1+1, 40%, 2,900원, 최대 5,000원 적립). 페이지에 적힌 숫자만' },
+            start_date: { ...nullable('string'), description: '시작일. YYYY-MM-DD, 연도가 없으면 MM-DD' },
+            end_date: { ...nullable('string'), description: '종료일. YYYY-MM-DD, 연도가 없으면 MM-DD' },
+            programs: { type: 'array', items: { type: 'string', enum: PROGRAMS }, description: '받는 데 필요한 통신사·결제·포인트. 필요 없으면 빈 배열' },
+            evidence: { type: 'string', description: '이 행사가 적힌 원문 구절을 그대로 (100자 이내)' },
+            evidence_source: { type: 'string', enum: ['text', 'image'] },
+            confidence: { type: 'number', description: '0~1' },
+          },
+          required: ['title', 'summary', 'programs', 'evidence', 'evidence_source', 'confidence'],
+        },
+      },
       notes: { type: 'string', description: '추출하지 않은 이유나 애매했던 점 (짧게)' },
     },
-    required: ['page_kind', 'coupons'],
+    required: ['page_kind', 'coupons', 'news'],
   },
 };
 
@@ -77,6 +97,7 @@ export function systemPrompt() {
     '9. "1천원당 100원 할인"은 discount_type=percent, discount_value=null로 두고 evidence에 그 원문을 넣습니다 (환산은 다음 단계에서 합니다).',
     '10. 결제 후 포인트·캐시 적립은 discount_type=point_back, discount_value에 적립액 또는 적립률, discount_unit에 won 또는 percent.',
     '11. 받는 곳·쓰는 방법(앱 쿠폰함, 바코드 제시, 쿠폰번호 입력 등)이 적혀 있으면 how_to_use에 짧게 적습니다.',
+    '12. 기간 한정 행사·긴급 할인·새로 시작한 이벤트(1+1, 반값, 요일·주말 할인, 결제·적립 이벤트, 앱 쿠폰 행사)가 공지돼 있으면 news에 행사 단위로 최대 3건 정리합니다. 쿠폰과 겹쳐도 됩니다. 제목·요약은 원문을 베끼지 말고 사실만 짧게 우리 문장으로 씁니다. 경품 추첨, 가격 인상, 신메뉴 소개, 채용·점검 공지는 넣지 않습니다.',
   ].join('\n');
 }
 
@@ -98,7 +119,7 @@ export function buildUserContent(page, { brand, category, today, program = '' })
       '---- 페이지 텍스트 ----',
       page.text || '(텍스트 없음)',
       '----',
-      '이 페이지의 쿠폰·할인 행사를 save_coupons로 저장하세요. 없으면 coupons를 빈 배열로.',
+      '이 페이지의 쿠폰·할인 행사와 행사 소식을 save_coupons로 저장하세요. 없으면 빈 배열로.',
     ].filter(Boolean).join('\n'),
   });
   return content;
@@ -151,6 +172,7 @@ export async function extractCoupons(page, { brand, category, program = '', now 
   const input = block.input || {};
   return {
     coupons: Array.isArray(input.coupons) ? input.coupons : [],
+    news: Array.isArray(input.news) ? input.news : [],
     page_kind: input.page_kind || 'other',
     notes: input.notes || '',
     usage: { input_tokens: res.usage?.input_tokens || 0, output_tokens: res.usage?.output_tokens || 0 },
@@ -226,6 +248,7 @@ async function extractWithGemini(page, { brand, category, program, now, model, a
   const u = res.usageMetadata || {};
   return {
     coupons: Array.isArray(input.coupons) ? input.coupons : [],
+    news: Array.isArray(input.news) ? input.news : [],
     page_kind: input.page_kind || 'other',
     notes: input.notes || '',
     usage: { input_tokens: u.promptTokenCount || 0, output_tokens: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0) },
@@ -237,9 +260,18 @@ async function extractWithGemini(page, { brand, category, program, now, model, a
 // ---------- 테스트용 모의 추출 (MOCK_CLAUDE=1) ----------
 // 형식: "메뉴 | 정상가 8,000원 | 쿠폰가 5,500원 | 매장·픽업 | 전체 | ~2026-10-31"
 //       "메뉴 | 정상가 6,900원 | 20% 할인 | 배달 | 신규 | 2026-10-20~2026-11-10 | 앱 전용"
+//       "[소식] 제목 | 요약 | 라벨 | 2026-10-20~2026-11-10"
 export function mockExtract(page) {
   const coupons = [];
+  const news = [];
   for (const line of String(page.text || '').split('\n')) {
+    const nm = line.match(/^\[소식\]\s*(.+)$/);
+    if (nm) {
+      const [title, summary = '', label = '', period = ''] = nm[1].split('|').map((x) => x.trim());
+      const [s, e] = period.includes('~') ? period.split('~').map((x) => x.trim()) : [null, period || null];
+      news.push({ title, summary, discount_label: label, start_date: s || null, end_date: e || null, programs: [], evidence: line.slice(0, 100), evidence_source: 'text', confidence: 0.95 });
+      continue;
+    }
     const parts = line.split('|').map((s) => s.trim());
     if (parts.length < 5 || !/정상가/.test(parts[1])) continue;
     const [menu0, reg, disc, ch, aud, period = '', extra = ''] = parts;
@@ -255,5 +287,5 @@ export function mockExtract(page) {
     Object.assign(c, { start_date: s || null, end_date: e || null, item_type: /세트/.test(menu) ? '세트' : '단품' });
     coupons.push(c);
   }
-  return Promise.resolve({ coupons, page_kind: coupons.length ? 'promotion_list' : 'other', notes: 'mock', usage: { input_tokens: 0, output_tokens: 0 }, model: 'mock' });
+  return Promise.resolve({ coupons, news, page_kind: coupons.length ? 'promotion_list' : 'other', notes: 'mock', usage: { input_tokens: 0, output_tokens: 0 }, model: 'mock' });
 }

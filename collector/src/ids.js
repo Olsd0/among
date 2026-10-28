@@ -17,12 +17,27 @@ export function couponId(c) {
 }
 
 const HASH_FIELDS = ['menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate', 'discount_type', 'discount_value', 'channels',
-  'audience', 'app_only', 'min_order', 'start_date', 'end_date', 'conditions', 'status', 'programs', 'program_note', 'how_to_use', 'stackable'];
+  'audience', 'app_only', 'min_order', 'start_date', 'end_date', 'conditions', 'status', 'programs', 'program_note', 'how_to_use', 'stackable', 'image_url'];
 
 /** 화면에 보이는 내용이 바뀌었는지 판단하는 해시 (checked_at 등 시각 필드 제외) */
 export function contentHash(c) {
   const o = {};
   for (const f of HASH_FIELDS) o[f] = Array.isArray(c[f]) ? [...c[f]].sort() : c[f] ?? null;
+  return sha1(JSON.stringify(o)).slice(0, 16);
+}
+
+/**
+ * 소식 id: 같은 출처·브랜드·기간·혜택 숫자면 같은 소식 (AI가 날마다 제목을 조금씩 다르게 써도 id가 바뀌지 않게 제목은 넣지 않음)
+ */
+export function newsId(n) {
+  const digits = String(n.discount_label || '').replace(/[^\d+%]/g, '');
+  return 'n_' + sha1([n.source_id, n.brand, n.start_date || '', n.end_date || '', digits].join('|')).slice(0, 12);
+}
+
+const NEWS_HASH_FIELDS = ['title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs', 'image_url', 'related_ids', 'status'];
+export function newsHash(n) {
+  const o = {};
+  for (const f of NEWS_HASH_FIELDS) o[f] = Array.isArray(n[f]) ? [...n[f]].sort() : n[f] ?? null;
   return sha1(JSON.stringify(o)).slice(0, 16);
 }
 

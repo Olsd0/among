@@ -3,8 +3,8 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds } from './engine.js';
-import { couponId, contentHash, runId as makeRunId } from './ids.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, pickImage } from './engine.js';
+import { couponId, contentHash, newsId, newsHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
 import { SheetClient } from './sheet.js';
@@ -89,6 +89,7 @@ export async function runCollector(o = {}) {
 
     ctx = o.browser || (await openBrowser());
     const all = [];
+    const allNews = [];
 
     // 출처 여러 개를 동시에 (기본 4) — 출처 수가 늘어도 작업 제한 시간(25분) 안에 끝나게. 같은 사이트 안에서는 여전히 1.5초 간격
     // 실행 시간 예산(기본 35분): 작업 제한 25분 전에 스스로 마무리해 결과·기록을 남긴다.
@@ -114,20 +115,39 @@ export async function runCollector(o = {}) {
           report.input_tokens += ext.usage.input_tokens;
           report.output_tokens += ext.usage.output_tokens;
           if (ext.truncated) report.errors.push(`${source.id}: 응답이 max_tokens에서 잘림 (${page.finalUrl})`);
+          const nctx = {
+            now, brand: source.brand, category: source.category, sourceId: source.id, programs: normPrograms(source.program),
+            sourceUrl: page.finalUrl || page.url, officialLink: source.official_link || source.url, pageText: page.text,
+          };
           for (const raw of ext.coupons) {
-            const c = normalizeAndValidate(raw, {
-              now, brand: source.brand, category: source.category, sourceId: source.id, programs: normPrograms(source.program),
-              sourceUrl: page.finalUrl || page.url, officialLink: source.official_link || source.url, pageText: page.text,
-            });
+            const c = normalizeAndValidate(raw, nctx);
             c.id = couponId(c);
             c.checked_at = now.toISOString();
+            // 사진은 이 쿠폰을 읽은 바로 그 공식 페이지의 이미지일 때만 (브랜드 자체 출처만 — 멤버십·결제 페이지의 그림은 대개 로고)
+            c.image_url = source.brand && c.status !== 'rejected' ? pickImage(c, page, source.brand) : '';
             all.push(c);
             sr.found++;
+          }
+          for (const raw of ext.news || []) {
+            const n = normalizeNews(raw, nctx);
+            n.image_url = source.brand && n.status !== 'rejected' ? pickImage({ evidence: n.evidence }, page, source.brand) : '';
+            n.id = newsId(n);
+            n.checked_at = now.toISOString();
+            allNews.push(n);
+            sr.news = (sr.news || 0) + 1;
           }
         }
         sr.ok = true;
       } catch (e) {
         if (e.code === 'AI_QUOTA') stopReason = 'AI 하루 한도 소진';
+        // robots.txt가 (AI) 수집을 거부하면 이 출처의 쿠폰은 더 확인할 수 없으므로 내린다 (성공한 출처로 보고 → 시트에서 사라짐 처리)
+        if (e.code === 'ROBOTS' && !sr.pages && /거부|차단/.test(e.message)) {
+          sr.ok = true;
+          sr.robots_blocked = true;
+          report.errors.push(`${source.id}: ${e.message} → 이 출처 쿠폰·소식을 내림 (sources 탭에서 active=FALSE 권장)`);
+          log(`  ⊘ ${source.id}: ${e.message}`);
+          return;
+        }
         sr.error = e.message;
         report.errors.push(`${source.id}: ${e.message}`);
         log(`  ✗ ${source.id}: ${e.message}`);
@@ -174,13 +194,23 @@ export async function runCollector(o = {}) {
     for (const sr of report.sources) sr.published = merged.filter((c) => c.source_id === sr.id && c.status === 'published').length;
     report.summary = summarize(merged);
 
+    // 소식: 같은 id는 하나로(게시 > 보류 > 버림, 신뢰도 높은 쪽), 같은 페이지의 게시 쿠폰과 연결
+    const rank = (n) => (n.status === 'published' ? 2 : n.status === 'pending' ? 1 : 0) + (n.confidence || 0) / 10;
+    const newsById = new Map();
+    for (const n of allNews) { const cur = newsById.get(n.id); if (!cur || rank(n) > rank(cur)) newsById.set(n.id, n); }
+    const news = linkNews([...newsById.values()], merged).map((n) => ({ ...n, hash: newsHash(n) }));
+    report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };
+    report.with_image = merged.filter((c) => c.status === 'published' && c.image_url).length;
+
     // 시트에는 published·pending만 저장 (rejected는 개수·사유만 실행 기록에 남김)
     const keep = merged.filter((c) => c.status !== 'rejected');
     writeFileSync(join(outDir, 'coupons.json'), JSON.stringify(merged, null, 2));
+    writeFileSync(join(outDir, 'news.json'), JSON.stringify(news, null, 2));
 
     if (sheet) {
       report.ingest = (await sheet.post('ingest', {
         run_id, checked_at: now.toISOString(), coupons: keep,
+        news: news.filter((n) => n.status !== 'rejected'),
         sources_ok: report.sources.filter((s) => s.ok).map((s) => s.id),
       })).result;
     }
@@ -205,17 +235,23 @@ export async function runCollector(o = {}) {
     // GitHub Actions 주석: 로그를 열지 않고 API·요약 화면에서 결과 확인
     if (process.env.GITHUB_ACTIONS && !o.quiet) {
       const one = (t) => String(t).replace(/\r?\n/g, ' ').slice(0, 900);
-      console.log(`::notice title=수집 결과::${one(`${report.state} · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · id 이어 씀 ${report.ids_reused ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`)}`);
+      console.log(`::notice title=수집 결과::${one(`${report.state} · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · 사진 ${report.with_image ?? 0} · 소식 게시 ${report.news?.published ?? 0} / 보류 ${report.news?.pending ?? 0} / 버림 ${report.news?.rejected ?? 0} · id 이어 씀 ${report.ids_reused ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`)}`);
       // 주석은 단계당 10개까지만 보이므로 여러 줄을 묶어서 남긴다 (%0A = 줄바꿈)
       const block = (t) => String(t).replace(/\r?\n/g, ' ').replace(/%/g, '%25');
       const groups = (lines, n) => Array.from({ length: Math.ceil(lines.length / n) }, (_, i) => lines.slice(i * n, i * n + n));
-      const srcLines = (report.sources || []).map((x) => `${x.ok ? '✓' : '✗'}|${x.id}|페이지${x.pages}|후보${x.found}|게시${x.published}${x.ok ? '' : `|${x.error}`}`.slice(0, 300));
+      const srcLines = (report.sources || []).map((x) => `${x.robots_blocked ? '⊘' : x.ok ? '✓' : '✗'}|${x.id}|페이지${x.pages}|후보${x.found}|게시${x.published}|소식${x.news || 0}${x.robots_blocked ? '|robots 거부 → 내림' : x.ok ? '' : `|${x.error}`}`.slice(0, 300));
       groups(srcLines, 12).slice(0, 2).forEach((g, i) => console.log(`::notice title=출처 ${i + 1}::${g.map(block).join('%0A')}`));
       if (report.errors.length) console.log(`::warning title=오류 ${report.errors.length}건::${report.errors.slice(0, 15).map((e) => block(e).slice(0, 200)).join('%0A')}`);
       let cs = [];
       try { cs = JSON.parse(readFileSync(join(outDir, 'coupons.json'), 'utf8')); } catch { /* 없음 */ }
       const cLines = cs.map((c) => [c.status, c.source_id, c.brand, c.menu, c.regular_price ?? '', c.coupon_price ?? '', c.discount_rate ?? '', c.discount_type, c.discount_value ?? '', c.audience, (c.programs || []).join('+'), c.start_date || '', c.end_date || '', (c.issues || []).join('/'), String(c.evidence || '').slice(0, 50)].join('|').slice(0, 300));
-      groups(cLines, 25).slice(0, 5).forEach((g, i) => console.log(`::notice title=쿠폰 ${i + 1}::${g.map(block).join('%0A')}`));
+      groups(cLines, 25).slice(0, 4).forEach((g, i) => console.log(`::notice title=쿠폰 ${i + 1}::${g.map(block).join('%0A')}`));
+      let ns = [];
+      try { ns = JSON.parse(readFileSync(join(outDir, 'news.json'), 'utf8')); } catch { /* 없음 */ }
+      const nLines = ns.map((n) => [n.status, n.source_id, n.brand, n.title, n.discount_label, n.start_date || '', n.end_date || '', n.related_ids.length, n.image_url ? '사진' : '', (n.issues || []).join('/')].join('|').slice(0, 300));
+      if (nLines.length) groups(nLines, 25).slice(0, 1).forEach((g, i) => console.log(`::notice title=소식 ${i + 1}::${g.map(block).join('%0A')}`));
+      const imgLines = cs.filter((c) => c.image_url).map((c) => `${c.brand}|${c.menu}|${c.image_url}`.slice(0, 300));
+      if (imgLines.length) console.log(`::notice title=사진 ${imgLines.length}건::${imgLines.slice(0, 25).map(block).join('%0A')}`);
     }
   }
   return report;

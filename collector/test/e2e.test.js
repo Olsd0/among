@@ -133,3 +133,34 @@ test('시험 실행: 시트에 아직 없는 출처 id는 예시 파일에서 �
     assert.equal(out.find((s) => s.id === 'tmembership-brand').program, 'SKT');
   } finally { process.chdir(cwd); }
 });
+
+test('v5: 공식 이벤트 페이지에서 소식(핫딜)을 함께 갱신, 상세 페이지 쿠폰은 그 페이지의 대표 이미지, robots 거부 출처는 내림', { timeout: 120000 }, async () => {
+  clearRobotsCache();
+  const outDir = mkdtempSync(join(tmpdir(), 'among-e2e-v5-'));
+  const sheet = recordingSheet();
+  const sources = [
+    { id: 'v5-promo', brand: '테스트버거', category: '햄버거', url: `${site.base}/v5/list.html`, selector: 'main', follow: 'a.event-link', max_follow: 3, active: true },
+    { id: 'now-blocked', brand: '막힘치킨', category: '치킨', url: `${site.base}/private/secret.html`, active: true },
+  ];
+  const report = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'test' }, now: NOW, sources, sheet, quiet: true });
+  assert.equal(report.state, 'success');
+  const blocked = report.sources.find((s) => s.id === 'now-blocked');
+  assert.equal(blocked.robots_blocked, true);
+  const ingest = sheet.calls.find((c) => c.action === 'ingest').payload;
+  assert.ok(ingest.sources_ok.includes('now-blocked'), 'robots 거부 출처는 성공으로 보고 → 시트의 예전 쿠폰이 사라짐 처리됨');
+  assert.ok(report.errors.some((e) => e.includes('now-blocked') && e.includes('내림')));
+
+  const coupons = JSON.parse(readFileSync(join(outDir, 'coupons.json'), 'utf8'));
+  const bul = coupons.find((c) => c.menu === '불고기버거 세트');
+  assert.equal(bul.image_url, 'https://example.com/og/bulgogi-event.jpg', '상세 페이지의 공유용 대표 이미지');
+
+  const news = JSON.parse(readFileSync(join(outDir, 'news.json'), 'utf8'));
+  const weekend = news.find((n) => n.title === '테스트버거 주말 1+1');
+  assert.equal(weekend.status, 'published');
+  assert.equal(weekend.brand, '테스트버거');
+  assert.equal(weekend.end_date, '2026-10-26');
+  assert.match(weekend.id, /^n_/);
+  assert.equal(news.find((n) => n.title === '지난 여름 반값').status, 'rejected');
+  assert.deepEqual(ingest.news.map((n) => n.title), ['테스트버거 주말 1+1'], '버린 소식은 시트에 올리지 않음');
+  assert.deepEqual(report.news, { published: 1, pending: 0, rejected: 1 });
+});

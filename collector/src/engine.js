@@ -437,7 +437,7 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
 
 // ---------- 근거 대조 (AI 환각 방지) ----------
 
-const PROMO_WORDS = /할인|특가|쿠폰|이벤트|프로모션|행사|세일|반값|단돈|딜|해피|스낵|1\s*\+\s*1|증정|무료|%|원에|인하|혜택|한정|기념|오픈|첫\s*주문|신규|멤버십|데이|타임/;
+const PROMO_WORDS = /할인|특가|적립|캐시백|쿠폰|이벤트|프로모션|행사|세일|반값|단돈|딜|해피|스낵|1\s*\+\s*1|증정|무료|%|원에|인하|혜택|한정|기념|오픈|첫\s*주문|신규|멤버십|데이|타임/;
 function squash(s) { return String(s || '').replace(/[\s,·•\-–—~()\[\]"'“”‘’]/g, '').toLowerCase(); }
 
 function priceVariants(n) {
@@ -674,6 +674,7 @@ export function mergeSimilar(list) {
       if ((c.programs || []).length) dup.programs = normPrograms([...(dup.programs || []), ...c.programs]);
       if (c.program_note && !String(dup.program_note || '').includes(c.program_note)) dup.program_note = [dup.program_note, c.program_note].filter(Boolean).join(' · ').slice(0, 160);
       if (!dup.how_to_use && c.how_to_use) dup.how_to_use = c.how_to_use;
+      if (!dup.image_url && c.image_url) dup.image_url = c.image_url;
       continue;
     }
     out.push(c);
@@ -910,6 +911,213 @@ export function sortCoupons(list, key = 'price', today = todayKST(), profile = n
     deadline: (a, b) => num(daysLeft(a.end_date, today), 1e6) - num(daysLeft(b.end_date, today), 1e6),
   }[key] || (() => 0);
   return [...list].sort((a, b) => notStarted(a) - notStarted(b) || cmp(a, b) || num(a.coupon_price, 1e9) - num(b.coupon_price, 1e9));
+}
+
+// ---------- v5: 쿠폰과 함께 온 사진 · 소식(핫딜) · 홈 상단 선정 ----------
+
+/** 화면에 크게 보여줄 혜택 한 줄 ("1+1", "40%", "2,500원", "5,000원 할인", "2,000원 적립") */
+export function benefitLabel(c) {
+  const won = (n) => `${Math.round(+n).toLocaleString('en-US')}원`;
+  const has = (v) => v !== null && v !== undefined && v !== '';
+  const upTo = /^최대/.test(c.program_note || '') ? '최대 ' : '';
+  if (c.discount_type === 'free_item') return /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''} ${c.evidence || ''}`) ? '1+1' : '증정';
+  if (c.discount_type === 'point_back') {
+    if (!has(c.discount_value)) return '적립';
+    return c.discount_rate !== null && c.discount_rate !== undefined && c.discount_rate !== '' ? `${upTo}${+c.discount_rate}% 적립` : `${upTo}${won(c.discount_value)} 적립`;
+  }
+  if (has(c.discount_rate) && c.discount_type !== 'amount') return `${upTo}${+c.discount_rate}%`;
+  if (c.discount_type === 'price' && has(c.coupon_price)) return won(c.coupon_price);
+  if (c.discount_type === 'amount' && has(c.discount_value)) return `${upTo}${won(c.discount_value)} 할인`;
+  if (c.discount_type === 'percent' && has(c.discount_value)) return `${upTo}${+c.discount_value}%`;
+  if (has(c.coupon_price)) return won(c.coupon_price);
+  return '할인';
+}
+
+// 로고·아이콘·버튼·장식 이미지 (사진으로 쓰지 않음)
+const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sns|facebook|instagram|insta_|youtube|twitter|blog|gnb|lnb|footer|header|qr|badge|favicon|sprite|bullet|loading|spinner|placeholder|blank|appdown|app_down|googleplay|google_play|appstore|app_store|share_default|og_default|default_og|no_?image/i;
+/**
+ * 사진으로 쓸 수 없는 이미지인가: https가 아님(섞인 콘텐츠로 막힘), svg·gif, 로고·아이콘 이름, 너무 작음,
+ * 가로로 긴 띠 배너·세로로 긴 상세 통이미지, 대체텍스트가 브랜드 이름뿐(=로고)
+ */
+export function isNonPhoto(img = {}, brand = '') {
+  const src = String(img.src || '');
+  if (!/^https:\/\//i.test(src) || /\.(svg|gif)(\?|#|$)/i.test(src)) return true;
+  if (NON_PHOTO.test(src) || NON_PHOTO.test(img.alt || '')) return true;
+  const w = +img.w || 0, h = +img.h || 0;
+  if (w && h) {
+    if (w < 200 || h < 120) return true;
+    if (w / h > 4 || h / w > 2.5) return true;
+  }
+  if (brand && img.alt && squash(img.alt) === squash(brand)) return true;
+  return false;
+}
+
+/**
+ * 쿠폰(또는 소식)과 함께 온 사진 고르기 — 쿠폰 정보를 가져온 바로 그 공식 페이지의 이미지만 쓴다. 저장하지 않고 주소만 둔다.
+ * 1) 이미지 대체텍스트·주변 글에 메뉴 이름이나 근거 문구 앞부분이 있으면 그 이미지
+ * 2) 행사 1개짜리 상세 페이지면 공유용 대표 이미지(og:image), 없으면 큰 사진이 하나뿐일 때 그 사진
+ * 3) 그 밖에는 사진 없음 ('') — 다른 곳의 사진이나 예시 사진으로 채우지 않는다
+ * page: { images: [{src, alt, w, h, near}], ogImage, isDetail }
+ */
+export function pickImage(item = {}, page = {}, brand = '') {
+  const imgs = (page.images || []).filter((i) => !isNonPhoto(i, brand));
+  const mk = item.menu && !isGenericMenu(item.menu) ? menuKey(item.menu) : '';
+  const ev = menuKey(item.evidence || '').slice(0, 14);
+  const score = (i) => {
+    const alt = menuKey(i.alt || ''), near = menuKey(i.near || '');
+    let s = 0;
+    if (mk.length >= 2 && alt && (alt.includes(mk) || (alt.length >= 3 && mk.includes(alt)))) s += 3;
+    if (mk.length >= 2 && near.includes(mk)) s += 2;
+    if (ev.length >= 6 && near.includes(ev)) s += 2;
+    return s;
+  };
+  let best = null, bestS = 0;
+  for (const i of imgs) { const s = score(i); if (s > bestS) { best = i; bestS = s; } }
+  if (best && bestS >= 2) return best.src;
+  if (page.isDetail) {
+    if (page.ogImage && !isNonPhoto({ src: page.ogImage, alt: '' }, brand)) return page.ogImage;
+    const big = imgs.filter((i) => (+i.w || 0) >= 300 && (+i.h || 0) >= 200);
+    if (big.length === 1) return big[0].src;
+  }
+  return '';
+}
+
+/**
+ * 소식(핫딜·기간 한정 행사) 정규화·검증 — 쿠폰과 같은 원칙: 페이지에 근거가 있어야 하고, 지난 행사는 버린다.
+ * 제목·요약은 AI가 사실만 우리 문장으로 쓴 것 (원문 복사 아님). 상태: published | pending | rejected
+ */
+export function normalizeNews(raw = {}, ctx = {}) {
+  const now = ctx.now || new Date();
+  const today = todayKST(now);
+  const fixed = clean(ctx.brand);
+  const known = fixed ? canonicalBrand(fixed) : canonicalBrand(raw.brand);
+  const ctxPrograms = ctx.programs || [];
+  const allText = [raw.title, raw.summary, raw.evidence, raw.discount_label].map(clean).join(' ');
+  let programs = normPrograms([...normPrograms(raw.programs), ...ctxPrograms, ...detectPrograms(allText)]);
+  const acc = accrualOnlyPrograms(allText);
+  if (!/적립/.test(clean(raw.discount_label))) programs = programs.filter((p) => !acc.includes(p) || ctxPrograms.includes(p));
+  // 여러 브랜드가 섞인 출처(멤버십·결제)의 소식이 특정 브랜드가 아니면 프로그램 이름으로 (예: '네이버페이')
+  const brand = fixed || known?.brand || (ctxPrograms[0] ? PROGRAM_LABEL[ctxPrograms[0]] : '');
+  const category = fixed ? (clean(ctx.category) || known?.category || '') : (known?.category || clean(ctx.category) || '');
+  const sd0 = parseDate(raw.start_date, now), ed0 = parseDate(raw.end_date, now);
+  const period = (!sd0 || !ed0) ? inferPeriod([raw.evidence, raw.summary, raw.title].map(clean).join(' '), now) : null;
+  const pageSq = squash(ctx.pageText || '');
+  // 라벨의 숫자(10 이상)는 페이지에 있어야 한다 — 없으면 라벨만 지운다
+  let label = clean(raw.discount_label).replace(/\s+/g, ' ').slice(0, 20);
+  if (label && pageSq) {
+    const nums = (label.match(/\d[\d,]*/g) || []).map((x) => +x.replace(/,/g, '')).filter((x) => x >= 10);
+    const thousand = /(\d+)\s*천/.exec(label);
+    if (thousand) nums.push(+thousand[1] * 1000);
+    if (nums.some((x) => !priceVariants(x).some((p) => pageSq.includes(p)) && !pageSq.includes(`${x}%`) && !(x % 1000 === 0 && pageSq.includes(`${x / 1000}천`)))) label = '';
+  }
+  const n = {
+    brand, category,
+    title: clean(raw.title).replace(/\s+/g, ' ').slice(0, 40),
+    summary: clean(raw.summary).replace(/\s+/g, ' ').slice(0, 200),
+    discount_label: label,
+    start_date: sd0 || period?.start || null,
+    end_date: ed0 || period?.end || null,
+    programs,
+    evidence: clean(raw.evidence).slice(0, 200),
+    source_id: clean(ctx.sourceId || raw.source_id),
+    source_url: clean(ctx.sourceUrl || raw.source_url),
+    official_link: clean(ctx.officialLink || raw.official_link),
+    image_url: '',
+    related_ids: [],
+    confidence: Math.max(0, Math.min(1, toNumber(raw.confidence) ?? 0.5)),
+    issues: [],
+  };
+  const reject = [];
+  if (!n.title) reject.push('제목 없음');
+  if (!n.brand) reject.push('지원하지 않는 브랜드');
+  if (n.end_date && n.end_date < today) reject.push('이미 종료');
+  if (n.start_date && n.end_date && n.start_date > n.end_date) reject.push('기간 역전');
+  if (isDeliveryAppOnly(allText)) reject.push('외부 배달앱 전용 행사');
+  if (programs.includes('카드')) reject.push('특정 카드 결제 할인');
+  else if (!n.programs.length && needsOtherPayment(allText)) reject.push('특정 결제수단 할인');
+  if (!PROMO_WORDS.test(allText)) reject.push('혜택 소식이 아님');
+  const hold = [];
+  const ev = squash(n.evidence);
+  if (raw.evidence_source !== 'image' && pageSq && ev.length >= 4 && !pageSq.includes(ev)) { hold.push('근거 문구가 페이지에 없음'); n.confidence = Math.max(0, +(n.confidence - RULES.evidencePenalty).toFixed(2)); }
+  if (n.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
+  if (period?.end && !ed0) n.issues.push('기간은 근거 문구에서 읽음');
+  n.issues.unshift(...reject, ...hold);
+  n.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
+  return n;
+}
+
+/** 소식과 같은 페이지·같은 브랜드(멀티 브랜드 출처면 같은 프로그램)의 게시 쿠폰을 연결 (최대 6개) */
+export function linkNews(newsList, coupons) {
+  return newsList.map((n) => {
+    const urlHit = (c) => String(c.source_url || '').split(' ').includes(n.source_url);
+    const overlap = (c) => !(n.end_date && c.start_date && c.start_date > n.end_date) && !(n.start_date && c.end_date && c.end_date < n.start_date);
+    const sameWho = (c) => c.brand === n.brand || (n.programs || []).some((p) => (c.programs || []).includes(p) && PROGRAM_LABEL[p] === n.brand);
+    const rel = coupons.filter((c) => c.status === 'published' && urlHit(c) && sameWho(c) && overlap(c)).slice(0, 6);
+    return { ...n, related_ids: rel.map((c) => c.id), image_url: n.image_url || rel.find((c) => c.image_url)?.image_url || '' };
+  });
+}
+
+/**
+ * 홈 맨 위 '오늘의 핫딜' 고르기 (하루 최대 limit장, 같은 브랜드 2장까지)
+ * - 소식: 공식 이벤트·공지에서 잡힌 기간 한정 행사 (수집 때 함께 갱신)
+ * - 쿠폰: 남은 기간 3일 이하 + 큰 혜택(할인율 30% 이상·1+1) = 긴급, 오늘·어제 처음 잡힌 큰 혜택 = 새로 시작
+ * 점수 = 혜택 크기 + 마감 임박 + 새로움 + 누구나 사용 가능. 내 할인 수단으로 못 쓰는 것은 뒤로
+ */
+export function pickHeadlines(coupons = [], news = [], { today = todayKST(), profile = null, limit = 8 } = {}) {
+  const has = (v) => v !== null && v !== undefined && v !== '';
+  const live = (x) => (!x.end_date || x.end_date >= today) && (!x.start_date || diffDays(x.start_date, today) <= 7);
+  const size = (c) => (c.discount_type === 'free_item' ? 50 : has(c.discount_rate) ? +c.discount_rate
+    : c.discount_type === 'amount' ? Math.min(40, (+c.discount_value || 0) / 250) : c.discount_type === 'point_back' ? 10 : 0);
+  const urgency = (end) => { const d = daysLeft(end, today); return d === null ? 0 : d <= 0 ? 30 : d <= 1 ? 25 : d <= 3 ? 18 : d <= 7 ? 8 : 0; };
+  const newness = (first) => {
+    if (!first || Number.isNaN(Date.parse(first))) return 0;
+    const d = diffDays(today, todayKST(new Date(first)));
+    return d <= 0 ? 15 : d <= 1 ? 10 : d <= 3 ? 4 : 0;
+  };
+  const mineOrOpen = (x) => !profile || !(x.programs || []).length || (x.programs || []).some((p) => (profile.programs || []).includes(p));
+  const reasonOf = (x) => {
+    const d = daysLeft(x.end_date, today);
+    if (x.start_date && x.start_date > today) return `${x.start_date.slice(5).replace('-', '/')} 시작`;
+    if (d !== null && d <= 0) return '오늘 마감';
+    if (d !== null && d <= 3) return `D-${d}`;
+    if (newness(x.first_seen) >= 10) return 'NEW';
+    return d !== null && d <= 30 ? `${x.end_date.slice(5).replace('-', '/')}까지` : '';
+  };
+  const byId = new Map(coupons.map((c) => [c.id, c]));
+  const used = new Set();
+  const out = [];
+  for (const n of news) {
+    if ((n.status && n.status !== 'published') || !live(n)) continue;
+    const rel = (n.related_ids || []).map((id) => byId.get(id)).filter(Boolean);
+    rel.forEach((c) => used.add(c.id));
+    const best = rel.reduce((m, c) => Math.max(m, size(c)), 0);
+    let score = 40 + best * 0.6 + urgency(n.end_date) + newness(n.first_seen) + (!(n.programs || []).length ? 8 : 0);
+    if (!mineOrOpen(n)) score -= 30;
+    out.push({
+      kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
+      label: n.discount_label || (rel[0] ? benefitLabel(rel[0]) : ''), start_date: n.start_date || null, end_date: n.end_date || null,
+      image_url: n.image_url || rel.find((c) => c.image_url)?.image_url || '', programs: n.programs || [], related_ids: rel.map((c) => c.id),
+      reason: reasonOf(n), score,
+    });
+  }
+  for (const c of coupons) {
+    if (used.has(c.id) || !live(c) || c.audience === '개인' || (c.start_date && c.start_date > today)) continue;
+    const big = size(c) >= 30 || c.discount_type === 'free_item';
+    const d = daysLeft(c.end_date, today);
+    const urgent = big && d !== null && d <= 3;
+    const fresh = big && newness(c.first_seen) >= 10;
+    if (!urgent && !fresh) continue;
+    let score = size(c) * 0.6 + urgency(c.end_date) + newness(c.first_seen) + (isOpenToEveryone(c) ? 8 : 0);
+    if (profile && !usableBy(c, profile)) score -= 30;
+    out.push({
+      kind: 'coupon', id: c.id, brand: c.brand, category: c.category, title: `${c.brand} ${c.menu}`,
+      summary: '', label: benefitLabel(c), start_date: c.start_date || null, end_date: c.end_date || null, image_url: c.image_url || '',
+      programs: c.programs || [], related_ids: [c.id], reason: reasonOf(c), score,
+    });
+  }
+  out.sort((a, b) => b.score - a.score);
+  const perBrand = {};
+  return out.filter((h) => (perBrand[h.brand] = (perBrand[h.brand] || 0) + 1) <= 2).slice(0, limit);
 }
 
 // ---------- 실행 요약 ----------

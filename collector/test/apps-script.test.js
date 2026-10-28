@@ -50,7 +50,7 @@ test('수집기 → 시트 → 공개 API 종단: 게시·확인시각·상태',
   const sources = [{ id: 'test-promo', brand: '테스트버거', category: '햄버거', url: `${site.base}/promo/list.html`, selector: 'main', follow: 'a.event-link' }];
   const report = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: mkdtempSync(join(tmpdir(), 'among-gas-')), TRIGGER: 'schedule' }, now: new Date(T0), sources, sheet, quiet: true });
   assert.equal(report.state, 'success');
-  assert.deepEqual(report.ingest, { inserted: 3, updated: 0, unchanged: 0, gone: 0, expired: 0 });
+  assert.deepEqual(report.ingest, { inserted: 3, updated: 0, unchanged: 0, gone: 0, expired: 0, news: { inserted: 0, updated: 0, unchanged: 0, gone: 0, expired: 0 } });
 
   const pub = gas.get({ action: 'coupons' });
   assert.equal(pub.ok, true);
