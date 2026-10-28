@@ -2,9 +2,6 @@ name: 운영 API 보안 점검
 
 on:
   workflow_dispatch:
-  # 최초 배포 확인에만 사용하고 점검 성공 후 제거한다.
-  push:
-    branches: ['codex/privacy-hotdeal-20261028']
 
 permissions:
   contents: read
@@ -21,3 +18,5 @@ jobs:
         with:
           node-version: 22
       - run: node collector/scripts/smoke-live-security.js
+        env:
+          AMONG_API_URL: ${{ vars.APPS_SCRIPT_URL }}

@@ -4,7 +4,8 @@ import vm from 'node:vm';
 
 const box = { window: {} };
 vm.runInNewContext(readFileSync(new URL('../../web/config.js', import.meta.url), 'utf8'), box);
-const endpoint = box.window.AMONG_CONFIG?.apiUrl;
+// Pages 배포가 저장소 변수로 주소를 덮어쓸 수 있으므로 같은 우선순위를 따른다.
+const endpoint = process.env.AMONG_API_URL?.trim() || box.window.AMONG_CONFIG?.apiUrl;
 if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(endpoint || '')) throw new Error('공개 API 주소를 확인하세요.');
 
 async function request(url, options = {}) {
