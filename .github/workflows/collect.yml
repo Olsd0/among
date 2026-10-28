@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       mode:
-        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 / nutrition = 영양성분만 갱신 (check·probe·e2e·nutrition은 AI 호출 없음)'
+        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 / nutrition = 영양성분만 갱신 / site = 공개 화면 점검 (check·probe·e2e·nutrition·site는 AI 호출 없음)'
         required: false
         default: collect
         type: choice
-        options: [collect, dry, check, probe, e2e, nutrition]
+        options: [collect, dry, check, probe, e2e, nutrition, site]
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
@@ -97,8 +97,14 @@ jobs:
           node src/run.js
           node src/e2e-verify.js expect-off
 
+      - name: 공개 화면 점검 (AI 호출 없음 · 휴대폰 크기 · 사진 불러오기 · 소식 상세)
+        if: inputs.mode == 'site'
+        env:
+          SITE_URL: https://olsd0.github.io/among/
+        run: node src/site-check.js
+
       - name: 수집
-        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition'
+        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition' && inputs.mode != 'site'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
