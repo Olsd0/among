@@ -1033,7 +1033,10 @@ export function normalizeNews(raw = {}, ctx = {}) {
   const acc = accrualOnlyPrograms(allText);
   if (!/적립/.test(clean(raw.discount_label))) programs = programs.filter((p) => !acc.includes(p) || ctxPrograms.includes(p));
   // 여러 브랜드가 섞인 출처(멤버십·결제)의 소식이 특정 브랜드가 아니면 프로그램 이름으로 (예: '네이버페이')
-  const brand = fixed || known?.brand || (ctxPrograms[0] ? PROGRAM_LABEL[ctxPrograms[0]] : '');
+  // 결제·멤버십 캠페인 소식('네이버페이 카페 현장결제 적립')을 AI가 참여 브랜드 하나의 이름으로 적으면 프로그램 이름으로
+  const progLabel = ctxPrograms[0] ? PROGRAM_LABEL[ctxPrograms[0]] : '';
+  const campaign = !fixed && progLabel && known && !squash(allText).includes(squash(known.brand)) && squash(allText).includes(squash(progLabel));
+  const brand = fixed || (campaign ? progLabel : known?.brand) || progLabel;
   const category = fixed ? (clean(ctx.category) || known?.category || '') : (known?.category || clean(ctx.category) || '');
   const sd0 = parseDate(raw.start_date, now), ed0 = parseDate(raw.end_date, now);
   const period = (!sd0 || !ed0) ? inferPeriod([raw.evidence, raw.summary, raw.title].map(clean).join(' '), now) : null;
@@ -1090,7 +1093,7 @@ export function normalizeNews(raw = {}, ctx = {}) {
   // 핫딜은 기간이 있는 행사만 (끝나는 날이 있거나 요일마다 돌아오는 행사). 상시 혜택·가입 혜택은 쿠폰 목록에만
   if (!n.end_date && weeklyDay(allText) === null) hold.push('기간 없는 상시 행사');
   // 두 달 반이 넘는 행사는 상시 혜택에 가깝다 (쿠폰 목록에는 그대로, 핫딜로는 올리지 않음)
-  else if (n.start_date && n.end_date && diffDays(n.end_date, n.start_date) > 75) hold.push('기간이 긴 상시성 행사');
+  else if (n.start_date && n.end_date && diffDays(n.end_date, n.start_date) > 75 && weeklyDay(allText) === null) hold.push('기간이 긴 상시성 행사');
   if (period?.end && !ed0) n.issues.push('기간은 근거 문구에서 읽음');
   n.issues.unshift(...reject, ...hold);
   n.status = reject.length ? 'rejected' : hold.length ? 'pending' : 'published';
@@ -1167,9 +1170,10 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
   const todayDow = new Date(`${today}T00:00:00Z`).getUTCDay();
   for (const n of news) {
     if ((n.status && n.status !== 'published') || !live(n)) continue;
-    // 요일 행사(끝나는 날 없음)는 그 요일에만 올린다
-    const wd = n.end_date ? null : weeklyDay(`${n.title} ${n.summary || ''}`);
-    if (!n.end_date && wd !== todayDow) continue;
+    // 요일 행사('매주 수요일 반올림데이')는 그 요일에만 올린다
+    const wd = weeklyDay(`${n.title} ${n.summary || ''}`);
+    if (wd !== null && wd !== todayDow) continue;
+    if (wd === null && !n.end_date) continue;
     const rel = (n.related_ids || []).map((id) => byId.get(id)).filter(Boolean);
     rel.forEach((c) => used.add(c.id));
     const best = rel.reduce((m, c) => Math.max(m, size(c)), 0);

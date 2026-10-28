@@ -204,3 +204,17 @@ test('실제 수집(10/28 11:30)에서 본 것: 경품·초청 이벤트 제외,
   assert.equal(m[0].brand, '네이버페이');
   assert.equal(m[0].related_ids.length, 3);
 });
+
+test('결제 캠페인 소식은 프로그램 이름으로, 기간이 길어도 요일 행사는 그 요일 핫딜', async () => {
+  const ctx = { now: NOW, brand: '', category: '카페', programs: ['네이버페이'], sourceId: 'npay-cafe', sourceUrl: 'https://n.kr', pageText: '현장결제가 처음이라면 최대 5,000원 적립' };
+  const n = normalizeNews({ brand: '메가MGC커피', title: '네이버페이 카페 현장결제 포인트 적립', summary: '네이버페이 현장결제 첫 이용 시 최대 5,000원 적립', discount_label: '최대 5,000원 적립', end_date: '2026-11-01', programs: ['네이버페이'], evidence: '현장결제가 처음이라면 최대 5,000원 적립', evidence_source: 'text', confidence: 0.9 }, ctx);
+  assert.equal(n.brand, '네이버페이');
+  const own = normalizeNews({ brand: '메가MGC커피', title: '메가MGC커피 네이버페이 2천원 적립', summary: '메가MGC커피에서 네이버페이로 결제하면 적립', discount_label: '', end_date: '2026-11-01', programs: ['네이버페이'], evidence: '현장결제가 처음이라면 최대 5,000원 적립', evidence_source: 'text', confidence: 0.9 }, ctx);
+  assert.equal(own.brand, '메가MGC커피', '특정 브랜드를 말하는 소식은 그 브랜드');
+  const weekly = normalizeNews({ title: '매주 수요일 반올림데이 최대 6천원 할인', summary: '', discount_label: '', start_date: '2024-07-01', end_date: '2027-08-03', programs: [], evidence: '매주 수요일 반올림데이', evidence_source: 'text', confidence: 0.9 },
+    { now: NOW, brand: '반올림피자', category: '피자', sourceId: 'b', sourceUrl: 'https://b.kr', pageText: '매주 수요일 반올림데이 최대 6천원 할인' });
+  assert.equal(weekly.status, 'published');
+  const h = pickHeadlines([], [{ ...weekly, id: 'w', first_seen: '2026-10-01T00:00:00Z' }], { today: TODAY });
+  assert.equal(h[0].reason, '오늘(수)만');
+  assert.equal(pickHeadlines([], [{ ...weekly, id: 'w' }], { today: '2026-10-29' }).length, 0, '목요일에는 안 보임');
+});
