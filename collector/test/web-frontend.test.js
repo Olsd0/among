@@ -57,6 +57,27 @@ async function setup(data, options = {}) {
   return { context, page };
 }
 
+test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고 작은 할인과 종료 행사는 제외한다', { timeout: 30000 }, async (t) => {
+  const now = '2026-10-29T03:00:00.000Z';
+  const eligible = { id: 'happy-public', brand: '테스트버거', category: '햄버거', title: '기간 한정 50% 할인', summary: '공식 웹 공지에서 조건을 확인한 행사', discount_label: '50% 할인', programs: ['해피포인트'], source_url: 'https://example.test/event', start_date: '2026-10-26', end_date: '2026-10-30', checked_at: now };
+  const low = { ...eligible, id: 'happy-small', brand: '테스트카페', title: '40% 할인', summary: '기간 한정 40% 할인 행사', discount_label: '40%' };
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [eligible, low] });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const card = page.locator('[data-hot="news:happy-public"]');
+  await card.waitFor();
+  assert.equal(await page.locator('[data-hot="news:happy-small"]').count(), 0);
+  assert.equal(await card.locator('.lbl').count(), 0);
+  await card.click();
+  assert.equal(await page.locator('[data-news-src]').getAttribute('href'), eligible.source_url);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.clock.setFixedTime(new Date('2026-10-31T03:00:00.000Z'));
+  await page.reload();
+  await page.locator('#list[aria-busy="false"]').waitFor({ state: 'attached' });
+  assert.equal(await page.locator('[data-hot="news:happy-public"]').count(), 0);
+});
+
 test('브랜드 검색·구독·상세·새로고침·구독 취소가 이어지고 모바일·데스크톱에서 넘치지 않는다', { timeout: 30000 }, async (t) => {
   const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('burger'), { ...coupon('coffee'), brand: '테스트카페', category: '카페' }], news: [] };
   const { context, page } = await setup(data);
@@ -325,4 +346,48 @@ test('펼친 카드는 같은 전체 목록으로 돌아와도 닫히고 키보�
   assert.equal(await body.getAttribute('aria-expanded'), 'false');
   await body.press('Enter');
   assert.equal(await page.locator('#dt-a').isVisible(), true);
+});
+
+test('핫딜 목록은 썸네일만 받고 상세를 열면 큰 공지 원본을 불러온다', { timeout: 30000 }, async (t) => {
+  const now = '2026-10-29T03:00:00.000Z';
+  const n = { id: 'weekend', brand: '피자헛', category: '피자', title: '피자헛 주말 1+1 핫딜', summary: '주말 한정 행사', discount_label: '1+1', checked_at: now, start_date: '2026-10-01', end_date: '2026-10-31', source_url: 'https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut' };
+  const thumb = noticeImage(n, '2026-10-29');
+  const full = 'https://akamai.pizzahut.co.kr/event/hellopizzahut_2610_event_weekend_down_pc_3_1.png';
+  const requests = [];
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] }, { photoUrls: [thumb, full], requests });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const card = page.locator('[data-hot="news:weekend"]');
+  await card.waitFor();
+  assert.equal(await card.locator('img.ph').getAttribute('src'), thumb);
+  assert.equal(requests.includes(full), false, '목록에서 긴 포스터를 미리 내려받지 않는다');
+  await card.click();
+  assert.equal(await page.locator('#newsBody img.ph').getAttribute('src'), full);
+  assert.equal(await page.locator('.notice-original').getAttribute('href'), full);
+});
+
+test('설빙 적립 공지가 사진·조건과 함께 노출되고 종료 다음 날에는 사라진다', { timeout: 30000 }, async (t) => {
+  const now = '2026-10-29T12:00:00.000Z';
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [] });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const card = page.locator('[data-hot="news:n_sulbing_npay_20261028"]');
+  await card.waitFor();
+  assert.equal(await card.locator('.lbl').count(), 0);
+  assert.match(await card.innerText(), /50% 포인트 적립/);
+  assert.match(await card.locator('img.ph').getAttribute('src'), /^assets\/notices\/sulbing-npay-[a-f0-9]{12}\.jpg$/);
+  await card.click();
+  assert.match(await page.locator('.news-meta').innerText(), /10\/28.*11\/1/);
+  assert.match(await page.locator('.news-sum').innerText(), /9900원.*50%.*포인트.*30000원.*카드/);
+  assert.equal(await page.locator('[data-news-src]').getAttribute('href'), 'https://www.instagram.com/p/De8DZxPDXBr/');
+  for (const width of [360, 390, 820]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+  await page.clock.setFixedTime(new Date('2026-11-02T03:00:00Z'));
+  await page.reload();
+  await page.locator('#list').waitFor({ state: 'attached' });
+  assert.equal(await card.count(), 0);
 });

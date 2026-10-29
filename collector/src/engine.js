@@ -1,5 +1,5 @@
-import { noticeImage } from './notice-images.js?v=20261029-5';
-import { productImage } from './product-images.js?v=20261029-5';
+import { noticeImage } from './notice-images.js?v=20261029-7';
+import { productImage } from './product-images.js?v=20261029-7';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -1124,12 +1124,45 @@ export function linkNews(newsList, coupons) {
   });
 }
 
+// 해피포인트 공지는 실제 1+1 또는 50% 이상 할인만 추천한다.
+// 적립·환급률, 2+1, 사은품을 50% 할인으로 해석하지 않는다.
+function headlineFacts(x) {
+  const label = String(x.discount_label || '').normalize('NFKC').slice(0, 80);
+  const text = `${label} ${x.title || x.menu || ''} ${x.summary || x.conditions || ''}`.normalize('NFKC').slice(0, 1800);
+  const onePlusOne = /(?:^|[^0-9])1\s{0,4}\+\s{0,4}1(?![0-9])|원쁠원|원플원/.test(text);
+  const validRate = (v) => Number.isFinite(+v) && +v >= 0 && +v <= 100 ? +v : 0;
+  const labelRate = /(?:^|[^0-9])(\d{1,3})\s{0,4}%/.exec(label);
+  const rates = [...text.matchAll(/(?:^|[^0-9])(\d{1,3})\s{0,4}%\s{0,4}(?:즉시\s{0,4})?할인/g)].map((m) => validRate(m[1]));
+  const points = /적립|환급|캐시백|페이백/;
+  const discount = Math.max(0, ...rates,
+    x.discount_type !== 'point_back' ? validRate(x.discount_rate) : 0,
+    labelRate && !points.test(label) && (/할인/.test(label) || !points.test(text)) ? validRate(labelRate[1]) : 0);
+  const benefit = Math.max(discount, onePlusOne ? 50 : 0, labelRate ? validRate(labelRate[1]) : 0);
+  return { text, onePlusOne, discount, benefit };
+}
+function happyPointHeadlineAllowed(x, facts) {
+  let official = false;
+  try { const host = new URL(x.source_url).hostname; official = host === 'happypointcard.com' || host.endsWith('.happypointcard.com'); } catch { /* 출처 없는 모의 자료도 프로그램으로 판단 */ }
+  const happy = official || x.brand === '해피포인트' || /해피\s{0,4}포인트|해피\s{0,4}오더/.test(`${x.title || ''} ${x.menu || ''}`.slice(0, 200)) || (x.programs || []).includes('해피포인트');
+  return !happy || facts.onePlusOne || facts.discount >= 50;
+}
+function headlineTier(facts, best) {
+  const recurring = weeklyDay(facts.text) !== null || /매주|매월|매달|매일|상시|정기|주말마다|매\s{0,4}주말/.test(facts.text);
+  return recurring || best < 30 ? 2 : best >= 50 ? 0 : 1;
+}
+
 /**
  * 홈 맨 위 '오늘의 핫딜' 고르기 (하루 최대 limit장, 같은 브랜드 2장까지)
  * - 소식: 공식 이벤트·공지에서 잡힌 기간 한정 행사 (수집 때 함께 갱신)
  * - 쿠폰: 남은 기간 3일 이하 + 큰 혜택(할인율 30% 이상·1+1) = 긴급, 오늘·어제 처음 잡힌 큰 혜택 = 새로 시작
  * 점수 = 혜택 크기 + 마감 임박 + 새로움 + 누구나 사용 가능. 내 할인 수단으로 못 쓰는 것은 뒤로
  */
+// 해피포인트는 확실한 1+1 또는 50% 이상 할인만 핫딜에 올린다.
+// 일반 증정·포인트 적립·금액(예: 5000원)을 50% 할인으로 취급하지 않는다.
+export function qualifiesHappyPointHeadline(item = {}) {
+  return happyPointHeadlineAllowed(item, headlineFacts(item));
+}
+
 export function pickHeadlines(coupons = [], news = [], { today = todayKST(), profile = null, limit = 8 } = {}) {
   const has = (v) => v !== null && v !== undefined && v !== '';
   const live = (x) => (!x.end_date || x.end_date >= today) && (!x.start_date || diffDays(x.start_date, today) <= 7);
@@ -1160,21 +1193,35 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
     const wd = weeklyDay(`${n.title} ${n.summary || ''}`);
     if (wd !== null && wd !== todayDow) continue;
     if (wd === null && !n.end_date) continue;
+    const facts = headlineFacts(n);
+    if (!happyPointHeadlineAllowed(n, facts)) continue;
     const rel = (n.related_ids || []).map((id) => byId.get(id)).filter(Boolean);
     rel.forEach((c) => used.add(c.id));
-    const best = rel.reduce((m, c) => Math.max(m, size(c)), 0);
+    // 연결된 쿠폰이 없는 기간 한정 적립 공지도 공지 자체의 혜택 크기로 정렬한다. 결제 가격에는 반영하지 않는다.
+    const noticeSize = facts.benefit;
+    // 같은 목록 페이지에서 연결된 다른 상품의 할인율을 빌려 순위를 높이지 않는다.
+    const key = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[\s,]/g, '');
+    const title = key(n.title);
+    const matching = rel.filter((c) => {
+      const menu = key(c.menu).replace(key(c.brand), '');
+      return menu.length >= 2 && !/^(전메뉴|전제품|전체|기타)$/.test(menu) && title.includes(menu);
+    });
+    const best = matching.reduce((m, c) => Math.max(m, size(c)), noticeSize);
     let score = 40 + best * 0.6 + (wd !== null ? 30 : urgency(n.end_date)) + newness(n.first_seen) + (!(n.programs || []).length ? 8 : 0);
     if (!mineOrOpen(n)) score -= 30;
     out.push({
       kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
       // 같은 페이지의 연결 쿠폰은 다른 행사일 수 있으므로 빈 소식 라벨을 쿠폰 혜택으로 채우지 않는다.
       label: formatMoneyLabel(n.discount_label), start_date: n.start_date || null, end_date: n.end_date || null,
-      image_url: noticeImage(n), programs: n.programs || [], related_ids: rel.map((c) => c.id),
+      image_url: noticeImage(n, today), programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
+      tier: headlineTier(facts, best), usable: mineOrOpen(n),
     });
   }
   for (const c of coupons) {
     if (used.has(c.id) || !live(c) || c.audience === '개인' || (c.start_date && c.start_date > today)) continue;
+    const facts = headlineFacts(c);
+    if (!happyPointHeadlineAllowed(c, facts)) continue;
     const big = size(c) >= 30 || c.discount_type === 'free_item';
     const d = daysLeft(c.end_date, today);
     const urgent = big && d !== null && d <= 3;
@@ -1186,9 +1233,10 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
       kind: 'coupon', id: c.id, brand: c.brand, category: c.category, title: `${c.brand} ${c.menu}`,
       summary: '', label: benefitLabel(c), start_date: c.start_date || null, end_date: c.end_date || null, image_url: productImage(c),
       programs: c.programs || [], related_ids: [c.id], reason: reasonOf(c), score,
+      tier: headlineTier(facts, Math.max(size(c), facts.benefit)), usable: !profile || usableBy(c, profile),
     });
   }
-  out.sort((a, b) => b.score - a.score);
+  out.sort((a, b) => Number(b.usable) - Number(a.usable) || a.tier - b.tier || b.score - a.score);
   const perBrand = {};
   return out.filter((h) => (perBrand[h.brand] = (perBrand[h.brand] || 0) + 1) <= 2).slice(0, limit);
 }

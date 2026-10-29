@@ -87,7 +87,7 @@ test('홈 핫딜: 소식 우선, 긴급(3일 이내·큰 혜택)·새로 시작�
   const news = [{ id: 'n1', status: 'published', brand: '교촌치킨', category: '치킨', title: '교촌 허니메뉴 최대 5천원 할인', summary: '10/31까지', discount_label: '최대 5,000원', start_date: '2026-10-22', end_date: '2026-10-31', programs: [], related_ids: ['rel'], first_seen: '2026-10-27T15:00:00Z' }];
   const h = pickHeadlines(coupons, news, { today: TODAY });
   const ids = h.map((x) => x.id);
-  assert.equal(h[0].kind, 'news');
+  assert.notEqual(h[0].id, 'n1', '작은 행사 공지는 큰 기간 한정 혜택 뒤에 배치');
   assert.ok(ids.includes('fresh'));
   assert.ok(!ids.includes('rel'), '소식에 연결된 쿠폰은 따로 올리지 않음');
   assert.ok(!ids.includes('small'), '작은 혜택은 마감 임박이어도 제외');

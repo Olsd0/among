@@ -25,3 +25,26 @@ test('공지 URL의 쿼리 순서·해시가 달라도 같은 공식 공지면 �
 test('웹 공지 이미지 목록은 수집기 원본과 같다', () => {
   assert.equal(readFileSync(new URL('../src/notice-images.js', import.meta.url), 'utf8'), readFileSync(new URL('../../web/notice-images.js', import.meta.url), 'utf8'));
 });
+
+test('새 공지는 목록 썸네일과 상세 원본을 구분하고 유사한 다른 행사는 제외한다', () => {
+  const n = { brand: '피자헛', title: '피자헛 주말 1 + 1 핫딜', source_url: 'https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut', end_date: '2026-10-31' };
+  const photo = noticePhoto(n, '2026-10-29');
+  assert.equal(photo.image, 'https://akamai.pizzahut.co.kr/2020pizzahut-prod/public/event/c164ec37-60e8-430e-b80b-1ffac3113327.png');
+  assert.equal(photo.detailImage, 'https://akamai.pizzahut.co.kr/event/hellopizzahut_2610_event_weekend_down_pc_3_1.png');
+  assert.equal(noticeImage({ ...n, title: '피자헛 평일 반값 핫딜' }, '2026-10-29'), '');
+  assert.equal(noticeImage({ ...n, end_date: '2026-11-30' }, '2026-10-29'), '');
+  assert.equal(noticeImage(n, '2026-11-01'), '');
+});
+test('공식 목록에서 연결한 썸네일은 제목·브랜드가 맞는 행사에만 쓴다', () => {
+  for (const [brand, title, source_url, end_date] of [
+    ['배스킨라빈스', '카카오페이 싱글레귤러 50% 할인', 'https://www.baskinrobbins.co.kr/m/play/event/view.php?seq=620&category=ALL', '2026-10-31'],
+    ['반올림피자', '반올림 명일방주 콜라보', 'https://order.banolimpizza.com/event/detail/163814c2-cc1e-4051-b35c-91ba2906ea36?eventStatus=ongoing', '2026-11-08'],
+    ['푸라닭', '푸라닭 전용앱 쿼터레그 증정', 'https://www.puradakchicken.com/mobile/news/event.asp?mode=view&page=1&pageSize=10&seritemidx=&artistidx=&serboardsort=&search=0&searchStr=&idx=45863', '2026-11-25'],
+    ['굽네치킨', '매주 주말 인기 메뉴 4,000원 할인', 'https://www.goobne.co.kr/brd/event/list_p', '2026-10-31'],
+    ['네이버페이', '네이버페이 카페 현장결제 포인트 적립', 'https://campaign2.naver.com/npay/cafe/', '2026-11-01'],
+  ]) {
+    const n = { brand, title, source_url, end_date };
+    assert.ok(noticeImage(n, '2026-10-29'), title);
+    assert.equal(noticeImage({ ...n, title: '새 행사 출시' }, '2026-10-29'), '');
+  }
+});

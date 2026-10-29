@@ -2,11 +2,12 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261029-5';
-import { productImage, productPhoto } from './product-images.js?v=20261029-5';
+} from './engine.js?v=20261029-7';
+import { productImage, productPhoto } from './product-images.js?v=20261029-7';
 
-import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-5';
-import { officialBrandLogo } from './brand-logos.js?v=20261029-5';
+import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-7';
+import { withVerifiedNews } from './verified-news.js?v=20261029-7';
+import { officialBrandLogo } from './brand-logos.js?v=20261029-7';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -132,7 +133,7 @@ const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('goo
 // 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
-const safeImg = (u) => { try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
+const safeImg = (u) => { if (/^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.jpg$/.test(String(u || ''))) return u; try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => { const box = img.closest('.hcard') || img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
 const phCheck = (img) => { if (img.naturalWidth && img.naturalWidth < 80) phFail(img); };
 // load·error는 위로 전달되지 않으므로 캡처 단계에서 한 번에 받는다 (그려지기 전에 등록됨)
@@ -244,7 +245,7 @@ async function readCoupons() {
 }
 function applyData(data) {
   state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: productImage(c), programs: c.programs || [] }));
-  state.news = (data.news || []).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImage(n), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
+  state.news = (DEMO ? (data.news || []) : withVerifiedNews(data.news || [])).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImage(n), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();
@@ -741,8 +742,8 @@ function openNews(id) {
   if (!n) { toast('이 소식은 이미 끝났거나 바뀌었어요.'); return; }
   const today = todayKST();
   const rel = (n.related_ids || []).map((rid) => state.coupons.find((c) => c.id === rid)).filter(Boolean);
-  const img = noticeImage(n);
   const photo = noticePhoto(n);
+  const img = safeImg(photo?.detailImage || photo?.image);
   const d = daysLeft(n.end_date, today);
   const period = n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}` : n.start_date ? `${md(n.start_date)}부터` : '끝나는 날 공지 없음';
   const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
@@ -754,7 +755,7 @@ function openNews(id) {
       ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
-    ${photo ? `<a class="notice-original" href="${esc(photo.image)}" target="_blank" rel="noopener">공지 이미지 크게 보기 ↗</a>` : ''}
+    ${img ? `<a class="notice-original" href="${esc(img)}" target="_blank" rel="noopener">공지 이미지 크게 보기 ↗</a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(period)}${need ? ` · ${esc(need)}` : ''}</p>
     <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
