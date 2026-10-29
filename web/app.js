@@ -2,10 +2,10 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261029-2';
-import { productImage, productPhoto } from './product-images.js?v=20261029-2';
+} from './engine.js?v=20261029-3';
+import { productImage, productPhoto } from './product-images.js?v=20261029-3';
 
-import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-2';
+import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-3';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -257,7 +257,7 @@ const followButton = (brand) => `<button class="follow${state.following.has(bran
 function brandAvatar(brand) {
   const c = state.coupons.find((x) => x.brand === brand);
   const url = c && logoUrl(c);
-  return `<span class="brand-avatar">${url ? `<img class="logo" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : esc(brand.slice(0, 1))}</span>`;
+  return `<span class="brand-avatar"><span aria-hidden="true">${esc(brand.slice(0, 1))}</span>${url ? `<img class="logo" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</span>`;
 }
 function renderBrandDirectory() {
   const names = brandNames().filter((b) => (state.view !== 'following' || state.following.has(b)) && b.toLowerCase().includes(state.brandQuery.toLowerCase()));
@@ -281,7 +281,7 @@ function changeView(view) {
   state.view = view; state.brand = ''; state.brandQuery = ''; state.q = ''; $('#q').value = '';
   state.category = '전체'; state.kind = ''; state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
   Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
-  state.open.clear(); render();
+  state.open.clear(); render(); window.scrollTo({ top: 0, behavior: 'auto' });
 }
 function openBrand(brand) {
   if (!brandNames().includes(brand)) return;
