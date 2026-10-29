@@ -100,3 +100,12 @@ tr:last-child td { border-bottom: 0; }
 .foot nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-bottom: 6px; }
 .foot a { color: var(--text-2); text-decoration: none; padding: 4px 2px; }
 .foot a:hover { text-decoration: underline; }
+
+.reading-nav { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 16px 0; border-block: 1px solid var(--line); }
+.example { border-left: 3px solid var(--primary); padding: 4px 16px; margin: 18px 0; background: var(--surface-2); }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+@media (max-width: 420px) {
+  .top-in { flex-wrap: wrap; }
+  .top nav { width: 100%; margin-left: 0; justify-content: space-between; }
+}

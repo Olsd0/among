@@ -36,6 +36,7 @@ async function setup(data, options = {}) {
     if (options.requests) options.requests.push(url.href);
     // 실제 상품 사진처럼 최소 너비(80px) 검증을 통과하는 100px PNG.
     if (options.photoUrl === url.href || (options.photoUrls || []).includes(url.href)) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNL9dz5WIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbP8QPFyqa8aAAAAABJRU5ErkJggg==', 'base64') });
+    if ((options.failImages || []).some((path) => url.href === new URL(path, site.base).href)) return route.abort();
     if (url.origin === site.base) return route.continue();
     if (url.hostname === 'script.google.com') {
       if (url.searchParams.get('action') === 'coupons') {
@@ -112,7 +113,7 @@ test('제휴 혜택과 공지만 있는 브랜드도 공식 로고를 쓰고, �
     { ...coupon('domino'), brand: '도미노피자' },
   ], news: [{ ...news('popeyes', ago(1)), brand: '파파이스' }] };
   const requests = [];
-  const { context, page } = await setup(data, { photoUrls: [gong, popeyes], requests });
+  const { context, page } = await setup(data, { photoUrls: [gong, popeyes], requests, failImages: [officialBrandLogo('도미노피자').image] });
   t.after(() => context.close());
   await page.goto(`${site.base}/index.html`);
   await page.locator('#card-gong').waitFor();
@@ -128,6 +129,7 @@ test('제휴 혜택과 공지만 있는 브랜드도 공식 로고를 쓰고, �
   await failed.scrollIntoViewIfNeeded();
   await failed.locator('img.logo').waitFor({ state: 'detached' });
   assert.equal(await failed.locator('.brand-avatar').innerText(), '도');
+  assert.ok(!requests.some((url) => /gong-cha|popeyes\.co\.kr|dominos\.co\.kr/.test(url)), '확인된 로고는 외부 브랜드 서버에 요청하지 않는다');
   assert.ok(!requests.some((url) => url.includes('favicons?domain=tworld') || url.includes('tworld.co.kr/favicon')), '통신사 아이콘을 브랜드 로고로 요청하지 않는다');
 });
 
@@ -270,4 +272,42 @@ test('실제 상품 사진만 표시하고 API와 저장본의 배너·다른 �
   assert.equal(await page.locator('#newsBody .ph').count(), 0);
   assert.equal(await page.locator('#newsBody .lbl').innerText(), '15000원');
   assert.ok(!requests.some((url) => url.includes('banner.jpg')), '저장본의 행사 배너도 요청하지 않는다');
+});
+
+test('정렬·구독 때 그대로인 핫딜과 검색 입력을 보존하고 동작 줄이기를 따른다', { timeout: 30000 }, async (t) => {
+  const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('a'), coupon('b')], news: [news('one', ago(1)), news('two', ago(1))] };
+  const { context, page } = await setup(data);
+  t.after(() => context.close());
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('#card-a').waitFor();
+  await page.evaluate(() => { window.testHot = document.querySelector('#hotRail').firstElementChild; window.testGrid = document.querySelector('#grid').firstElementChild; });
+  await page.locator('#sortSel').selectOption('price');
+  assert.equal(await page.evaluate(() => window.testHot === document.querySelector('#hotRail').firstElementChild), true, '핫딜 이미지 노드를 재생성하지 않는다');
+  assert.equal(await page.evaluate(() => window.testGrid === document.querySelector('#grid').firstElementChild), true);
+  assert.equal(await page.locator('#sortSel').evaluate((el) => document.activeElement === el), true);
+  assert.equal(await page.locator('.toast').evaluate((el) => getComputedStyle(el).transitionDuration), '0s');
+  await page.locator('[data-view="brands"]').click();
+  await page.getByRole('searchbox', { name: '브랜드 찾기' }).fill('버거');
+  await page.evaluate(() => { window.testInput = document.querySelector('#brandSearch'); });
+  await page.getByRole('button', { name: '테스트버거 구독', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.testInput === document.querySelector('#brandSearch')), true);
+  assert.equal(await page.locator('#brandSearch').inputValue(), '버거');
+  assert.equal(await page.getByRole('button', { name: '테스트버거 구독 취소' }).evaluate((el) => document.activeElement === el), true);
+});
+
+test('가이드는 자바스크립트 없이 읽히고 작은 화면에서도 안내 페이지가 넘치지 않는다', { timeout: 30000 }, async (t) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 360, height: 800 } });
+  t.after(() => context.close());
+  await context.route('**/*', (route) => new URL(route.request().url()).origin === site.base ? route.continue() : route.abort());
+  const page = await context.newPage();
+  for (const path of ['guide.html', 'about.html', 'privacy.html', 'terms.html']) {
+    await page.goto(`${site.base}/${path}`);
+    assert.equal(await page.locator('h1').count(), 1);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, path);
+    assert.ok(await page.locator('a[href="guide.html"]').count());
+  }
+  await page.goto(`${site.base}/guide.html`);
+  assert.equal(await page.locator('main h2').count(), 5);
+  assert.ok((await page.locator('main').innerText()).includes('실제 행사가 아닙니다'));
 });

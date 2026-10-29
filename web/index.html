@@ -12,7 +12,6 @@
 <meta name="theme-color" content="#111015" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="AMONG 어몽 · 프랜차이즈 쿠폰 비교">
 <meta property="og:description" content="앱 하나씩 열지 말고, 내 통신사·페이로 쓸 수 있는 할인까지 한 번에">
-<meta property="og:image" content="icon-512.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -354,7 +353,7 @@
   .brand-avatar > * { grid-area: 1 / 1; }
   .brand-avatar img.logo { width: 38px; height: 38px; padding: 6px; background: var(--surface-2); object-fit: contain; border-radius: 5px; }
   /* 공식 흰색 워드마크가 밝은 테마에서도 보이도록 이미지 뒤 배경만 조정한다. */
-  .brand-avatar img.logo[src*="/brandlogo_lotteria.png"], .body .who img.logo[src*="/brandlogo_lotteria.png"] { background: #242424; }
+  .brand-avatar img.logo[src*="/lotteria-"], .body .who img.logo[src*="/lotteria-"] { background: #242424; }
   .follow { min-width: 72px; min-height: 44px; font-size: 12px; font-weight: 750; color: var(--primary); border-radius: 10px; }
   .follow:hover, .follow.active { background: var(--primary-soft); }
   .brand-tile .follow { margin-top: 3px; }
@@ -369,7 +368,7 @@
   .follow-empty p { color: var(--muted); font-size: 13px; }
   .browse-brands { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 12px; background: var(--primary); color: var(--primary-ink); font-size: 13px; font-weight: 700; margin-top: 8px; }
   .brand-empty { grid-column: 1/-1; text-align: center; color: var(--muted); padding: 20px; }
-  button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
   .card { scroll-margin-top: 150px; }
   @media (min-width: 680px) {
     .shell { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
@@ -384,7 +383,21 @@
     .gi .ic { width: 46px; height: 46px; }
     .gi .ic svg { width: 33px; height: 33px; }
   }
+  /* 조작 피드백만 짧게. 레이아웃을 움직이는 장식 효과는 두지 않는다. */
+  .view-nav button, .follow, .chip-btn, .icon-btn { transition: color .14s ease, background-color .14s ease, border-color .14s ease; }
+  .hcard:active, .brand-open:active, .icon-btn:active { opacity: .78; }
+  .toast { transition-property: opacity, transform; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
 </style>
+<!-- deploy-meta -->
+<link rel="canonical" href="https://olsd0.github.io/among/">
+<meta property="og:url" content="https://olsd0.github.io/among/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:image" content="https://olsd0.github.io/among/icon-512.png">
+<!-- /deploy-meta -->
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -466,7 +479,7 @@
       영양성분은 식품의약품안전처 공공데이터를 사용합니다. 가입 없이 이용할 수 있으며, 브라우저별 무작위 번호를 이용한 이용 기록(방문·이동·고른 할인 수단 종류)은 서비스 개선에 씁니다(끌 수 있어요). 제보 메모에는 이름·연락처 등 개인정보를 적지 말아 주세요. 통신사·결제수단 설정과 구독 브랜드는 이 기기에만 저장돼요.
       <br><button class="link-btn" id="themeBtn">화면 테마 바꾸기</button></p>
     <nav class="legal" aria-label="서비스 정보">
-      <a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a>
+      <a href="guide.html">할인 비교 가이드</a><a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a>
     </nav>
   </footer>
 </div>
@@ -526,6 +539,6 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261029-4"></script>
+<script type="module" src="app.js?v=20261029-5"></script>
 </body>
 </html>

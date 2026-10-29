@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /among/
+Disallow: /among/admin.html
+Disallow: /among/admin.js
+
+Sitemap: https://olsd0.github.io/among/sitemap.xml
