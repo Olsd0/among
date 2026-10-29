@@ -1,8 +1,9 @@
 // AMONG 화면 스크립트 (index.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus,
+  PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
 } from './engine.js';
+import { productImage, productPhoto } from './product-images.js';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -115,7 +116,7 @@ const logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== 
 const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
 // 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
-// 사진은 https 주소만 (수집기가 공식 행사 페이지에서 고른 것). 못 불러오면 사진 없는 모양으로
+// 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
 const safeImg = (u) => { try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => { const box = img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
 const phCheck = (img) => { if (img.naturalWidth && img.naturalWidth < 80) phFail(img); };
@@ -217,8 +218,8 @@ async function loadCoupons() {
   }
 }
 function applyData(data) {
-  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, programs: c.programs || [] }));
-  state.news = (data.news || []).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, programs: n.programs || [], related_ids: n.related_ids || [] }));
+  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: productImage(c), programs: c.programs || [] }));
+  state.news = (data.news || []).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: productImage(n), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();
@@ -263,7 +264,7 @@ function hotCard(h, i) {
   const whyCls = /마감|D-/.test(why) ? '' : why === 'NEW' ? ' n' : ' d';
   const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : h.title;
   const lbl = h.label || '';
-  const size = lbl.length > 9 ? 'font-size:20px' : lbl.length > 6 ? 'font-size:24px' : '';
+  const size = /[0-9]원/.test(lbl) ? 'font-size:18px' : lbl.length > 9 ? 'font-size:20px' : lbl.length > 6 ? 'font-size:24px' : '';
   return `<button class="hcard${img ? ' has-ph' : ' noph'}" style="--hbg:${HBG[h.category] || HBG['']}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
     ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="${i ? 'lazy' : 'eager'}" referrerpolicy="no-referrer">` : ''}
     <span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span>
@@ -293,17 +294,15 @@ function dueChip(c, today) {
 }
 
 const upTo = (c) => /^최대/.test(c.program_note || '');
-// 금액을 짧게: 20000 → 2만원, 5000 → 5천원, 5500 → 5,500원
-const shortWon = (n) => (n >= 10000 && n % 10000 === 0 ? `${n / 10000}만` : n >= 1000 && n % 1000 === 0 ? `${n / 1000}천` : won(n));
 const isOnePlusOne = (c) => /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''}`);
 /** 티켓 왼쪽(절취선 앞) 큰 글자 */
 function stubParts(c) {
   const up = upTo(c);
-  if (c.discount_type === 'point_back') return { tone: 'pt', big: has(c.discount_rate) ? String(c.discount_rate) : shortWon(+c.discount_value), unit: has(c.discount_rate) ? '%' : '원', sub: `${up ? '최대 ' : ''}적립` };
+  if (c.discount_type === 'point_back') return { tone: 'pt', big: has(c.discount_rate) ? String(c.discount_rate) : moneyDigits(+c.discount_value), unit: has(c.discount_rate) ? '%' : '원', sub: `${up ? '최대 ' : ''}적립` };
   if (c.discount_type === 'free_item') return { tone: 'gift', big: isOnePlusOne(c) ? '1+1' : '증정', sub: c.discount_rate ? `${c.discount_rate}% 효과` : isOnePlusOne(c) ? '하나 더' : '함께 드려요' };
+  if (c.discount_type === 'amount' && c.discount_value) return { tone: 'sale', big: moneyDigits(+c.discount_value), unit: '원', sub: up ? '최대 할인' : '할인' };
   if (has(c.discount_rate)) return { tone: 'sale', big: String(c.discount_rate), unit: '%', sub: up ? '최대 할인' : '할인' };
-  if (c.discount_type === 'amount' && c.discount_value) return { tone: 'sale', big: shortWon(+c.discount_value), unit: '원', sub: up ? '최대 할인' : '할인' };
-  if (has(c.coupon_price)) return { tone: 'plain', big: shortWon(+c.coupon_price), unit: '원', sub: '특가' };
+  if (has(c.coupon_price)) return { tone: 'plain', big: moneyDigits(+c.coupon_price), unit: '원', sub: '특가' };
   return { tone: 'plain', big: '혜택', sub: '앱에서 확인' };
 }
 /** 티켓 오른쪽 가격 줄 */
@@ -311,8 +310,8 @@ function priceLine(c) {
   if (has(c.coupon_price) && c.discount_type !== 'free_item') return `${c.regular_price && c.discount_type !== 'point_back' ? `<s>${won(c.regular_price)}원</s>` : ''}<b>${won(c.coupon_price)}원</b>`;
   const up = upTo(c) ? '최대 ' : '';
   if (c.discount_type === 'percent' && c.discount_rate) return `<span class="what">주문 금액 ${up}${esc(c.discount_rate)}% 할인</span>`;
-  if (c.discount_type === 'amount' && c.discount_value) return `<span class="what">${up}${won(c.discount_value)}원 할인</span>`;
-  if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${esc(c.discount_rate)}%` : `${won(c.discount_value)}원`} 적립</span>`;
+  if (c.discount_type === 'amount' && c.discount_value) return `<span class="what">${up}${moneyDigits(c.discount_value)}원 할인</span>`;
+  if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${esc(c.discount_rate)}%` : `${moneyDigits(c.discount_value)}원`} 적립</span>`;
   if (c.discount_type === 'free_item') return `<span class="what">${isOnePlusOne(c) ? '하나 사면 하나 더' : '함께 증정'}</span>`;
   return '<span class="what">공식 앱에서 확인</span>';
 }
@@ -374,7 +373,7 @@ function nutritionBlock(c) {
 
 function detailHtml(c, today) {
   const progs = c.programs || [];
-  const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${won(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
+  const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${moneyDigits(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
   const period = c.end_date
     ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${daysLeft(c.end_date, today) === 0 ? '오늘 끝나요' : daysLeft(c.end_date, today) + '일 남음'})`
     : '종료일 정보 없음 · 공식 페이지에서 확인해요';
@@ -392,7 +391,7 @@ function detailHtml(c, today) {
       ${c.stackable === 'no' ? '<dt>중복</dt><dd class="warn-line">다른 쿠폰·할인과 같이 못 써요</dd>' : c.stackable === 'yes' ? '<dt>중복</dt><dd>다른 할인과 같이 쓸 수 있어요</dd>' : ''}
     </dl></section>
     <div data-nut="${esc(c.id)}">${nutritionBlock(c)}</div>
-    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${safeImg(c.image_url) ? ` · 사진도 공식 페이지의 이미지예요 (${esc(host(c.image_url))})` : ''}</p></section>` : ''}
+    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${productPhoto(c) ? ` · <a href="${esc(productPhoto(c).source)}" target="_blank" rel="noopener">공식 상품 사진 출처</a>` : ''}</p></section>` : ''}
     <div class="acts">
       <button class="act-btn" data-save="${esc(c.id)}" aria-pressed="${saved}">${ICON.heart}${saved ? '찜함' : '찜'}</button>
       <button class="act-btn" data-share="${esc(c.id)}">${ICON.share}공유</button>
@@ -406,7 +405,7 @@ function card(c, today) {
   const ch = (c.channels || []).length ? c.channels.join(' · ') : '';
   const b = badges(c);
   const st = stubParts(c);
-  const img = safeImg(c.image_url);
+  const img = productImage(c);
   // 표시할 글자와 단위를 분리해 HTML을 제거하는 정규식 없이 길이를 계산한다.
   const bigLen = st.big.length + (st.unit || '').length;
   return `
@@ -415,7 +414,7 @@ function card(c, today) {
       <div class="stub ${st.tone}${img ? ' has-ph' : ''}" aria-hidden="true">
         ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
         <span class="cat-art">${ART[c.category] || ''}</span>
-        <div class="lbl-w"><div class="big"${bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
+        <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}"${st.unit === '원' ? '' : bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>
       <div class="body" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
         <div class="who"><span class="bn">${esc(c.brand)}${ch ? `<span class="chn"> · ${esc(ch)}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</div>
@@ -638,7 +637,7 @@ function openNews(id) {
   if (!n) { toast('이 소식은 이미 끝났거나 바뀌었어요.'); return; }
   const today = todayKST();
   const rel = (n.related_ids || []).map((rid) => state.coupons.find((c) => c.id === rid)).filter(Boolean);
-  const img = safeImg(n.image_url) || safeImg(rel.find((c) => safeImg(c.image_url))?.image_url);
+  const img = productImage(n);
   const d = daysLeft(n.end_date, today);
   const period = n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}` : n.start_date ? `${md(n.start_date)}부터` : '끝나는 날 공지 없음';
   const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
@@ -647,7 +646,7 @@ function openNews(id) {
     <div class="news-hero${img ? ' has-ph' : ''}" style="--hbg:${HBG[n.category] || HBG['']}">
       ${img ? `<img class="ph" src="${esc(img)}" alt="" referrerpolicy="no-referrer">` : ''}
       <span class="art" aria-hidden="true">${ART[n.category] || ART.free}</span>
-      ${n.discount_label ? `<span class="lbl">${esc(n.discount_label)}</span>` : ''}
+      ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
     <p class="news-meta">${esc(n.brand)} · ${esc(period)}${need ? ` · ${esc(need)}` : ''}</p>
@@ -739,7 +738,7 @@ function toggleSave(id, btn) {
 async function shareCoupon(id) {
   const c = state.coupons.find((x) => x.id === id); if (!c) return;
   const url = `${location.origin}${location.pathname}?c=${encodeURIComponent(id)}`;
-  const what = has(c.coupon_price) ? `${won(c.coupon_price)}원` : c.discount_rate ? `${c.discount_rate}% 할인` : c.discount_value ? `${won(c.discount_value)}원 ${c.discount_type === 'point_back' ? '적립' : '할인'}` : '혜택';
+  const what = has(c.coupon_price) ? `${won(c.coupon_price)}원` : c.discount_rate ? `${c.discount_rate}% 할인` : c.discount_value ? `${moneyDigits(c.discount_value)}원 ${c.discount_type === 'point_back' ? '적립' : '할인'}` : '혜택';
   const text = `${c.brand} ${c.menu} ${what}${c.end_date ? ` (~${md(c.end_date)})` : ''}`;
   track('share', { coupon_id: id, brand: c.brand });
   try {

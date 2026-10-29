@@ -1,41 +1,24 @@
 // v5: 쿠폰과 함께 온 사진 · 소식(핫딜) · 홈 상단 선정
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickImage, isNonPhoto, normalizeNews, linkNews, pickHeadlines, benefitLabel, normalizeAndValidate, mergeSimilar } from '../src/engine.js';
+import { pickImage, normalizeNews, linkNews, pickHeadlines, benefitLabel, normalizeAndValidate, mergeSimilar } from '../src/engine.js';
 import { newsId, newsHash, contentHash } from '../src/ids.js';
 
 const NOW = new Date('2026-10-28T03:00:00Z'); // KST 10/28 12:00
 const TODAY = '2026-10-28';
 
-test('사진: 쿠폰을 읽은 그 페이지의 이미지 중 메뉴 이름·근거 문구 옆에 있는 것만, 로고·아이콘·띠 배너는 제외', () => {
-  const page = {
-    images: [
-      { src: 'https://img.brand.co.kr/common/logo.png', alt: '맥도날드', w: 400, h: 200, near: '맥도날드' },
-      { src: 'https://img.brand.co.kr/promo/bulgogi.jpg', alt: '불고기 버거', w: 600, h: 400, near: '불고기 버거 각 2500원' },
-      { src: 'https://img.brand.co.kr/promo/snackwrap.jpg', alt: '', w: 600, h: 400, near: '치킨 모짜렐라 스낵랩 각 2500원' },
-      { src: 'https://img.brand.co.kr/promo/strip.jpg', alt: '불고기 버거', w: 1200, h: 150, near: '' },
-      { src: 'http://img.brand.co.kr/promo/apple.jpg', alt: '애플 파이', w: 600, h: 400, near: '' },
-      { src: 'https://img.brand.co.kr/btn_more.png', alt: '더보기', w: 300, h: 200, near: '불고기 버거' },
-    ],
-    ogImage: 'https://img.brand.co.kr/og/share.jpg',
-  };
-  assert.equal(pickImage({ menu: '불고기 버거' }, page, '맥도날드'), 'https://img.brand.co.kr/promo/bulgogi.jpg');
-  assert.equal(pickImage({ menu: '치킨 모짜렐라 스낵랩', evidence: '치킨 모짜렐라 스낵랩 Chicken Mozzarella Snack Wrap 각 2500원' }, page, '맥도날드'), 'https://img.brand.co.kr/promo/snackwrap.jpg');
-  assert.equal(pickImage({ menu: '애플 파이' }, page, '맥도날드'), '', 'http 이미지는 화면에서 막히므로 쓰지 않음');
-  assert.equal(pickImage({ menu: '맥너겟 4조각' }, page, '맥도날드'), '', '맞는 사진이 없으면 사진 없음 (목록 페이지의 og:image로 채우지 않음)');
-  assert.equal(pickImage({ menu: '전 메뉴' }, page, '맥도날드'), '', "'전 메뉴'는 메뉴 사진을 고르지 않음");
-  // 행사 1개짜리 상세 페이지는 공유용 대표 이미지
-  assert.equal(pickImage({ menu: '전 메뉴' }, { ...page, isDetail: true }, '맥도날드'), 'https://img.brand.co.kr/og/share.jpg');
-  assert.equal(pickImage({ menu: '전 메뉴' }, { isDetail: true, ogImage: 'https://x.co.kr/images/og_default.png', images: [] }, 'X'), '', '기본 공유 이미지는 제외');
-  assert.equal(isNonPhoto({ src: 'https://a.kr/p.svg', w: 500, h: 500 }), true);
-  assert.equal(isNonPhoto({ src: 'https://a.kr/detail_long.jpg', w: 750, h: 4000 }), true, '세로로 긴 상세 통이미지');
-  assert.equal(isNonPhoto({ src: 'https://a.kr/food.jpg', alt: '도미노피자', w: 500, h: 300 }, '도미노피자'), true, '대체텍스트가 브랜드 이름뿐 = 로고');
-  assert.equal(isNonPhoto({ src: 'https://www.puradakchicken.com/upload/mainbanner/260715_%EB%A9%94%EC%9D%B8%ED%95%98%EB%8B%A8_%EC%88%98%EC%83%81%EB%82%B4%EC%97%AD_m.png' }), true, '홈 메인 배너(수상 내역)');
-  assert.equal(isNonPhoto({ src: 'https://www.kfckorea.com/nas/popup/intro_img03.png' }), true, '팝업');
-  assert.equal(isNonPhoto({ src: 'https://www.kfckorea.com/nas/event/2026/10/01/Yaf7bi1GHB5S.png' }), false, '행사 이미지는 그대로');
+test('사진: 행사 페이지의 OG·배너·주변 문구를 상품 사진으로 추측하지 않는다', () => {
+  const banner = 'https://example.test/event-banner.jpg';
+  const page = { isDetail: true, ogImage: banner, images: [{ src: banner, alt: '불고기 버거', near: '불고기버거 2500원', w: 600, h: 400 }] };
+  const burger = pickImage({ menu: '불고기 버거' }, page, '맥도날드');
+  assert.match(burger, /^https:\/\/www\.mcdonalds\.co\.kr\/upload\//);
+  assert.notEqual(burger, banner);
+  assert.equal(pickImage({ menu: '전 메뉴' }, page, '맥도날드'), '');
+  assert.equal(pickImage({ evidence: '불고기버거 2500원' }, page, '맥도날드'), '');
+  assert.equal(pickImage({ menu: '모르는 상품' }, page, '맥도날드'), '');
 });
 
-test('사진: 수집 경로 — 브랜드 자체 출처만, 같은 쿠폰이 합쳐지면 사진 있는 쪽을 이어받음, 사진이 바뀌면 변경으로 봄', () => {
+test('사진: 수집 경로 — 같은 쿠폰이 합쳐지면 사진 있는 쪽을 이어받음, 사진이 바뀌면 변경으로 봄', () => {
   const base = { menu: '불고기 버거', item_type: '단품', regular_price: 3800, coupon_price: 2500, discount_type: 'price', channels: [], audience: '전체', end_date: '2026-11-10', evidence: '불고기 버거 2,500원', evidence_source: 'image', confidence: 0.95 };
   const a = { ...normalizeAndValidate(base, { now: NOW, brand: '맥도날드', category: '햄버거' }), id: 'a', image_url: '' };
   const b = { ...normalizeAndValidate({ ...base, menu: '불고기버거' }, { now: NOW, brand: '맥도날드', category: '햄버거' }), id: 'b', image_url: 'https://x.kr/b.jpg' };
@@ -73,7 +56,7 @@ test('소식: 근거가 페이지에 있는 기간 한정 행사만 게시, 지�
   assert.deepEqual(np.programs, ['네이버페이']);
 });
 
-test('소식 id는 제목이 날마다 달라도 같고, 연결된 쿠폰·사진이 붙는다', () => {
+test('소식 id는 제목이 날마다 달라도 같고, 연결된 쿠폰은 표시하되 사진을 빌려 쓰지 않는다', () => {
   const n1 = { source_id: 's', brand: '도미노피자', start_date: '2026-10-28', end_date: '2026-11-30', discount_label: '40%', title: '도미노 화요일 40%' };
   const n2 = { ...n1, title: '화요일엔 도미노 포장 40% 할인', discount_label: '40% 할인' };
   assert.equal(newsId(n1), newsId(n2));
@@ -85,7 +68,7 @@ test('소식 id는 제목이 날마다 달라도 같고, 연결된 쿠폰·사�
   ];
   const [linked] = linkNews([{ ...n1, source_url: 'https://d.kr/event', programs: [], image_url: '' }], coupons);
   assert.deepEqual(linked.related_ids, ['c1']);
-  assert.equal(linked.image_url, 'https://d.kr/p.jpg', '소식 페이지에 사진이 없으면 연결된 쿠폰 사진');
+  assert.equal(linked.image_url, '', '같은 페이지의 다른 상품 사진을 소식에 붙이지 않는다');
   assert.notEqual(newsHash(linked), newsHash({ ...linked, title: '다른 제목' }));
 });
 
@@ -121,9 +104,9 @@ test('홈 핫딜: 소식 우선, 긴급(3일 이내·큰 혜택)·새로 시작�
 test('혜택 한 줄 표시', () => {
   assert.equal(benefitLabel({ discount_type: 'free_item', menu: '치킨 1+1' }), '1+1');
   assert.equal(benefitLabel({ discount_type: 'price', coupon_price: 2500, discount_rate: 34 }), '34%');
-  assert.equal(benefitLabel({ discount_type: 'price', coupon_price: 2026, discount_rate: null }), '2,026원');
-  assert.equal(benefitLabel({ discount_type: 'amount', discount_value: 5000, program_note: '최대 (조건에 따라 다름)' }), '최대 5,000원 할인');
-  assert.equal(benefitLabel({ discount_type: 'point_back', discount_value: 2000 }), '2,000원 적립');
+  assert.equal(benefitLabel({ discount_type: 'price', coupon_price: 2026, discount_rate: null }), '2026원');
+  assert.equal(benefitLabel({ discount_type: 'amount', discount_value: 5000, program_note: '최대 (조건에 따라 다름)' }), '최대 5000원 할인');
+  assert.equal(benefitLabel({ discount_type: 'point_back', discount_value: 2000 }), '2000원 적립');
   assert.equal(benefitLabel({ discount_type: 'point_back', discount_value: 5, discount_rate: 5 }), '5% 적립');
 });
 
@@ -132,7 +115,7 @@ test('핫딜 소식에 라벨이 없을 때 다른 연결 쿠폰의 금액을 �
   const news = [{ id: 'n1', brand: '반올림피자', title: '매주 수요일 반올림데이 최대 6천원 할인', summary: '매주 수요일', discount_label: '', end_date: '2026-10-31', related_ids: ['c1'], programs: [] }];
   assert.equal(pickHeadlines(coupons, news, { today: TODAY })[0].label, '');
   news[0].discount_label = '최대 6천원';
-  assert.equal(pickHeadlines(coupons, news, { today: TODAY })[0].label, '최대 6천원');
+  assert.equal(pickHeadlines(coupons, news, { today: TODAY })[0].label, '최대 6000원');
 });
 
 test('홈 아이콘 아래 줄: 1+1·증정 / 곧 마감 / 통신사 / 페이·포인트 / 신규가입', async () => {

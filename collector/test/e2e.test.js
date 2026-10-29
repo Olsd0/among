@@ -134,7 +134,7 @@ test('시험 실행: 시트에 아직 없는 출처 id는 예시 파일에서 �
   } finally { process.chdir(cwd); }
 });
 
-test('v5: 공식 이벤트 페이지에서 소식(핫딜)을 함께 갱신, 상세 페이지 쿠폰은 그 페이지의 대표 이미지, robots 거부 출처는 내림', { timeout: 120000 }, async () => {
+test('v5: 공식 이벤트 페이지에서 소식(핫딜)을 함께 갱신, 미확인 상품에는 상세 페이지 대표 이미지도 사용하지 않음, robots 거부 출처는 내림', { timeout: 120000 }, async () => {
   clearRobotsCache();
   const outDir = mkdtempSync(join(tmpdir(), 'among-e2e-v5-'));
   const sheet = recordingSheet();
@@ -152,7 +152,7 @@ test('v5: 공식 이벤트 페이지에서 소식(핫딜)을 함께 갱신, 상�
 
   const coupons = JSON.parse(readFileSync(join(outDir, 'coupons.json'), 'utf8'));
   const bul = coupons.find((c) => c.menu === '불고기버거 세트');
-  assert.equal(bul.image_url, 'https://example.com/og/bulgogi-event.jpg', '상세 페이지의 공유용 대표 이미지');
+  assert.equal(bul.image_url, '', '미확인 세트에 행사 배너를 표시하지 않는다');
 
   const news = JSON.parse(readFileSync(join(outDir, 'news.json'), 'utf8'));
   const weekend = news.find((n) => n.title === '테스트버거 주말 1+1');

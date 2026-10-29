@@ -123,14 +123,14 @@ export async function runCollector(o = {}) {
             const c = normalizeAndValidate(raw, nctx);
             c.id = couponId(c);
             c.checked_at = now.toISOString();
-            // 사진은 이 쿠폰을 읽은 바로 그 공식 페이지의 이미지일 때만 (브랜드 자체 출처만 — 멤버십·결제 페이지의 그림은 대개 로고)
-            c.image_url = source.brand && c.status !== 'rejected' ? pickImage(c, page, source.brand) : '';
+            // 공식 메뉴에서 확인한 동일 상품 사진만. 행사 페이지의 배너·대표 이미지는 사용하지 않는다.
+            c.image_url = c.status !== 'rejected' ? pickImage(c, page, source.brand) : '';
             all.push(c);
             sr.found++;
           }
           for (const raw of ext.news || []) {
             const n = normalizeNews(raw, nctx);
-            n.image_url = source.brand && n.status !== 'rejected' ? pickImage({ evidence: n.evidence }, page, source.brand) : '';
+            n.image_url = n.status !== 'rejected' ? pickImage(n, page, source.brand) : '';
             n.id = newsId(n);
             n.checked_at = now.toISOString();
             allNews.push(n);
@@ -182,7 +182,10 @@ export async function runCollector(o = {}) {
     // 시간 초과로 끝난 출처가 나중에 ok가 되지 않도록 지금 상태를 고정
     for (const x of report.sources) x.ok = x.ok && !/시간 초과/.test(x.error || '');
 
-    let merged = groupFreeItems(mergeSimilar(dedupe(all, couponId))).map((c) => ({ ...c, id: couponId(c), hash: contentHash(c) }));
+    // 여러 상품을 하나로 묶은 뒤에도 최종 상품명으로 사진을 다시 확인한다.
+    let merged = groupFreeItems(mergeSimilar(dedupe(all, couponId)))
+      .map((c) => ({ ...c, image_url: c.status !== 'rejected' ? pickImage(c) : '' }))
+      .map((c) => ({ ...c, id: couponId(c), hash: contentHash(c) }));
     // 같은 행사인데 AI 표기 차이로 id가 바뀌는 것을 막는다 (지금 게시 중인 쿠폰의 id를 이어 씀)
     if (statusReader && env.STABILIZE_IDS !== '0') {
       try {
@@ -198,7 +201,9 @@ export async function runCollector(o = {}) {
     const rank = (n) => (n.status === 'published' ? 2 : n.status === 'pending' ? 1 : 0) + (n.confidence || 0) / 10;
     const newsById = new Map();
     for (const n of allNews) { const cur = newsById.get(n.id); if (!cur || rank(n) > rank(cur)) newsById.set(n.id, n); }
-    const news = mergeNews(linkNews([...newsById.values()], merged)).map((n) => ({ ...n, hash: newsHash(n) }));
+    const news = mergeNews(linkNews([...newsById.values()], merged))
+      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? pickImage(n) : '' }))
+      .map((n) => ({ ...n, hash: newsHash(n) }));
     report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };
     report.with_image = merged.filter((c) => c.status === 'published' && c.image_url).length;
 
