@@ -6,7 +6,6 @@ import { chromium } from 'playwright';
 import { productImage } from '../src/product-images.js';
 import { noticeImage } from '../src/notice-images.js';
 import { officialBrandLogo } from '../../web/brand-logos.js';
-import { verifiedNews } from '../src/verified-news.js';
 import { serveDir } from './helpers.js';
 
 let site, browser;
@@ -58,27 +57,25 @@ async function setup(data, options = {}) {
   return { context, page };
 }
 
-test('쉑버거 공지는 모바일에서 공식 앱 링크로 연결되고 다음 날 종료되며 작은 해피포인트 행사는 추천하지 않는다', { timeout: 30000 }, async (t) => {
+test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고 작은 할인과 종료 행사는 제외한다', { timeout: 30000 }, async (t) => {
   const now = '2026-10-29T03:00:00.000Z';
-  const shake = verifiedNews.find((n) => n.brand === '쉐이크쉑');
-  const low = { ...shake, id: 'happy-small', brand: '테스트카페', title: '40% 할인', summary: '기간 한정 40% 할인 행사', discount_label: '40%', source_url: 'https://napi.happypointcard.com/other', checked_at: now };
-  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [low] });
+  const eligible = { id: 'happy-public', brand: '테스트버거', category: '햄버거', title: '기간 한정 50% 할인', summary: '공식 웹 공지에서 조건을 확인한 행사', discount_label: '50% 할인', programs: ['해피포인트'], source_url: 'https://example.test/event', start_date: '2026-10-26', end_date: '2026-10-30', checked_at: now };
+  const low = { ...eligible, id: 'happy-small', brand: '테스트카페', title: '40% 할인', summary: '기간 한정 40% 할인 행사', discount_label: '40%' };
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [eligible, low] });
   t.after(() => context.close());
   await page.clock.setFixedTime(new Date(now));
   await page.goto(`${site.base}/index.html`);
-  const card = page.locator(`[data-hot="news:${shake.id}"]`);
+  const card = page.locator('[data-hot="news:happy-public"]');
   await card.waitFor();
   assert.equal(await page.locator('[data-hot="news:happy-small"]').count(), 0);
   assert.equal(await card.locator('.lbl').count(), 0);
   await card.click();
-  assert.equal(await page.locator('[data-news-src]').getAttribute('href'), shake.source_url);
-  assert.match(await page.locator('#newsBody').innerText(), /선착순.*1\+1/s);
-  assert.match(await page.locator('#newsBody').innerText(), /앱.*공지/);
+  assert.equal(await page.locator('[data-news-src]').getAttribute('href'), eligible.source_url);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.clock.setFixedTime(new Date('2026-10-31T03:00:00.000Z'));
   await page.reload();
   await page.locator('#list[aria-busy="false"]').waitFor({ state: 'attached' });
-  assert.equal(await page.locator(`[data-hot="news:${shake.id}"]`).count(), 0);
+  assert.equal(await page.locator('[data-hot="news:happy-public"]').count(), 0);
 });
 
 test('브랜드 검색·구독·상세·새로고침·구독 취소가 이어지고 모바일·데스크톱에서 넘치지 않는다', { timeout: 30000 }, async (t) => {

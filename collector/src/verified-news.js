@@ -1,22 +1,8 @@
 // 자동 수집에서 빠진 소식 중 공식 원문을 직접 확인한 기간 한정 공지.
-// 쉐이크쉑: 사용자가 제공한 공식 공유 페이지의 og:title에서 날짜·쉑버거·선착순·1+1 확인.
-// 앱 전용 상세·행사 이미지는 웹에 노출되지 않으므로 추정하지 않는다.
-// 확인: 설빙 공식 피드의 원본 포스터, 해피포인트 공식 공유 페이지의 행사 제목(기간·선착순 1+1).
-// 해피포인트는 상세가 앱 전용이며 공통 OG 로고는 해당 행사 이미지로 사용하지 않는다.
+// 확인: 설빙 공식 피드의 원본 포스터.
+// 앱 안에서만 상세를 확인할 수 있는 쿠폰은 수동 공지에 추가하지 않는다.
 // 이미지 원본은 그대로 보관한다. 확인 시각·종료일을 임의로 연장하지 않는다.
 export const verifiedNews = [
-  {
-    id: 'n_shakeshack_happypoint_20261026',
-    brand: '쉐이크쉑', category: '햄버거',
-    title: '쉐이크쉑 해피포인트 쉑버거 선착순 1+1',
-    summary: '10월 26~30일 해피포인트 앱의 쉑버거 선착순 1+1 행사예요. 쿠폰 발급·소진 여부, 사용 기간과 제외 매장은 해피포인트 앱의 해당 공지에서 확인해 주세요.',
-    discount_label: '1+1', start_date: '2026-10-26', end_date: '2026-10-30',
-    programs: ['해피포인트'], source_id: 'happypoint-shakeshack-20261026',
-    source_url: 'https://napi.happypointcard.com/page/event/event-view.spc?eventseq=7697c69cceaf1837b60334bd16728343&share=Y',
-    official_link: 'https://napi.happypointcard.com/page/event/event-view.spc?eventseq=7697c69cceaf1837b60334bd16728343&share=Y',
-    status: 'published', checked_at: '2026-10-29T02:06:30.785Z', first_seen: '2026-10-26T00:00:00.000Z',
-    related_ids: [], confidence: 1
-  },
   {
     "id": "n_sulbing_npay_20261028",
     "brand": "설빙",
