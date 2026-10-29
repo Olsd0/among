@@ -32,8 +32,8 @@ async function setup(t, width = 390) {
   return { gas, token, post, save, context, page, errors };
 }
 async function ready(page, suffix = '?view=appCoupons') {
-  await page.goto(site.base + '/' + suffix);
-  await page.locator('#acCount').filter({ hasText: /개/ }).waitFor();
+  await page.goto(site.base + '/index.html' + suffix);
+  await page.locator('#acCount').filter({ hasText: /개/ }).waitFor({ state: 'attached' });
 }
 test('390px mobile: app filters, exact tiers, full conditions, official CTA and no draft leakage', { timeout: 30000 }, async t => {
   const { save, page, context, errors } = await setup(t);
