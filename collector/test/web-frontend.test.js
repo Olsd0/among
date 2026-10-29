@@ -312,3 +312,17 @@ test('가이드는 자바스크립트 없이 읽히고 작은 화면에서도 �
   assert.equal(await page.locator('main h2').count(), 5);
   assert.ok((await page.locator('main').innerText()).includes('실제 행사가 아닙니다'));
 });
+
+test('펼친 카드는 같은 전체 목록으로 돌아와도 닫히고 키보드로 다시 열 수 있다', { timeout: 30000 }, async (t) => {
+  const { context, page } = await setup({ ok: true, last_checked_at: ago(1), coupons: [coupon('a')], news: [] });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`);
+  const body = page.locator('#card-a .body');
+  await body.click();
+  assert.equal(await page.locator('#dt-a').isVisible(), true);
+  await page.locator('[data-view="all"]').click();
+  assert.equal(await page.locator('#dt-a').isHidden(), true);
+  assert.equal(await body.getAttribute('aria-expanded'), 'false');
+  await body.press('Enter');
+  assert.equal(await page.locator('#dt-a').isVisible(), true);
+});

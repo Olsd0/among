@@ -814,6 +814,7 @@ $('#list').addEventListener('keydown', (e) => {
   if (main && !e.target.closest('a, button, input, select, textarea') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCard(main); }
 });
 function toggleCard(main) {
+  renderedHTML.delete($('#list')); // 아래에서 상세 DOM을 직접 바꾸므로 다음 전체 렌더는 상태를 다시 반영한다.
   const id = main.closest('.card').dataset.id;
   const dt = document.getElementById('dt-' + id);
   const open = dt.hidden;
@@ -834,6 +835,7 @@ function toggleCard(main) {
 }
 
 function toggleSave(id, btn) {
+  renderedHTML.delete($('#list'));
   if (state.saved.has(id)) state.saved.delete(id); else state.saved.add(id);
   store.set('among_saved', [...state.saved]);
   const on = state.saved.has(id);

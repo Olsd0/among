@@ -18,7 +18,10 @@ test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과
     const html = readFileSync(join(dir, p), 'utf8');
     assert.equal((html.match(/rel="canonical"/g) || []).length, 1);
     assert.match(html, /content="https:\/\/among.example\/icon-512.png"/);
-    assert.ok(!html.includes('https://olsd0.github.io/among/'));
+    const canonical = html.match(/<link rel="canonical" href="([^"]+)"/)[1];
+    assert.equal(canonical, new URL(p === 'index.html' ? './' : p, 'https://among.example/').href);
+    const shared = html.match(/<meta property="og:url" content="([^"]+)"/)[1];
+    assert.equal(shared, canonical);
   }
   const sitemap = readFileSync(join(dir, 'sitemap.xml'), 'utf8');
   assert.equal((sitemap.match(/<loc>/g) || []).length, 5);
