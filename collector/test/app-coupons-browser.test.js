@@ -18,6 +18,10 @@ async function setup(t, width = 390) {
   const errors = [];
   await context.route('**/*', async route => {
     const req = route.request(), url = new URL(req.url());
+    if (url.origin === site.base && url.pathname.endsWith('/config.js')) {
+      const response = await route.fetch();
+      return route.fulfill({ response, body: `${await response.text()}\nwindow.AMONG_CONFIG.onlineDeals = { enabled: false };` });
+    }
     if (url.origin === site.base) return route.continue();
     if (url.hostname === 'script.google.com') {
       const result = req.method() === 'POST' ? gas.post(JSON.parse(req.postData() || '{}')) : gas.get(Object.fromEntries(url.searchParams));

@@ -17,6 +17,7 @@ const params = new URLSearchParams(location.search);
 const API = CFG.apiUrl || '';
 const DEMO = params.has('demo') || !API;
 const POLL_MS = 15000;
+const ONLINE_DEALS_ENABLED = CFG.onlineDeals?.enabled === true;
 
 const CATS = [
   { id: '햄버거', icon: '<path d="M4 11a8 6 0 0 1 16 0z"/><path d="M3.5 14.5h17"/><path d="M5 17.5h14a1 1 0 0 1-1 1.5H6a1 1 0 0 1-1-1.5z"/>' },
@@ -291,7 +292,6 @@ function renderBrandDirectory() {
   setHTML($('#brandDirectory'), names.map((brand) => `<div class="brand-tile"><button class="brand-open" data-brand-open="${esc(brand)}">${brandAvatar(brand)}<span><b>${esc(brand)}</b><small>혜택 ${state.coupons.filter((c) => c.brand === brand).length}개</small></span></button>${followButton(brand)}</div>`).join('') || '<p class="brand-empty">검색한 브랜드가 없어요.</p>');
 }
 function renderBrands() {
-  document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
   $('#followingCount').textContent = state.following.size || '';
   const panel = $('#brandPanel');
   panel.hidden = state.view === 'all' || state.view === 'appCoupons';
@@ -304,7 +304,52 @@ function renderBrands() {
   setHTML(panel, `<div class="brand-intro"><h2>${following ? '내가 구독한 브랜드' : '어떤 브랜드를 좋아하세요?'}</h2><p>구독한 브랜드의 혜택을 이 기기에서 모아봐요.</p></div>${following && !state.following.size ? '<div class="follow-empty"><span aria-hidden="true">♡</span><h3>좋아하는 브랜드부터 담아보세요</h3><p>브랜드 옆 + 구독을 누르면 여기에 모여요.</p><button class="browse-brands" data-browse>브랜드 둘러보기</button></div>' : '<label class="sr" for="brandSearch">브랜드 찾기</label><input id="brandSearch" class="brand-search" type="search" placeholder="브랜드 이름 검색" autocomplete="off"><div class="brand-directory" id="brandDirectory"></div>'}`);
   if ($('#brandDirectory')) { $('#brandSearch').value = state.brandQuery; renderBrandDirectory(); }
 }
+// 온라인 특가는 쿠폰 탐색 상태와 데이터를 공유하지 않는다. 돌아올 때 원래 위치를 복원한다.
+let onlineReturn = null;
+let onlineScroll = 0;
+let onlineDealsUI = null;
+let onlineDealsLoading = null;
+function renderViewNav() {
+  document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
+  // 기존 앱 쿠폰 공유 주소는 계속 열 수 있다. 기능을 끄면 원래 네 개 메뉴로 돌아간다.
+  $('[data-view="appCoupons"]').hidden = ONLINE_DEALS_ENABLED && state.view !== 'appCoupons';
+  $('[data-view="onlineDeals"]').hidden = !ONLINE_DEALS_ENABLED || state.view === 'appCoupons';
+}
+function showOnlineDeals() {
+  if (onlineDealsUI) { onlineDealsUI.show(); return; }
+  if (onlineDealsLoading) return;
+  const panel = $('#onlineDeals');
+  panel.innerHTML = '<div class="empty" role="status">온라인 특가를 불러오고 있어요.</div>';
+  // 코드·스타일·상품 JSON 모두 실제로 이 탭을 열 때만 요청한다.
+  onlineDealsLoading = import('./online-deals.js?v=20261029-9').then(({ createOnlineDealsUI }) => {
+    onlineDealsUI = createOnlineDealsUI(panel, { dataUrl: CFG.onlineDeals.dataUrl });
+    if (state.view === 'onlineDeals') onlineDealsUI.show();
+    else onlineDealsUI.hide();
+  }).catch(() => {
+    panel.innerHTML = '<div class="empty" role="status"><b>온라인 특가를 불러오지 못했어요</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-online-retry>다시 불러오기</button></div>';
+  }).finally(() => { onlineDealsLoading = null; });
+}
+$('#onlineDeals').addEventListener('click', (e) => { if (e.target.closest('[data-online-retry]')) showOnlineDeals(); });
 function changeView(view) {
+  if (!['all', 'appCoupons', 'brands', 'following', 'onlineDeals'].includes(view)) return;
+  if (view === 'onlineDeals') {
+    if (!ONLINE_DEALS_ENABLED || state.view === view) return;
+    onlineReturn = { view: state.view, scrollY: window.scrollY };
+    state.view = view;
+    render(); showOnlineDeals();
+    window.scrollTo({ top: onlineScroll, behavior: 'instant' });
+    return;
+  }
+  if (state.view === 'onlineDeals') {
+    onlineScroll = window.scrollY;
+    onlineDealsUI?.hide();
+    if (view === onlineReturn?.view) {
+      state.view = view;
+      render();
+      window.scrollTo({ top: onlineReturn.scrollY, behavior: 'instant' });
+      return;
+    }
+  }
   state.view = view; state.brand = ''; state.brandQuery = ''; state.q = ''; $('#q').value = '';
   state.category = '전체'; state.kind = ''; state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
   Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
@@ -375,6 +420,7 @@ function hotCard(h, i) {
   </button>`;
 }
 function renderHot() {
+  if (state.view === 'onlineDeals') { $('#hot').hidden = true; return; }
   // 오래됐거나 확인 시각을 알 수 없는 출처는 '오늘의' 핫딜로 추천하지 않는다.
   const fresh = (x) => verificationStatus(x.checked_at) === 'fresh';
   const managedLinks = new Set(state.appCoupons.map(c => c.official_link));
@@ -609,6 +655,18 @@ function renderFreshness() {
 }
 
 function render() {
+  renderViewNav();
+  const onlineView = state.view === 'onlineDeals';
+  $('#onlineDeals').hidden = !onlineView;
+  for (const el of [$('#searchBtn'), $('#meBtn'), $('#refreshBtn'), $('#searchRow'), $('#lastChecked'), $('#couponFooterNotes')]) el.hidden = onlineView;
+  $('#footerHint').textContent = onlineView ? '상품 가격과 구매 조건은 쿠팡에서 최종 확인하세요.' : '실제 혜택과 영양정보는 공식 앱·매장에서 최종 확인하세요.';
+  $('#demoNote').hidden = onlineView || !DEMO;
+  $('#syncNote').hidden = onlineView || !state.syncing;
+  if (onlineView) {
+    for (const el of [$('.intro'), $('#appCoupons'), $('#brandPanel'), $('#hot'), $('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list'), $('#meBar'), $('#errNote')]) el.hidden = true;
+    return;
+  }
+  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list')]) el.hidden = false;
   const today = todayKST();
   renderFreshness();
   renderMeBar();
@@ -671,7 +729,7 @@ function toast(msg) {
 function setSync(on, text) {
   state.syncing = on;
   $('#refreshBtn').classList.toggle('spin', on);
-  $('#syncNote').hidden = !on;
+  $('#syncNote').hidden = !on || state.view === 'onlineDeals';
   if (text) $('#syncNote').textContent = text;
 }
 
@@ -1047,6 +1105,8 @@ setInterval(refreshAppCoupons, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshAppCoupons(); });
 $('#demoNote').hidden = !DEMO;
 render();
+// 온라인 특가 직접 주소는 쿠폰 API가 느리거나 실패해도 바로 열 수 있다.
+if (params.get('view') === 'onlineDeals' && ONLINE_DEALS_ENABLED && !params.get('ac') && !params.get('c') && !params.get('n')) changeView('onlineDeals');
 loadCoupons().then(() => { openFromLink(); checkStatusOnLoad(); });
 track('visit', { value: document.referrer ? host(document.referrer) : '' });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
