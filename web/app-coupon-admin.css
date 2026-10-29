@@ -1,0 +1,29 @@
+#appCouponManager { margin: 20px 0 30px; border-top: 3px solid var(--series); padding-top: 18px; }
+.ac-admin-heading { display: flex; align-items: baseline; gap: 16px; justify-content: space-between; flex-wrap: wrap; }
+.ac-admin-heading h2 { margin: 0; font-size: 21px; }
+.ac-admin-heading p { color: var(--muted); font-size: 13px; }
+.ac-admin-heading a { color: var(--series); }
+.ac-admin-message { padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; white-space: pre-wrap; }
+.ac-admin-message.bad { color: var(--bad); border-color: var(--bad); }
+.ac-admin-toolbar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin: 16px 0; }
+.ac-admin-toolbar label { display: grid; gap: 5px; }
+.ac-admin-list { display: grid; gap: 7px; }
+.ac-admin-list > button { display: flex; justify-content: space-between; gap: 12px; padding: 14px; text-align: left; white-space: normal; }
+.ac-admin-list small { display: block; color: var(--muted); margin-top: 7px; }
+.ac-admin-list > button > span:last-child { flex-shrink: 0; }
+#acEditor { margin-top: 24px; scroll-margin-top: 16px; }
+#acEditor fieldset, .ac-admin-section { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 18px; margin: 16px 0; min-width: 0; }
+#acEditor legend, .ac-admin-section summary { font-weight: 750; font-size: 15px; padding: 0 6px; color: var(--text); }
+.ac-admin-section[open] summary { margin-bottom: 20px; }
+.ac-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; }
+.ac-form-grid label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; min-width: 0; }
+.ac-form-grid input, .ac-form-grid textarea, .ac-form-grid select { width: 100%; min-width: 0; padding: 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+.ac-form-grid textarea { resize: vertical; }
+.ac-form-grid small { color: var(--muted); line-height: 1.7; }
+.ac-form-grid .ac-check { flex-direction: row; align-items: center; }
+.ac-check input { width: 18px; height: 18px; flex: 0 0 18px; }
+.ac-wide { grid-column: 1 / -1; }
+.ac-save-actions { display: flex; gap: 8px; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--surface); padding: 14px 0; border-top: 1px solid var(--line); }
+#acSaveMessage, #acDuplicateResult { white-space: pre-wrap; overflow-wrap: anywhere; }
+#appCouponManager button { min-height: 44px; }
+@media (max-width: 600px) { .ac-form-grid { grid-template-columns: 1fr; } #acEditor fieldset, .ac-admin-section { padding: 14px; } .ac-admin-list > button { flex-direction: column; } }

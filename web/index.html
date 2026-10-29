@@ -398,6 +398,7 @@
 <meta property="og:locale" content="ko_KR">
 <meta property="og:image" content="https://olsd0.github.io/among/icon-512.png">
 <!-- /deploy-meta -->
+<link rel="stylesheet" href="app-coupons.css?v=20261029-8">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -429,7 +430,7 @@
       </button>
     </div>
     <div class="search" id="searchRow"><label class="sr" for="q">메뉴·브랜드 검색</label><input id="q" type="search" placeholder="메뉴·브랜드·통신사 검색 (예: 불고기, KT)" autocomplete="off"></div>
-    <nav class="view-nav" id="viewNav" aria-label="혜택 탐색"><button data-view="all" aria-pressed="true">전체 혜택</button><button data-view="brands" aria-pressed="false">브랜드별</button><button data-view="following" aria-pressed="false">구독 브랜드 <span id="followingCount"></span></button></nav>
+    <nav class="view-nav" id="viewNav" aria-label="혜택 탐색"><button data-view="all" aria-pressed="true">전체 혜택</button><button data-view="appCoupons" aria-pressed="false">앱 전용 쿠폰</button><button data-view="brands" aria-pressed="false">브랜드별</button><button data-view="following" aria-pressed="false">구독 브랜드 <span id="followingCount"></span></button></nav>
   </header>
 
   <h1 class="intro">좋아하는 브랜드의 혜택을, 한곳에.</h1>
@@ -444,6 +445,7 @@
   <div class="me" id="meBar" hidden></div>
 
   <section id="brandPanel" class="brand-panel" aria-label="브랜드 탐색" hidden></section>
+  <section id="appCoupons" aria-label="앱 전용 쿠폰" hidden></section>
 
   <section class="hot" id="hot" hidden aria-label="오늘의 핫딜">
     <div class="sec-h"><h2>오늘의 핫딜</h2><small>놓치기 아쉬운 공식 소식</small><span class="sp"></span><span class="count" id="hotCount"></span></div>
@@ -485,6 +487,7 @@
 </div>
 
 <dialog id="newsSheet" aria-labelledby="newsTitle"><div class="sheet" id="newsBody" style="position:relative"></div></dialog>
+<dialog id="appCouponSheet" class="ac-dialog" aria-labelledby="acDetailTitle"><div class="ac-dialog-body"></div></dialog>
 
 <dialog id="meSheet" aria-labelledby="meTitle">
   <form method="dialog" class="sheet">
@@ -539,6 +542,6 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261029-7"></script>
+<script type="module" src="app.js?v=20261029-8"></script>
 </body>
 </html>

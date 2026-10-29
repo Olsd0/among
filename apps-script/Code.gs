@@ -42,12 +42,14 @@ function setup() {
   ['COLLECTOR_TOKEN', 'ADMIN_TOKEN'].forEach((k) => {
     if (!p.getProperty(k)) p.setProperty(k, Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''));
   });
+  seedAppCouponDrafts_();
   setState_(p, 'idle');
   Logger.log('설정 완료. 스크립트 속성에서 COLLECTOR_TOKEN·ADMIN_TOKEN 값을 확인해 GitHub Secret과 대시보드에 넣으세요.');
 }
 
 const TZ = 'Asia/Seoul';
 const SHEETS = {
+  app_coupons: ['id', 'status', 'issuer_app', 'brand', 'product_name', 'issue_end', 'use_end', 'checked_at', 'updated_at', 'revision', 'payload'],
   // 열은 항상 뒤에만 추가한다 (기존 시트의 열 순서를 바꾸지 않기 위해 — migrate_가 빠진 열을 끝에 붙임)
   coupons: ['id', 'status', 'brand', 'category', 'menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate',
     'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only',
@@ -73,7 +75,7 @@ const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_
 const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
   'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
@@ -105,7 +107,8 @@ function doGet(e) {
   try {
     migrate_();
     switch (p.action || 'coupons') {
-      case 'coupons': return json_(getCoupons_());
+      case 'coupons': return json_(withAppCoupons_(getCoupons_()));
+      case 'app_coupons': return json_(getAppCoupons_());
       case 'status': return json_(getStatus_());
       case 'nutrition': return json_(getNutrition_());
       default: return json_({ ok: false, error: 'unknown action' });
@@ -137,6 +140,13 @@ function doPost(e) {
       case 'run_finish': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(runFinish_(body.report || {}));
       case 'nutrition_ingest': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingestNutrition_(body)) });
       // 관리
+      case 'app_coupon_list': authed = auth_(body, 'ADMIN_TOKEN'); return json_(adminAppCoupons_());
+      case 'app_coupon_save':
+        authed = auth_(body, 'ADMIN_TOKEN');
+        if (raw.length > 80000) throw new Error('입력이 너무 커요.');
+        return json_(withLock_(() => saveAppCoupon_(body)));
+      case 'app_coupon_close': authed = auth_(body, 'ADMIN_TOKEN'); return json_(withLock_(() => closeAppCoupon_(body)));
+      case 'app_coupon_duplicates': authed = auth_(body, 'ADMIN_TOKEN'); return json_({ ok: true, duplicates: acDuplicates(acNormalize(body.coupon), readAppCoupons_()).map(c => ({ id: c.id, product_name: c.product_name, audience: acAudience(c) })) });
       case 'metrics': authed = auth_(body, 'ADMIN_TOKEN'); return json_(getMetrics_(body));
       default: return json_({ ok: false, error: 'unknown action' });
     }
@@ -733,6 +743,7 @@ function migrate_() {
     const add = [];
     Object.keys(NEW_SOURCES).forEach((v) => { if (Number(v) > from) NEW_SOURCES[v].forEach((id) => add.push(id)); });
     SAMPLE_SOURCES_.filter((x) => add.indexOf(x.id) >= 0 && !have[x.id]).forEach((x) => appendRow_('sources', x));
+    seedAppCouponDrafts_();
     CacheService.getScriptCache().remove(CACHE_KEY);
     p.setProperty('SCHEMA_VERSION', String(SCHEMA_VERSION));
   });
@@ -1444,3 +1455,261 @@ function todayKST_() { return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd')
 function kstDay_(iso) { const t = Date.parse(iso); return isNaN(t) ? '' : Utilities.formatDate(new Date(t), TZ, 'yyyy-MM-dd'); }
 function addDays_(day, n) { const t = Date.parse(day + 'T00:00:00Z') + n * 86400000; return new Date(t).toISOString().slice(0, 10); }
 function round_(x, d) { const m = Math.pow(10, d); return Math.round(x * m) / m; }
+
+// BEGIN GENERATED APP COUPONS
+// Canonical app-coupon rules. sync-web.js also embeds this module in Apps Script.
+// No network, account sessions, device scraping, or inferred eligibility.
+const AC_APPS = ['버거킹', '맥도날드', '해피포인트'];
+const AC_AUDIENCES = { unknown: '미확인', all_members: '전체 회원', tier: '멤버십 등급', new_member: '신규 회원', personalized: '맞춤 혜택', points_member: '포인트 교환 대상', other: '별도 대상' };
+const AC_BENEFITS = { unknown: '미확인', price: '구매 가격', amount: '즉시 할인액', percent: '즉시 할인율', bogo: '1+1', point_back: '포인트 환급', point_exchange: '포인트 교환' };
+const AC_LINK_LABELS = { event: '공식 행사 보기', app: '공식 앱에서 확인', install: '앱 설치 안내' };
+const AC_FACTS = {
+  composition: '상품 구성·수량', issue_requirements: '발급 조건', use_hours: '사용 가능 시간',
+  channels: '사용 경로·매장', excluded_stores: '제외 매장', min_purchase: '최소 구매액',
+  max_discount: '최대 할인액', payment: '결제수단', points: '포인트 차감·환급 조건',
+  per_person: '1인 사용 횟수', per_order: '주문당 사용 수', stacking: '중복 할인', early_end: '선착순·조기 종료 조건', other: '기타 유의사항',
+};
+const AC_STATES = { issuing: '발급 가능', redeem_only: '발급 종료 · 받은 쿠폰 사용 가능', redeem_scheduled: '발급 종료 · 받은 쿠폰 사용 예정', upcoming: '발급 예정', ended: '사용 종료', draft: '초안', archived: '보관' };
+const AC_TEXT = ['issuer_app', 'brand', 'product_name', 'item_type', 'benefit_type', 'benefit_note', 'audience_type', 'audience_detail', 'audience_evidence', 'issue_period_state', 'issue_period_note', 'use_period_state', 'source_url', 'source_note', 'official_link', 'link_type', 'app_path', 'rights_state', 'rights_note', 'admin_notes', 'missing_info', 'duplicate_note'];
+const AC_NUMBERS = ['final_price', 'regular_price', 'discount_amount', 'discount_rate', 'points_cost'];
+function acText(v, max = 12000) {
+  const s = v == null ? '' : String(v).trim();
+  if (s.length > max) throw new Error('입력이 너무 길어요. 내용을 나누어 주세요.');
+  return s;
+}
+function acTimestamp(value, end = false) {
+  if (!value) return '';
+  let s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s += end ? 'T23:59:59.999+09:00' : 'T00:00:00+09:00';
+  else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) s += end ? ':59.999+09:00' : ':00+09:00';
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/.test(s) || !Number.isFinite(Date.parse(s))) throw new Error('날짜·시간 형식을 확인해 주세요.');
+  return new Date(s).toISOString();
+}
+function acNormalize(input = {}) {
+  const c = {};
+  AC_TEXT.forEach(k => { c[k] = acText(input[k]); });
+  c.id = acText(input.id, 60);
+  if (c.id && !/^[a-zA-Z0-9_-]+$/.test(c.id)) throw new Error('잘못된 쿠폰 ID');
+  c.status = ['draft', 'published', 'archived'].includes(input.status) ? input.status : 'draft';
+  c.revision = Number.isSafeInteger(Number(input.revision)) ? Number(input.revision) : 0;
+  c.tiers = (Array.isArray(input.tiers) ? input.tiers : String(input.tiers || '').split(',')).map(v => acText(v, 80)).filter(Boolean);
+  AC_NUMBERS.forEach(k => {
+    c[k] = input[k] === '' || input[k] == null ? null : Number(input[k]);
+    if (c[k] !== null && (!Number.isFinite(c[k]) || c[k] < 0 || c[k] > 1e8)) throw new Error('금액·비율은 0 이상의 숫자로 입력하세요.');
+  });
+  if (c.discount_rate !== null && c.discount_rate > 100) throw new Error('할인율은 100% 이하여야 해요.');
+  ['issue_start', 'issue_end', 'use_start', 'use_end', 'checked_at', 'link_checked_at', 'updated_at', 'researched_at'].forEach(k => { c[k] = acTimestamp(input[k], /_end$/.test(k)); });
+  ['is_max', 'hotdeal_enabled', 'recurring', 'issue_closed', 'use_closed', 'review_required'].forEach(k => { c[k] = input[k] === true; });
+  c.facts = {};
+  Object.keys(AC_FACTS).forEach(k => {
+    const f = input.facts && input.facts[k] || {};
+    c.facts[k] = { state: ['verified', 'na'].includes(f.state) ? f.state : 'unknown', value: acText(f.value) };
+  });
+  c.legacy_refs = (Array.isArray(input.legacy_refs) ? input.legacy_refs : String(input.legacy_refs || '').split(',')).map(v => acText(v, 80)).filter(v => /^(coupon|news):[\w-]+$/.test(v));
+  return c;
+}
+function acOfficialUrl(value, app) {
+  const s = String(value || '');
+  // HTTPS public links only. Preserve public event IDs, never personal codes or sessions.
+  const m = /^https:\/\/([a-z0-9.-]+)(\/[^\s\\<>]*)?$/i.exec(s);
+  if (!m || /[\u0000-\u0020]/.test(s) || /%(?:0[0-9a-f]|1[0-9a-f])/i.test(s)) return false;
+  const hosts = { '버거킹': ['burgerking.co.kr'], '맥도날드': ['mcdonalds.co.kr'], '해피포인트': ['happypointcard.com', 'happymarket.co.kr', 'shakeshack.kr', 'baskinrobbins.co.kr', 'paris.co.kr', 'dunkindonuts.co.kr'] }[app] || [];
+  const host = m[1].toLowerCase();
+  if (!hosts.some(h => host === h || host.endsWith('.' + h)) && !['apps.apple.com', 'play.google.com'].includes(host)) return false;
+  let decoded;
+  try { decoded = decodeURIComponent(s); } catch { return false; }
+  return !/(?:[?&#/])(?:access_?token|id_?token|token|session\w*|auth\w*|password|member\w*|user\w*|barcode|coupon_?code|redeem_?code|email|phone|code)=/i.test(decoded) && !/#/.test(s);
+}
+function acValidate(c, now = Date.now()) {
+  const errors = [];
+  if (!AC_APPS.includes(c.issuer_app)) errors.push('발급 앱');
+  if (!c.brand || !c.product_name || !c.item_type) errors.push('사용 브랜드·상품명·단품/세트 구분');
+  if (!c.facts?.composition || c.facts.composition.state !== 'verified' || !c.facts.composition.value) errors.push('상품 구성·수량');
+  const benefitOK = { price: c.final_price !== null, amount: c.discount_amount > 0, percent: c.discount_rate > 0, bogo: true, point_back: !!c.benefit_note && (c.discount_rate > 0 || c.discount_amount > 0), point_exchange: c.points_cost > 0 };
+  if (!benefitOK[c.benefit_type]) errors.push('혜택 방식·금액');
+  if (c.final_price !== null && c.regular_price !== null && c.final_price > c.regular_price) errors.push('기준 가격보다 높은 구매 가격');
+  if (!AC_AUDIENCES[c.audience_type] || c.audience_type === 'unknown' || !c.audience_evidence) errors.push('쿠폰별 이용 대상·확인 근거');
+  if (c.audience_type === 'tier' && !c.tiers.length) errors.push('확인된 정확한 멤버십 등급');
+  if (['other', 'personalized', 'points_member'].includes(c.audience_type) && !c.audience_detail) errors.push('이용 대상의 구체적 조건');
+  if (c.issuer_app === '해피포인트' && c.audience_type !== 'all_members') errors.push('해피포인트 전체 회원 대상 확인');
+  if (c.issue_period_state === 'na') { if (!c.issue_period_note) errors.push('발급 기간 해당 없음의 근거'); }
+  else if (c.issue_period_state !== 'verified' || !c.issue_start || !c.issue_end) errors.push('발급 시작·마감 시점');
+  if (c.use_period_state !== 'verified' || !c.use_start || !c.use_end) errors.push('사용 시작·종료 시점');
+  for (const p of ['issue', 'use']) if (c[p + '_start'] && c[p + '_end'] && c[p + '_start'] > c[p + '_end']) errors.push(p === 'issue' ? '발급 기간 순서' : '사용 기간 순서');
+  if (c.issue_end && c.use_end && c.issue_end > c.use_end) errors.push('사용 종료 이후 발급 마감');
+  if (!c.facts?.issue_requirements || c.facts.issue_requirements.state === 'unknown' || (c.facts.issue_requirements.state === 'verified' && !c.facts.issue_requirements.value)) errors.push('발급 조건');
+  Object.keys(AC_FACTS).forEach(k => { const f = c.facts?.[k]; if (f?.state === 'verified' && !f.value) errors.push(AC_FACTS[k] + ' 확인 내용'); });
+  if (!acOfficialUrl(c.source_url, c.issuer_app) || !c.source_note) errors.push('공식 출처·확인 내용');
+  if (!acOfficialUrl(c.official_link, c.issuer_app) || !AC_LINK_LABELS[c.link_type]) errors.push('공식 이용 링크·목적지 종류');
+  if (!c.link_checked_at || Date.parse(c.link_checked_at) > now) errors.push('공식 링크 목적지 확인 시점');
+  if (c.link_type === 'install' && !c.app_path) errors.push('실제로 확인한 앱 내 이동 경로');
+  if (!c.checked_at || Date.parse(c.checked_at) > now) errors.push('실제 조건 확인 시점');
+  if (!['facts_only', 'permission'].includes(c.rights_state) || !c.rights_note) errors.push('출처 자료 이용 범위 확인');
+  if (c.review_required) errors.push('변경된 조건 재확인');
+  return errors;
+}
+function acLifecycle(c, now = Date.now()) {
+  if (c.status !== 'published') return c.status === 'archived' ? 'archived' : 'draft';
+  if (c.use_closed || (c.use_end && now > Date.parse(c.use_end))) return 'ended';
+  if (c.issue_closed || (c.issue_end && now > Date.parse(c.issue_end))) return c.use_start && now < Date.parse(c.use_start) ? 'redeem_scheduled' : 'redeem_only';
+  if (c.issue_start && now < Date.parse(c.issue_start)) return 'upcoming';
+  return 'issuing';
+}
+function acNeedsReview(c, now = Date.now()) {
+  return c.review_required || !c.checked_at || now - Date.parse(c.checked_at) > 48 * 3600e3 || acValidate(c, now).length > 0;
+}
+function acPublic(c, now = Date.now()) {
+  if (c.status !== 'published' || acValidate(c, now).length || acLifecycle(c, now) === 'ended') return null;
+  const out = { ...c, facts: { ...c.facts }, lifecycle: acLifecycle(c, now), needs_review: acNeedsReview(c, now) };
+  ['admin_notes', 'missing_info', 'duplicate_note', 'researched_at'].forEach(k => { delete out[k]; });
+  return out;
+}
+function acAudience(c) {
+  return c.audience_type === 'tier' ? c.tiers.join(' · ') + ' 등급' : [AC_AUDIENCES[c.audience_type] || '미확인', c.audience_detail].filter(Boolean).join(' · ');
+}
+function acBenefit(c) {
+  const won = n => Number(n).toLocaleString('ko-KR') + '원';
+  const max = c.is_max ? '최대 ' : '';
+  switch (c.benefit_type) {
+    case 'price': return c.final_price === null ? '가격 미확인' : won(c.final_price);
+    case 'amount': return max + won(c.discount_amount) + ' 할인';
+    case 'percent': return max + c.discount_rate + '% 즉시 할인';
+    case 'bogo': return '1+1';
+    case 'point_back': return max + (c.discount_rate !== null ? c.discount_rate + '% ' : c.discount_amount !== null ? won(c.discount_amount) + ' 상당 ' : '') + '포인트 환급';
+    case 'point_exchange': return Number(c.points_cost).toLocaleString('ko-KR') + 'P 교환';
+    default: return '혜택 미확인';
+  }
+}
+function acHotEligible(c, now = Date.now()) {
+  if (!c.hotdeal_enabled || !acPublic(c, now) || acNeedsReview(c, now) || acLifecycle(c, now) !== 'issuing') return false;
+  // Happy Point policy applies only to hot deals, never the app-coupon list.
+  const rate = ['price', 'amount', 'percent'].includes(c.benefit_type) ? c.discount_rate || 0 : 0;
+  return c.benefit_type === 'bogo' || rate >= (c.issuer_app === '해피포인트' ? 50 : 30);
+}
+function acDuplicates(c, rows) {
+  const key = s => String(s || '').replace(/\s+/g, '').toLowerCase();
+  return rows.filter(x => x.id !== c.id && x.status !== 'archived' && x.issuer_app === c.issuer_app && x.brand === c.brand &&
+    ((c.link_type === 'event' && c.official_link && x.official_link === c.official_link) ||
+      (key(c.product_name) && key(x.product_name) === key(c.product_name) && (!c.use_end || !x.use_start || c.use_end >= x.use_start) && (!x.use_end || !c.use_start || x.use_end >= c.use_start))));
+}
+function acKST(v, short = false) {
+  if (!v || !Number.isFinite(Date.parse(v))) return '미확인';
+  const s = new Date(Date.parse(v) + 9 * 3600e3).toISOString();
+  return (short ? s.slice(5, 10) : s.slice(0, 10)) + ' ' + s.slice(11, 16);
+}
+
+// Embedded into Code.gs by collector/scripts/sync-web.js. Do not paste as a second GAS file.
+function readAppCoupons_() {
+  return readTable_('app_coupons').rows.map(function(r) {
+    try { return acNormalize(JSON.parse(r.payload)); } catch (err) { console.error('Invalid app coupon row: ' + r.id); return null; }
+  }).filter(Boolean);
+}
+function appCouponRow_(c) {
+  const payload = JSON.stringify(c);
+  if (payload.length > 45000) throw new Error('쿠폰 내용은 45,000자 이내로 저장하세요. 긴 조건을 삭제하지 말고 공식 출처를 함께 정리해 주세요.');
+  const r = { payload: payload };
+  SHEETS.app_coupons.filter(function(k) { return k !== 'payload'; }).forEach(function(k) { const s = String(c[k] == null ? '' : c[k]); r[k] = /^[=+@-]/.test(s) ? "'" + s : s; });
+  return r;
+}
+function getAppCoupons_() {
+  const rows = readAppCoupons_();
+  return { ok: true, app_coupons: rows.map(function(c) { return acPublic(c); }).filter(Boolean),
+    // References keep old collected copies out of both surfaces after the managed record ends.
+    app_coupon_refs: [].concat.apply([], rows.filter(function(c) { return c.status !== 'draft'; }).map(function(c) { return c.legacy_refs; })) };
+}
+function withAppCoupons_(out) {
+  const app = getAppCoupons_();
+  out.coupons = out.coupons.filter(function(c) { return app.app_coupon_refs.indexOf('coupon:' + c.id) < 0; });
+  out.news = out.news.filter(function(c) { return app.app_coupon_refs.indexOf('news:' + c.id) < 0; });
+  out.count = out.coupons.length;
+  out.app_coupons = app.app_coupons;
+  out.app_coupon_refs = app.app_coupon_refs;
+  return out;
+}
+function adminAppCoupons_() {
+  return { ok: true, coupons: readAppCoupons_().map(function(c) {
+    return Object.assign({}, c, { lifecycle: acLifecycle(c), needs_review: acNeedsReview(c), publish_errors: acValidate(c) });
+  }), now: nowIso_(), timezone: TZ };
+}
+function appCouponContent_(c) {
+  const copy = Object.assign({}, c);
+  ['id', 'revision', 'status', 'checked_at', 'updated_at', 'link_checked_at', 'researched_at', 'review_required', 'hotdeal_enabled', 'recurring', 'issue_closed', 'use_closed', 'admin_notes', 'missing_info', 'duplicate_note', 'legacy_refs'].forEach(function(k) { delete copy[k]; });
+  return JSON.stringify(copy);
+}
+function saveAppCoupon_(body) {
+  const rows = readAppCoupons_();
+  let c = acNormalize(body.coupon || {});
+  const previous = rows.find(function(x) { return x.id === c.id; });
+  if (previous && ((previous.issue_closed && !c.issue_closed) || (previous.use_closed && !c.use_closed)) && body.confirm_checked !== true) throw new Error('마감을 취소하려면 실제 조건을 다시 확인해 주세요.');
+  if (c.id && !previous) throw new Error('존재하지 않는 쿠폰입니다. 목록을 다시 불러오세요.');
+  if (previous && Number(body.expected_revision) !== previous.revision) throw new Error('다른 곳에서 수정됐어요. 목록을 다시 불러온 뒤 수정하세요.');
+  if (!c.id) c.id = 'ac_' + Utilities.getUuid().replace(/-/g, '').slice(0, 26);
+  const changed = !previous || appCouponContent_(c) !== appCouponContent_(previous);
+  c.checked_at = previous ? previous.checked_at : '';
+  c.link_checked_at = previous ? previous.link_checked_at : '';
+  c.researched_at = previous ? previous.researched_at : '';
+  c.review_required = changed || !!(previous && previous.review_required);
+  if (previous && (previous.official_link !== c.official_link || previous.link_type !== c.link_type || previous.app_path !== c.app_path)) c.link_checked_at = '';
+  if (body.confirm_link === true) c.link_checked_at = nowIso_();
+  if (body.confirm_checked === true) {
+    c.checked_at = body.checked_at ? acTimestamp(body.checked_at) : nowIso_();
+    if (Date.parse(c.checked_at) > Date.now()) throw new Error('미래 시각을 확인 시점으로 기록할 수 없어요.');
+    c.review_required = false;
+  }
+  const duplicates = acDuplicates(c, rows).map(function(x) { return { id: x.id, product_name: x.product_name, audience: acAudience(x) }; });
+  if (c.status === 'published') {
+    const errors = acValidate(c);
+    if (errors.length) return { ok: false, error: '공개 전 확인 필요: ' + errors.join(' / '), publish_errors: errors };
+    if (duplicates.length && !c.duplicate_note) return { ok: false, error: '중복 후보를 먼저 확인하고 다른 쿠폰인 이유를 입력하세요.', duplicates: duplicates };
+  }
+  c.updated_at = nowIso_();
+  c.revision = (previous ? previous.revision : 0) + 1;
+  const row = appCouponRow_(c);
+  if (previous) {
+    const table = readTable_('app_coupons');
+    writeTable_(sheet_('app_coupons'), table.headers, table.rows.map(function(r) { return r.id === c.id ? row : r; }));
+  } else appendRow_('app_coupons', row);
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  return { ok: true, coupon: c, duplicates: duplicates, publish_errors: acValidate(c), lifecycle: acLifecycle(c) };
+}
+function closeAppCoupon_(body) {
+  const c = readAppCoupons_().find(function(x) { return x.id === body.id; });
+  if (!c) throw new Error('쿠폰을 찾을 수 없어요.');
+  if (Number(body.expected_revision) !== c.revision) throw new Error('다른 곳에서 수정됐어요. 목록을 다시 불러오세요.');
+  if (!['issue', 'use'].includes(body.phase)) throw new Error('발급 또는 사용 마감 중에서 선택하세요.');
+  c[body.phase + '_closed'] = true;
+  // Closure is operational, never a new verification of the offer's conditions.
+  c.revision += 1;
+  c.updated_at = nowIso_();
+  const table = readTable_('app_coupons');
+  writeTable_(sheet_('app_coupons'), table.headers, table.rows.map(function(r) { return r.id === c.id ? appCouponRow_(c) : r; }));
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  return { ok: true, coupon: c, lifecycle: acLifecycle(c) };
+}
+function seedAppCouponDrafts_() {
+  const have = readAppCoupons_().map(function(c) { return c.id; });
+  const drafts = [
+    { id: 'ac_research_bk_tiers', issuer_app: '버거킹', brand: '버거킹', product_name: '등급별 앱 쿠폰 · 개별 쿠폰 확인 대기', audience_type: 'tier',
+      source_url: 'https://www.burgerking.co.kr/notice/90', official_link: 'https://www.burgerking.co.kr/notice/90', link_type: 'event',
+      source_note: '2025년 앱 개편 공지 검색 결과에서 등급별·맞춤 쿠폰 안내를 확인. 현재 개별 쿠폰 상세는 공개 웹에서 확인하지 못함.',
+      missing_info: '현재 쿠폰 상품·구성·가격, 정확한 이용 가능 등급 범위, 발급/사용 기간, 시간·매장·킹오더·배달 조건, 발급 경로, 자료 이용 범위. 이 기록은 개별 쿠폰을 확보하기 위한 조사 초안.' },
+    { id: 'ac_research_mcd_rewards', issuer_app: '맥도날드', brand: '맥도날드', product_name: '리워드 교환 쿠폰 · 개별 쿠폰 확인 대기', benefit_type: 'point_exchange', audience_type: 'points_member',
+      source_url: 'https://m.mcdonalds.co.kr/gmal/kor/more/tnc/tnc_202512.html', official_link: 'https://m.mcdonalds.co.kr/gmal/kor/more/tnc/tnc_202512.html', link_type: 'event',
+      source_note: '공식 앱 약관에서 포인트 교환 쿠폰과 일반 쿠폰의 구분을 확인. 약관은 개별 발급 화면이 아니므로 공개용 이용 링크로 사용하지 않음.',
+      missing_info: '현재 교환 상품·차감 포인트·구성, 해당 쿠폰 대상과 발급/사용 기간, 공식 이용 링크와 앱 내 경로, 자료 이용 범위. 일반 앱 쿠폰의 전체 회원 대상 여부도 개별 확인 필요.' },
+    { id: 'ac_research_hp_shack_202610', issuer_app: '해피포인트', brand: '쉐이크쉑', product_name: '10월 쉑버거 선착순 1+1 · 상세 확인 대기', benefit_type: 'bogo',
+      source_url: 'https://napi.happypointcard.com/page/event/event-view.spc?eventseq=7697c69cceaf1837b60334bd16728343&share=Y',
+      official_link: 'https://napi.happypointcard.com/page/event/event-view.spc?eventseq=7697c69cceaf1837b60334bd16728343&share=Y', link_type: 'event',
+      source_note: '사용자가 제공한 공식 공유 페이지의 제목 메타데이터에 10/26–10/30, 쉑버거 선착순 1+1이 표시됨. 본문은 앱 안내 화면만 보여 세부 조건을 확인하지 못함. 이 날짜를 발급·사용 기간으로 추정하지 않음.',
+      missing_info: '전체 회원 대상 근거, 수량·상품 구성, 발급 기간과 사용 기간 각각, 선착순 수량·발급 시각·횟수, 사용 경로·제외 매장, 중복 할인, 공식 자료 이용 범위.' },
+  ];
+  drafts.forEach(function(input) {
+    if (have.indexOf(input.id) >= 0) return;
+    const c = acNormalize(Object.assign({ status: 'draft', revision: 1, researched_at: '2026-10-29T00:00:00Z', review_required: true,
+      rights_state: 'unknown', rights_note: '공식 공개 페이지·약관을 살펴보았으나 자료 게시 허용 범위를 확정하지 못해 초안으로 보관. 배너·앱 화면·개별 코드는 복제하지 않음.' }, input));
+    // checked_at intentionally empty: deployment and partial research are not coupon verification.
+    appendRow_('app_coupons', appCouponRow_(c));
+  });
+}
+
+// END GENERATED APP COUPONS

@@ -2,12 +2,14 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261029-7';
-import { productImage, productPhoto } from './product-images.js?v=20261029-7';
+} from './engine.js?v=20261029-8';
+import { productImage, productPhoto } from './product-images.js?v=20261029-8';
 
-import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-7';
-import { withVerifiedNews } from './verified-news.js?v=20261029-7';
-import { officialBrandLogo } from './brand-logos.js?v=20261029-7';
+import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-8';
+import { withVerifiedNews } from './verified-news.js?v=20261029-8';
+import { officialBrandLogo } from './brand-logos.js?v=20261029-8';
+import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
+import { createAppCouponUI } from './app-coupon-ui.js?v=20261029-8';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -84,6 +86,8 @@ const state = {
   saved: new Set(store.get('among_saved', [])),
   q: '',
   coupons: [],
+  appCoupons: [],
+  appCouponRefs: [],
   news: [],
   meta: {},
   loading: true,
@@ -244,6 +248,8 @@ async function readCoupons() {
   }
 }
 function applyData(data) {
+  state.appCoupons = (data.app_coupons || []).filter(c => acPublic(c));
+  state.appCouponRefs = data.app_coupon_refs || [];
   state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: productImage(c), programs: c.programs || [] }));
   state.news = (DEMO ? (data.news || []) : withVerifiedNews(data.news || [])).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImage(n), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
@@ -288,7 +294,7 @@ function renderBrands() {
   document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
   $('#followingCount').textContent = state.following.size || '';
   const panel = $('#brandPanel');
-  panel.hidden = state.view === 'all';
+  panel.hidden = state.view === 'all' || state.view === 'appCoupons';
   if (panel.hidden) return;
   if (state.brand) {
     setHTML(panel, `<button class="brand-back" data-brand-back>← ${state.view === 'following' ? '구독 브랜드' : '브랜드 목록'}</button><div class="brand-heading">${brandAvatar(state.brand)}<div><h2 tabindex="-1" id="brandTitle">${esc(state.brand)}</h2><p>공식 혜택과 소식을 한곳에</p></div>${followButton(state.brand)}</div>`);
@@ -371,7 +377,17 @@ function hotCard(h, i) {
 function renderHot() {
   // 오래됐거나 확인 시각을 알 수 없는 출처는 '오늘의' 핫딜로 추천하지 않는다.
   const fresh = (x) => verificationStatus(x.checked_at) === 'fresh';
-  const hot = state.q || (state.view === 'brands' && !state.brand) ? [] : pickHeadlines(state.coupons.filter((x) => fresh(x) && brandMatch(x)), state.news.filter((x) => fresh(x) && brandMatch(x)), { today: todayKST(), profile: profileObj(), limit: 8 });
+  const managedLinks = new Set(state.appCoupons.map(c => c.official_link));
+  const base = pickHeadlines(state.coupons.filter(x => fresh(x) && brandMatch(x) && !state.appCouponRefs.includes('coupon:' + x.id) && !managedLinks.has(x.official_link)), state.news.filter(x => fresh(x) && brandMatch(x) && !state.appCouponRefs.includes('news:' + x.id) && !managedLinks.has(x.official_link)), { today: todayKST(), profile: profileObj(), limit: 8 });
+  const appHeads = state.appCoupons.filter(c => acHotEligible(c) && brandMatch(c)).map(c => ({
+    id: c.id, kind: 'app_coupon', brand: c.brand, title: c.product_name, label: acBenefit(c), reason: acAudience(c),
+    category: ['버거킹', '맥도날드', '쉐이크쉑'].includes(c.brand) ? '햄버거' : '디저트',
+    tier: c.recurring ? 2 : c.benefit_type === 'bogo' || c.discount_rate >= 50 ? 0 : 1, score: c.discount_rate || 50, usable: c.audience_type === 'all_members',
+  }));
+  const brandCounts = {};
+  const hot = state.q || state.view === 'appCoupons' || (state.view === 'brands' && !state.brand) ? [] : [...base, ...appHeads]
+    .sort((a, b) => Number(b.usable) - Number(a.usable) || a.tier - b.tier || b.score - a.score)
+    .filter(h => (brandCounts[h.brand] = (brandCounts[h.brand] || 0) + 1) <= 2).slice(0, 8);
   state.hot = hot;
   $('#hot').hidden = !hot.length;
   if (!hot.length) return;
@@ -596,6 +612,14 @@ function render() {
   renderBrands();
   renderGrid();
   renderHot();
+  const appView = state.view === 'appCoupons';
+  $('#appCoupons').hidden = !appView;
+  $('.intro').hidden = appView;
+  appCouponUI.update(state.appCoupons, { loading: state.loading, failed: state.loadFailed });
+  if (appView) {
+    for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list'), $('#meBar')]) el.hidden = true;
+    return;
+  }
   $('#sortSel').value = state.sort;
   const f = state.filters;
   $('#filterBtn').dataset.on = String(!!(f.itemType || f.channel || f.everyoneOnly || f.maxPrice));
@@ -709,7 +733,7 @@ $('#hotRail').addEventListener('click', (e) => {
   const b = e.target.closest('[data-hot]'); if (!b) return;
   const [kind, id] = b.dataset.hot.split(/:(.+)/);
   track('detail', { value: `hot:${kind}`, coupon_id: kind === 'coupon' ? id : '' });
-  if (kind === 'news') openNews(id); else jumpTo(id);
+  if (kind === 'app_coupon') appCouponUI.open(id); else if (kind === 'news') openNews(id); else jumpTo(id);
 });
 $('#hotRail').addEventListener('scroll', () => {
   const rail = $('#hotRail'); const first = rail.firstElementChild; if (!first) return;
@@ -991,6 +1015,8 @@ $('#themeBtn').addEventListener('click', () => {
 
 // 공유 링크로 들어오면: ?c=쿠폰id → 그 쿠폰을 펼쳐서, ?n=소식id → 소식 상세
 function openFromLink() {
+  if (params.get('view') === 'appCoupons') changeView('appCoupons');
+  if (params.get('ac')) { changeView('appCoupons'); appCouponUI.open(params.get('ac')); return; }
   const n = params.get('n');
   if (n) { openNews(n); return; }
   const id = params.get('c');
@@ -998,6 +1024,24 @@ function openFromLink() {
 }
 
 // ---------- 시작 ----------
+const appCouponUI = createAppCouponUI($('#appCoupons'), $('#appCouponSheet'));
+// Expiry is recomputed locally even with an old/offline response; operational edits are fetched each minute.
+let appRequest = false;
+async function refreshAppCoupons() {
+  if (DEMO || appRequest || document.hidden) return;
+  appRequest = true;
+  try {
+    const data = await api('app_coupons');
+    if (Array.isArray(data.app_coupons)) {
+      state.appCoupons = data.app_coupons;
+      state.appCouponRefs = data.app_coupon_refs || [];
+      render();
+    }
+  } catch { appCouponUI.redraw(); } finally { appRequest = false; }
+}
+setInterval(() => { appCouponUI.redraw(); renderHot(); }, 1000);
+setInterval(refreshAppCoupons, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshAppCoupons(); });
 $('#demoNote').hidden = !DEMO;
 render();
 loadCoupons().then(() => { openFromLink(); checkStatusOnLoad(); });
