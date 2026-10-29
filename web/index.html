@@ -350,7 +350,8 @@
   .brand-open b { display: block; font-size: 13px; font-weight: 750; overflow-wrap: anywhere; }
   .brand-open small { display: block; color: var(--muted); margin-top: 4px; font-size: 11px; }
   .brand-avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--primary); font-weight: 800; flex: none; overflow: hidden; }
-  .brand-avatar img.logo { width: 25px; height: 25px; object-fit: contain; border-radius: 5px; }
+  .brand-avatar > * { grid-area: 1 / 1; }
+  .brand-avatar img.logo { width: 38px; height: 38px; padding: 6px; background: var(--surface-2); object-fit: contain; border-radius: 5px; }
   .follow { min-width: 72px; min-height: 44px; font-size: 12px; font-weight: 750; color: var(--primary); border-radius: 10px; }
   .follow:hover, .follow.active { background: var(--primary-soft); }
   .brand-tile .follow { margin-top: 3px; }
@@ -522,6 +523,6 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261029-2"></script>
+<script type="module" src="app.js?v=20261029-3"></script>
 </body>
 </html>
