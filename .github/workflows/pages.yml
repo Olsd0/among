@@ -4,7 +4,7 @@ name: pages
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'collector/src/engine.js', 'collector/src/product-images.js', 'collector/src/notice-images.js']
+    paths: ['web/**', 'collector/src/engine.js', 'collector/src/product-images.js', 'collector/src/notice-images.js', 'collector/scripts/prepare-pages.js', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 # 보안: 배포에 필요한 권한만 (저장소 쓰기 없음). 외부 액션은 커밋 해시로 고정
@@ -54,7 +54,12 @@ jobs:
             fs.writeFileSync("web/config.js", "window.AMONG_CONFIG = " + JSON.stringify(cfg) + ";\n");
             console.log("설정: API " + (cfg.apiUrl ? "있음" : "없음(예시 모드)") + " · 문의 메일 " + (cfg.contactEmail ? "있음" : "없음"));
           '
-      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - id: pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - name: 검색 주소 생성 (Pages 실제 도메인 기준)
+        env:
+          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: node collector/scripts/prepare-pages.js
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: web

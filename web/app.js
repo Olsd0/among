@@ -2,11 +2,11 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261029-4';
-import { productImage, productPhoto } from './product-images.js?v=20261029-4';
+} from './engine.js?v=20261029-5';
+import { productImage, productPhoto } from './product-images.js?v=20261029-5';
 
-import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-4';
-import { officialBrandLogo } from './brand-logos.js?v=20261029-4';
+import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-5';
+import { officialBrandLogo } from './brand-logos.js?v=20261029-5';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -106,6 +106,15 @@ const savePrefs = () => store.set('among_prefs', { v: 5, category: state.categor
 const profileObj = () => (state.profile ? { programs: [state.profile.telecom, ...(state.profile.pays || [])].filter(Boolean), newMember: state.profile.newMember !== false } : null);
 
 const $ = (s) => document.querySelector(s);
+// 같은 내용은 DOM을 유지해 이미지·포커스·스크롤을 다시 만들지 않는다.
+const renderedHTML = new WeakMap();
+function setHTML(el, html) {
+  if (renderedHTML.get(el) === html) return false;
+  el.innerHTML = html;
+  renderedHTML.set(el, html);
+  return true;
+}
+const scrollBehavior = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const has = (v) => v !== null && v !== undefined && v !== '';
 const won = (n) => (!has(n) || Number.isNaN(+n) ? '' : Number(n).toLocaleString('ko-KR'));
@@ -187,8 +196,13 @@ async function api(action) {
   } finally { clearTimeout(timeout); }
 }
 async function apiPost(body) {
-  const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow', signal: controller.signal });
+    if (!res.ok) throw new Error('서버 연결 오류');
+    return await res.json();
+  } finally { clearTimeout(timeout); }
 }
 // 이용 기록은 끌 수 있다: 개인정보처리방침 페이지의 '이용 기록 보내지 않기' 또는 브라우저의 추적 거부(GPC) 신호
 const noTrack = () => store.get('among_notrack', false) === true || navigator.globalPrivacyControl === true;
@@ -201,7 +215,12 @@ function track(type, extra = {}) {
   fetch(API, { method: 'POST', body, keepalive: true, mode: 'no-cors', headers: { 'content-type': 'text/plain;charset=utf-8' } }).catch(() => {});
 }
 
-async function loadCoupons() {
+let couponRequest;
+function loadCoupons() {
+  if (!couponRequest) couponRequest = readCoupons().finally(() => { couponRequest = null; });
+  return couponRequest;
+}
+async function readCoupons() {
   if (DEMO) { applyData(demoData()); return true; }
   const cached = store.get('among_cache', null);
   if (cached && Array.isArray(cached.coupons) && (!cached.news || Array.isArray(cached.news)) && !state.coupons.length) {
@@ -262,7 +281,7 @@ function brandAvatar(brand) {
 }
 function renderBrandDirectory() {
   const names = brandNames().filter((b) => (state.view !== 'following' || state.following.has(b)) && b.toLowerCase().includes(state.brandQuery.toLowerCase()));
-  $('#brandDirectory').innerHTML = names.map((brand) => `<div class="brand-tile"><button class="brand-open" data-brand-open="${esc(brand)}">${brandAvatar(brand)}<span><b>${esc(brand)}</b><small>혜택 ${state.coupons.filter((c) => c.brand === brand).length}개</small></span></button>${followButton(brand)}</div>`).join('') || '<p class="brand-empty">검색한 브랜드가 없어요.</p>';
+  setHTML($('#brandDirectory'), names.map((brand) => `<div class="brand-tile"><button class="brand-open" data-brand-open="${esc(brand)}">${brandAvatar(brand)}<span><b>${esc(brand)}</b><small>혜택 ${state.coupons.filter((c) => c.brand === brand).length}개</small></span></button>${followButton(brand)}</div>`).join('') || '<p class="brand-empty">검색한 브랜드가 없어요.</p>');
 }
 function renderBrands() {
   document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
@@ -271,11 +290,11 @@ function renderBrands() {
   panel.hidden = state.view === 'all';
   if (panel.hidden) return;
   if (state.brand) {
-    panel.innerHTML = `<button class="brand-back" data-brand-back>← ${state.view === 'following' ? '구독 브랜드' : '브랜드 목록'}</button><div class="brand-heading">${brandAvatar(state.brand)}<div><h2 tabindex="-1" id="brandTitle">${esc(state.brand)}</h2><p>공식 혜택과 소식을 한곳에</p></div>${followButton(state.brand)}</div>`;
+    setHTML(panel, `<button class="brand-back" data-brand-back>← ${state.view === 'following' ? '구독 브랜드' : '브랜드 목록'}</button><div class="brand-heading">${brandAvatar(state.brand)}<div><h2 tabindex="-1" id="brandTitle">${esc(state.brand)}</h2><p>공식 혜택과 소식을 한곳에</p></div>${followButton(state.brand)}</div>`);
     return;
   }
   const following = state.view === 'following';
-  panel.innerHTML = `<div class="brand-intro"><h2>${following ? '내가 구독한 브랜드' : '어떤 브랜드를 좋아하세요?'}</h2><p>구독한 브랜드의 혜택을 이 기기에서 모아봐요.</p></div>${following && !state.following.size ? '<div class="follow-empty"><span aria-hidden="true">♡</span><h3>좋아하는 브랜드부터 담아보세요</h3><p>브랜드 옆 + 구독을 누르면 여기에 모여요.</p><button class="browse-brands" data-browse>브랜드 둘러보기</button></div>' : '<label class="sr" for="brandSearch">브랜드 찾기</label><input id="brandSearch" class="brand-search" type="search" placeholder="브랜드 이름 검색" autocomplete="off"><div class="brand-directory" id="brandDirectory"></div>'}`;
+  setHTML(panel, `<div class="brand-intro"><h2>${following ? '내가 구독한 브랜드' : '어떤 브랜드를 좋아하세요?'}</h2><p>구독한 브랜드의 혜택을 이 기기에서 모아봐요.</p></div>${following && !state.following.size ? '<div class="follow-empty"><span aria-hidden="true">♡</span><h3>좋아하는 브랜드부터 담아보세요</h3><p>브랜드 옆 + 구독을 누르면 여기에 모여요.</p><button class="browse-brands" data-browse>브랜드 둘러보기</button></div>' : '<label class="sr" for="brandSearch">브랜드 찾기</label><input id="brandSearch" class="brand-search" type="search" placeholder="브랜드 이름 검색" autocomplete="off"><div class="brand-directory" id="brandDirectory"></div>'}`);
   if ($('#brandDirectory')) { $('#brandSearch').value = state.brandQuery; renderBrandDirectory(); }
 }
 function changeView(view) {
@@ -291,7 +310,7 @@ function openBrand(brand) {
   state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
   Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
   state.open.clear(); render(); $('#brandTitle')?.focus({ preventScroll: true });
-  $('#brandPanel').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  $('#brandPanel').scrollIntoView({ block: 'start', behavior: scrollBehavior() });
 }
 function toggleFollow(brand) {
   if (!brandNames().includes(brand)) return;
@@ -328,7 +347,7 @@ function renderGrid() {
   const tile = (key, val, label, art, on, count) => `<button class="gi" data-${key}="${esc(val)}" aria-pressed="${on}" style="--tint: var(${TINT[val]})"><span class="ic" aria-hidden="true">${art}</span>${esc(label)}<span class="n${count ? '' : ' z'}">${count}</span></button>`;
   const cats = CATS.filter((c) => c.id !== '전체').map((c) => tile('cat', c.id, c.id, ART[c.id], state.category === c.id, n({ category: c.id })));
   const kinds = KINDS.map((k) => tile('kind', k.id, k.label, ART[k.id], state.kind === k.id, n({ kind: k.id })));
-  $('#grid').innerHTML = cats.join('') + '<hr>' + kinds.join('');
+  setHTML($('#grid'), cats.join('') + '<hr>' + kinds.join(''));
   const kl = state.kind ? KIND_LABEL[state.kind] : '';
   $('#listTitle').textContent = state.category === '전체' && !kl ? '전체 혜택' : `${[state.category === '전체' ? '' : state.category, kl].filter(Boolean).join(' · ')} 혜택`;
   $('#clearGrid').hidden = state.category === '전체' && !state.kind;
@@ -355,7 +374,8 @@ function renderHot() {
   state.hot = hot;
   $('#hot').hidden = !hot.length;
   if (!hot.length) return;
-  $('#hotRail').innerHTML = hot.map(hotCard).join('');
+  if (!setHTML($('#hotRail'), hot.map(hotCard).join(''))) return;
+  $('#hotRail').scrollLeft = 0;
   $('#hotDots').innerHTML = hot.length > 1 ? hot.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
   $('#hotCount').textContent = hot.length > 1 ? `1 / ${hot.length}` : '';
 }
@@ -532,12 +552,12 @@ function visible(extra = quickFilters()) {
 
 function renderQuick() {
   // 각 칩 옆 숫자 = 그 칩만 켰을 때 지금 화면에서 보일 개수
-  $('#quick').innerHTML = QUICK.map(({ key, label }) => {
+  setHTML($('#quick'), QUICK.map(({ key, label }) => {
     if (key === 'saved' && !state.saved.size) return '';
     const n = visible({ ...quickFilters({ mine: false, fresh: false, saved: false }), ...quickFilters({ [key]: true }) }).length;
     if (!n && !state.quick[key] && key !== 'mine') return '';
     return `<button class="chip-btn" data-quick="${key}" aria-pressed="${!!state.quick[key]}">${label} <span class="n">${n}</span></button>`;
-  }).join('');
+  }).join(''));
 }
 
 function renderMeBar() {
@@ -545,13 +565,15 @@ function renderMeBar() {
   const p = state.profile;
   if (p) {
     const items = [p.telecom ? `${p.telecom} 멤버십` : '', ...(p.pays || [])].filter(Boolean);
-    bar.innerHTML = `<span class="grow">${items.length ? `<b>${esc(items.join(' · '))}</b> 기준으로 내가 쓸 수 있는 혜택을 먼저 보여드려요` : '조건 없는 쿠폰을 먼저 보여드려요'}</span><button class="act" data-open-me>변경</button>`;
+    setHTML(bar, `<span class="grow">${items.length ? `<b>${esc(items.join(' · '))}</b> 기준으로 내가 쓸 수 있는 혜택을 먼저 보여드려요` : '조건 없는 쿠폰을 먼저 보여드려요'}</span><button class="act" data-open-me>변경</button>`);
     bar.hidden = false;
   } else if (!store.get('among_me_dismissed', false)) {
-    bar.innerHTML = '<span class="grow">통신사·자주 쓰는 페이를 알려주시면 <b>내가 쓸 수 있는 할인</b>만 골라드려요</span><button class="act" data-open-me>설정</button><button class="x" data-dismiss-me aria-label="닫기">✕</button>';
+    setHTML(bar, '<span class="grow">통신사·자주 쓰는 페이를 알려주시면 <b>내가 쓸 수 있는 할인</b>만 골라드려요</span><button class="act" data-open-me>설정</button><button class="x" data-dismiss-me aria-label="닫기">✕</button>');
     bar.hidden = false;
   } else bar.hidden = true;
-  $('#meBtn').innerHTML = $('#meBtn').innerHTML.replace(/<span class="dot"><\/span>/, '') + (p ? '<span class="dot"></span>' : '');
+  const dot = $('#meBtn .dot');
+  if (p && !dot) { const el = document.createElement('span'); el.className = 'dot'; $('#meBtn').append(el); }
+  else if (!p && dot) dot.remove();
 }
 
 function renderFreshness() {
@@ -580,9 +602,9 @@ function render() {
   const list = $('#list');
   list.setAttribute('aria-busy', String(state.loading));
   if (state.loading && !state.coupons.length) {
-    list.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+    setHTML(list, '<div class="skel"></div><div class="skel"></div><div class="skel"></div>');
     $('#summary').textContent = '';
-    $('#quick').innerHTML = '';
+    setHTML($('#quick'), '');
     return;
   }
   renderQuick();
@@ -600,13 +622,13 @@ function render() {
   if (!shown.length) {
     const inCat = state.coupons.some((c) => state.category === '전체' || c.category === state.category);
     const anyQuick = Object.values(state.quick).some(Boolean);
-    list.innerHTML = state.loadFailed && !state.coupons.length
+    setHTML(list, state.loadFailed && !state.coupons.length
       ? '<div class="empty"><b>혜택을 불러오지 못했어요</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 불러오기</button></div>'
       : inCat
       ? `<div class="empty"><b>조건에 맞는 혜택이 없어요</b>${anyQuick || state.kind ? '위 아이콘이나 빠른 필터를 꺼 보세요.' : '필터나 검색어를 바꿔 보세요.'}${anyQuick || state.kind ? '<br><button class="chip-btn" data-clear-quick>조건 모두 끄기</button>' : ''}</div>`
-      : `<div class="empty"><b>${esc(state.category)} 혜택은 준비 중이에요</b>브랜드를 차례로 늘려가고 있어요.</div>`;
+      : `<div class="empty"><b>${esc(state.category)} 혜택은 준비 중이에요</b>브랜드를 차례로 늘려가고 있어요.</div>`);
   } else {
-    list.innerHTML = shown.map((c) => card(c, today)).join('');
+    setHTML(list, shown.map((c) => card(c, today)).join(''));
   }
   $('#lastChecked').textContent = fmtChecked(state.meta.last_checked_at) ? `매일 공식 페이지 확인을 시도해요 · 마지막 수집 ${fmtChecked(state.meta.last_checked_at)}` : '';
 }
@@ -630,6 +652,7 @@ async function pollUntilDone(sinceIso) {
   const started = Date.now();
   while (Date.now() - started < 30 * 60e3) {
     await new Promise((r) => setTimeout(r, POLL_MS));
+    if (document.hidden) continue; // 보지 않는 탭에서는 갱신 상태 요청을 쉰다.
     let st;
     try { st = await api('status'); } catch { continue; }
     if (st.state === 'running') setSync(true, '공식 페이지를 확인하고 있어요… 보통 3~5분 걸려요.');
@@ -708,7 +731,7 @@ function jumpTo(id) {
   render();
   loadNutrition().then(() => { const box = document.querySelector(`[data-nut="${CSS.escape(id)}"]`); if (box) box.innerHTML = nutritionBlock(c); });
   const el = document.getElementById(`card-${id}`);
-  if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+  if (el) { el.scrollIntoView({ block: 'start', behavior: scrollBehavior() }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
 }
 
 // 소식 상세 (공식 이벤트·공지를 사실만 짧게 정리 + 원문 링크)
@@ -791,6 +814,7 @@ $('#list').addEventListener('keydown', (e) => {
   if (main && !e.target.closest('a, button, input, select, textarea') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCard(main); }
 });
 function toggleCard(main) {
+  renderedHTML.delete($('#list')); // 아래에서 상세 DOM을 직접 바꾸므로 다음 전체 렌더는 상태를 다시 반영한다.
   const id = main.closest('.card').dataset.id;
   const dt = document.getElementById('dt-' + id);
   const open = dt.hidden;
@@ -811,6 +835,7 @@ function toggleCard(main) {
 }
 
 function toggleSave(id, btn) {
+  renderedHTML.delete($('#list'));
   if (state.saved.has(id)) state.saved.delete(id); else state.saved.add(id);
   store.set('among_saved', [...state.saved]);
   const on = state.saved.has(id);
