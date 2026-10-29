@@ -1,7 +1,7 @@
 // 최소 서비스 워커: 화면 파일은 네트워크 우선, 끊기면 마지막 사본. 쿠폰 API는 캐시하지 않는다.
-const CACHE = 'among-shell-v12';
-const SHELL = ['./', 'index.html', 'app.js?v=20261029-3', 'engine.js?v=20261029-3', 'product-images.js?v=20261029-3', 'notice-images.js?v=20261029-3', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
-const ASSETS = new Set(['', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'config.js', 'manifest.webmanifest',
+const CACHE = 'among-shell-v13';
+const SHELL = ['./', 'index.html', 'app.js?v=20261029-4', 'engine.js?v=20261029-4', 'product-images.js?v=20261029-4', 'notice-images.js?v=20261029-4', 'brand-logos.js?v=20261029-4', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
+const ASSETS = new Set(['', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'brand-logos.js', 'config.js', 'manifest.webmanifest',
   'about.html', 'privacy.html', 'terms.html', 'doc.js', 'doc.css',
   'icon-32.png', 'icon-64.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']);
 

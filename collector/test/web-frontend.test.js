@@ -5,6 +5,7 @@ import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { productImage } from '../src/product-images.js';
 import { noticeImage } from '../src/notice-images.js';
+import { officialBrandLogo } from '../../web/brand-logos.js';
 import { serveDir } from './helpers.js';
 
 let site, browser;
@@ -34,7 +35,7 @@ async function setup(data, options = {}) {
     const url = new URL(route.request().url());
     if (options.requests) options.requests.push(url.href);
     // 실제 상품 사진처럼 최소 너비(80px) 검증을 통과하는 100px PNG.
-    if (options.photoUrl === url.href) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNL9dz5WIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbP8QPFyqa8aAAAAABJRU5ErkJggg==', 'base64') });
+    if (options.photoUrl === url.href || (options.photoUrls || []).includes(url.href)) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNL9dz5WIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbP8QPFyqa8aAAAAABJRU5ErkJggg==', 'base64') });
     if (url.origin === site.base) return route.continue();
     if (url.hostname === 'script.google.com') {
       if (url.searchParams.get('action') === 'coupons') {
@@ -103,6 +104,33 @@ test('구독을 저장하지 못하면 구독 버튼과 개수를 바꾸지 않�
   assert.match(await page.locator('#toast').innerText(), /저장하지 못했어요/);
 });
 
+test('제휴 혜택과 공지만 있는 브랜드도 공식 로고를 쓰고, 이미지 실패 시 첫 글자를 유지한다', { timeout: 30000 }, async (t) => {
+  const gong = officialBrandLogo('공차').image;
+  const popeyes = officialBrandLogo('파파이스').image;
+  const data = { ok: true, last_checked_at: ago(1), coupons: [
+    { ...coupon('gong'), brand: '공차', category: '카페', source_url: 'https://m.tworld.co.kr/membership/benefit/brand', official_link: 'https://m.tworld.co.kr/membership/benefit/brand' },
+    { ...coupon('domino'), brand: '도미노피자' },
+  ], news: [{ ...news('popeyes', ago(1)), brand: '파파이스' }] };
+  const requests = [];
+  const { context, page } = await setup(data, { photoUrls: [gong, popeyes], requests });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('#card-gong').waitFor();
+  assert.equal(await page.locator('#card-gong .logo').getAttribute('src'), gong);
+  await page.locator('[data-view="brands"]').click();
+  for (const [brand, src] of [['공차', gong], ['파파이스', popeyes]]) {
+    const img = page.locator(`.brand-open[data-brand-open="${brand}"] img.logo`);
+    await img.scrollIntoViewIfNeeded();
+    await page.waitForFunction((brand) => document.querySelector(`.brand-open[data-brand-open="${brand}"] img`)?.naturalWidth > 0, brand);
+    assert.equal(await img.getAttribute('src'), src);
+  }
+  const failed = page.locator('.brand-open[data-brand-open="도미노피자"]');
+  await failed.scrollIntoViewIfNeeded();
+  await failed.locator('img.logo').waitFor({ state: 'detached' });
+  assert.equal(await failed.locator('.brand-avatar').innerText(), '도');
+  assert.ok(!requests.some((url) => url.includes('favicons?domain=tworld') || url.includes('tworld.co.kr/favicon')), '통신사 아이콘을 브랜드 로고로 요청하지 않는다');
+});
+
 test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원본과 정확한 공지로 연결한다', { timeout: 30000 }, async (t) => {
   const now = '2026-10-29T03:00:00.000Z';
   const n = { id: 'official', brand: 'KFC', category: '치킨', title: '더블 커넬위크', summary: '공식 행사', discount_label: '1+1', programs: [], checked_at: now, first_seen: now, start_date: '2026-10-27', end_date: '2026-11-01', source_url: 'https://www.kfckorea.com/promotion/promotionList/A801' };
@@ -113,6 +141,7 @@ test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원�
   await page.goto(`${site.base}/index.html`);
   const hot = page.locator('[data-hot="news:official"]');
   await hot.waitFor();
+  assert.equal(await hot.locator('.lbl').count(), 0, '공지 카드 아래에 혜택 숫자를 중복 표시하지 않는다');
   assert.equal(await hot.locator('img.ph').getAttribute('src'), photoUrl);
   assert.equal(await hot.locator('img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'cover');
   await hot.click();
@@ -235,9 +264,7 @@ test('실제 상품 사진만 표시하고 API와 저장본의 배너·다른 �
   assert.equal(await photo.evaluate((el) => getComputedStyle(el).objectFit), 'contain');
   assert.equal(await page.locator('#card-unknown .ph').count(), 0);
   assert.equal(await page.locator('#hotRail [data-hot="news:banner"] .ph').count(), 0);
-  const hotLabel = page.locator('#hotRail [data-hot="news:banner"] .lbl');
-  assert.equal(await hotLabel.innerText(), '15000원');
-  assert.equal(await hotLabel.evaluate((el) => getComputedStyle(el).fontSize), '18px');
+  assert.equal(await page.locator('#hotRail [data-hot="news:banner"] .lbl').count(), 0, '사진 없는 공지도 아래 금액 표시를 생략한다');
   await page.locator('#hotRail [data-hot="news:banner"]').click();
   await page.locator('#newsSheet').waitFor();
   assert.equal(await page.locator('#newsBody .ph').count(), 0);

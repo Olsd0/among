@@ -2,10 +2,11 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261029-3';
-import { productImage, productPhoto } from './product-images.js?v=20261029-3';
+} from './engine.js?v=20261029-4';
+import { productImage, productPhoto } from './product-images.js?v=20261029-4';
 
-import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-3';
+import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-4';
+import { officialBrandLogo } from './brand-logos.js?v=20261029-4';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -111,11 +112,11 @@ const won = (n) => (!has(n) || Number.isNaN(+n) ? '' : Number(n).toLocaleString(
 // 공식 링크는 https 주소만 (주소가 여러 개 붙어 있으면 첫 번째). 이상한 주소(javascript: 등)는 버림
 const safeUrl = (u) => { try { const x = new URL(String(u || '').trim().split(/\s+/)[0]); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-// 브랜드 아이콘: 공식 사이트 아이콘(파비콘)을 그대로 불러와 표시만 한다 (저장·가공 안 함). 실패하면 카테고리 아이콘
+// 확인한 공식 로고를 우선한다. 미등록 브랜드는 기존 아이콘 경로를 유지한다.
 const siteDomain = (u) => { const h = host(u).split('.'); return h.slice(/\.(co|or|go|ne)\.kr$/.test(host(u)) ? -3 : -2).join('.'); };
 const brandSite = (c) => (LINK_LABELS.some(([re]) => re.test(c.source_url || '')) ? '' : safeUrl(c.source_url)) || safeUrl(c.official_link);
-const logoUrl = (c) => { const d = siteDomain(brandSite(c)); return d && !LINK_LABELS.some(([re]) => re.test(d)) ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : ''; };
-const logoAlt = (c) => { const u = brandSite(c); try { return u ? `${new URL(u).origin}/favicon.ico` : ''; } catch { return ''; } };
+const logoUrl = (c) => { const known = officialBrandLogo(c.brand); if (known) return known.image; const d = siteDomain(brandSite(c)); return d && !LINK_LABELS.some(([re]) => re.test(d)) ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : ''; };
+const logoAlt = (c) => { const known = officialBrandLogo(c.brand); if (known) return known.fallback || ''; const u = brandSite(c); try { return u ? `${new URL(u).origin}/favicon.ico` : ''; } catch { return ''; } };
 // 구글 아이콘 서비스는 아이콘이 없으면 16px 지구본을 준다 → 공식 사이트 favicon.ico로 한 번 더, 그래도 없으면 카테고리 아이콘
 const logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; } else img.remove(); };
 const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
@@ -255,8 +256,8 @@ function brandNames() {
 }
 const followButton = (brand) => `<button class="follow${state.following.has(brand) ? ' active' : ''}" data-follow="${esc(brand)}" aria-pressed="${state.following.has(brand)}" aria-label="${esc(brand)} ${state.following.has(brand) ? '구독 취소' : '구독'}">${state.following.has(brand) ? '✓ 구독 중' : '+ 구독'}</button>`;
 function brandAvatar(brand) {
-  const c = state.coupons.find((x) => x.brand === brand);
-  const url = c && logoUrl(c);
+  const c = state.coupons.find((x) => x.brand === brand) || state.news.find((x) => x.brand === brand) || { brand };
+  const url = logoUrl(c);
   return `<span class="brand-avatar"><span aria-hidden="true">${esc(brand.slice(0, 1))}</span>${url ? `<img class="logo" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</span>`;
 }
 function renderBrandDirectory() {
@@ -339,7 +340,7 @@ function hotCard(h, i) {
   const why = h.reason || '';
   const whyCls = /마감|D-/.test(why) ? '' : why === 'NEW' ? ' n' : ' d';
   const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : h.title;
-  const lbl = h.label || '';
+  const lbl = h.kind === 'news' ? '' : h.label || '';
   const size = /[0-9]원/.test(lbl) ? 'font-size:18px' : lbl.length > 9 ? 'font-size:20px' : lbl.length > 6 ? 'font-size:24px' : '';
   return `<button class="hcard${img ? ' has-ph' : ' noph'}" style="--hbg:${HBG[h.category] || HBG['']}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
     <span class="hot-visual">${img ? `<img class="ph" src="${esc(img)}" alt="${esc(h.kind === 'news' ? h.brand + ' 공식 공지 이미지' : title)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer">` : ''}<span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span></span>
