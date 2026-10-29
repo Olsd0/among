@@ -1,4 +1,5 @@
-import { productImage } from './product-images.js?v=20261029-1';
+import { noticeImage } from './notice-images.js?v=20261029-2';
+import { productImage } from './product-images.js?v=20261029-2';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -1119,7 +1120,7 @@ export function linkNews(newsList, coupons) {
     const overlap = (c) => !(n.end_date && c.start_date && c.start_date > n.end_date) && !(n.start_date && c.end_date && c.end_date < n.start_date);
     const sameWho = (c) => c.brand === n.brand || (n.programs || []).some((p) => (c.programs || []).includes(p) && PROGRAM_LABEL[p] === n.brand);
     const rel = coupons.filter((c) => c.status === 'published' && urlHit(c) && sameWho(c) && overlap(c)).slice(0, 6);
-    return { ...n, related_ids: rel.map((c) => c.id), image_url: productImage(n) };
+    return { ...n, related_ids: rel.map((c) => c.id), image_url: noticeImage(n) };
   });
 }
 
@@ -1168,7 +1169,7 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
       kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
       // 같은 페이지의 연결 쿠폰은 다른 행사일 수 있으므로 빈 소식 라벨을 쿠폰 혜택으로 채우지 않는다.
       label: formatMoneyLabel(n.discount_label), start_date: n.start_date || null, end_date: n.end_date || null,
-      image_url: productImage(n), programs: n.programs || [], related_ids: rel.map((c) => c.id),
+      image_url: noticeImage(n), programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
     });
   }

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { productImage } from '../src/product-images.js';
+import { noticeImage } from '../src/notice-images.js';
 import { serveDir } from './helpers.js';
 
 let site, browser;
@@ -26,7 +27,7 @@ function news(id, checkedAt) {
     source_url: 'https://example.test/event', related_ids: [] };
 }
 async function setup(data, options = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ko-KR', timezoneId: 'Asia/Seoul', serviceWorkers: 'block' });
+  const context = await browser.newContext({ viewport: options.viewport || { width: 390, height: 844 }, locale: 'ko-KR', timezoneId: 'Asia/Seoul', serviceWorkers: 'block' });
   const page = await context.newPage();
   let couponCalls = 0;
   await context.route('**/*', async (route) => {
@@ -47,8 +48,78 @@ async function setup(data, options = {}) {
     return route.abort();
   });
   if (options.cache) await page.addInitScript((cache) => localStorage.setItem('among_cache', JSON.stringify(cache)), options.cache);
+  if (options.blockFollowing) await page.addInitScript(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) { if (key === 'among_following') throw new DOMException('Storage blocked', 'QuotaExceededError'); return set.call(this, key, value); };
+  });
   return { context, page };
 }
+
+test('브랜드 검색·구독·상세·새로고침·구독 취소가 이어지고 모바일·데스크톱에서 넘치지 않는다', { timeout: 30000 }, async (t) => {
+  const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('burger'), { ...coupon('coffee'), brand: '테스트카페', category: '카페' }], news: [] };
+  const { context, page } = await setup(data);
+  t.after(() => context.close());
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('#card-burger').waitFor();
+  assert.equal(await page.locator('.wordmark').innerText(), 'AMONG');
+  await page.locator('[data-view="following"]').click();
+  await page.getByRole('button', { name: '브랜드 둘러보기' }).click();
+  assert.equal(await page.locator('#list').isHidden(), true);
+  await page.getByRole('searchbox', { name: '브랜드 찾기' }).fill('버거');
+  assert.equal(await page.locator('.brand-tile').count(), 1);
+  await page.getByRole('button', { name: '테스트버거 구독', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '테스트버거 구독 취소' }).getAttribute('aria-pressed'), 'true');
+  await page.locator('.brand-open').click();
+  assert.equal(await page.locator('#brandTitle').innerText(), '테스트버거');
+  assert.equal(await page.locator('#list .card').count(), 1);
+  assert.equal(await page.locator('#card-coffee').count(), 0);
+  await page.reload();
+  await page.locator('#card-coffee').waitFor();
+  await page.locator('[data-view="following"]').click();
+  assert.equal(await page.locator('#followingCount').innerText(), '1');
+  assert.equal(await page.locator('#list .card').count(), 1);
+  for (const width of [360, 390, 820]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `폭 ${width}`);
+  }
+  await page.getByRole('button', { name: '테스트버거 구독 취소' }).click();
+  await page.getByRole('button', { name: '브랜드 둘러보기' }).waitFor();
+  assert.equal(await page.locator('#list').isHidden(), true);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('among_following'))), []);
+  assert.deepEqual(errors, []);
+});
+
+test('구독을 저장하지 못하면 구독 버튼과 개수를 바꾸지 않고 안내한다', { timeout: 30000 }, async (t) => {
+  const { context, page } = await setup({ ok: true, last_checked_at: ago(1), coupons: [coupon('one')], news: [] }, { blockFollowing: true });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('#card-one').waitFor();
+  await page.locator('[data-view="brands"]').click();
+  const button = page.getByRole('button', { name: '테스트버거 구독', exact: true });
+  await button.click();
+  assert.equal(await button.getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.locator('#followingCount').innerText(), '');
+  assert.match(await page.locator('#toast').innerText(), /저장하지 못했어요/);
+});
+
+test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원본과 정확한 공지로 연결한다', { timeout: 30000 }, async (t) => {
+  const now = '2026-10-29T03:00:00.000Z';
+  const n = { id: 'official', brand: 'KFC', category: '치킨', title: '더블 커넬위크', summary: '공식 행사', discount_label: '1+1', programs: [], checked_at: now, first_seen: now, start_date: '2026-10-27', end_date: '2026-11-01', source_url: 'https://www.kfckorea.com/promotion/promotionList/A801' };
+  const photoUrl = noticeImage(n, '2026-10-29');
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] }, { photoUrl });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const hot = page.locator('[data-hot="news:official"]');
+  await hot.waitFor();
+  assert.equal(await hot.locator('img.ph').getAttribute('src'), photoUrl);
+  assert.equal(await hot.locator('img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'cover');
+  await hot.click();
+  assert.equal(await page.locator('.notice-original').getAttribute('href'), photoUrl);
+  assert.match(await page.locator('[data-news-src]').getAttribute('href'), /detail\/1130$/);
+  assert.equal(await page.locator('#newsBody img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'contain');
+});
 
 test('일부 출처가 오래됐으면 경고와 카드 표시를 보이고 최신 핫딜만 추천한다', { timeout: 30000 }, async (t) => {
   const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('fresh'), coupon('old', ago(72))],
