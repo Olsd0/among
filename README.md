@@ -38,6 +38,12 @@ Apps Script 웹앱 → 구글시트 (coupons · news · sources · run_log · ev
 
 ## 로컬에서
 
+### 온라인 특가 시험 운영
+
+마지막 메뉴에 독립된 온라인 특가 화면을 둡니다. 기본 쿠폰 화면과 수집 데이터는 그대로 유지하며, 첫 버전은 쿠팡 골드박스 일반 링크만 연결합니다. 파트너스 계정·상품 자동 수집은 아직 연결하지 않았습니다. `web/config.js`의 `onlineDeals.enabled`를 `false`로 바꾸면 원래 메뉴가 복원됩니다. [구현 범위·복원·상품 연결 안내](docs/online-deals-trial.md)를 참고하세요.
+
+### 개발·테스트
+
 ```bash
 cd collector
 npm install                 # playwright 1.63.0 (첫 설치 후 package-lock.json 커밋)

@@ -5,4 +5,7 @@
 window.AMONG_CONFIG = {
   apiUrl: 'https://script.google.com/macros/s/AKfycbyF_tCoI5S-k1zZOvTbH9YNB7gaW7poFks4meja13ggJX8T29RUEZbONotyzaoiUoXQ/exec',
   contactEmail: '',
+  // 시험 운영. false로 바꾸면 온라인 특가 탭을 숨기고 기존 앱 쿠폰 메뉴를 복원한다.
+  // 상품 데이터는 같은 출처의 공개 JSON만 사용한다. 파트너스 비밀키는 여기에 넣지 않는다.
+  onlineDeals: { enabled: true, dataUrl: './online-deals.json' },
 };
