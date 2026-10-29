@@ -1,7 +1,7 @@
 // HTML·설정은 최신 사본 우선. 버전이 고정된 모듈·로고만 캐시 우선. 쿠폰 API는 저장하지 않는다.
-const CACHE = 'among-shell-v16';
-const SHELL = ['./', 'index.html', 'app.js?v=20261029-7', 'engine.js?v=20261029-7', 'product-images.js?v=20261029-7', 'notice-images.js?v=20261029-7', 'verified-news.js?v=20261029-7', 'brand-logos.js?v=20261029-7', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
-const ASSETS = new Set(['', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js', 'config.js', 'manifest.webmanifest',
+const CACHE = 'among-shell-v17';
+const SHELL = ['./', 'index.html', 'app.js?v=20261029-8', 'engine.js?v=20261029-8', 'product-images.js?v=20261029-8', 'notice-images.js?v=20261029-8', 'verified-news.js?v=20261029-8', 'brand-logos.js?v=20261029-8', 'app-coupons.js?v=20261029-8', 'app-coupon-ui.js?v=20261029-8', 'app-coupons.css?v=20261029-8', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
+const ASSETS = new Set(['app-coupons.js', 'app-coupon-ui.js', 'app-coupons.css', '', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js', 'config.js', 'manifest.webmanifest',
   'about.html', 'guide.html', 'privacy.html', 'terms.html', 'doc.js', 'doc.css',
   'icon-32.png', 'icon-64.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']);
 
@@ -26,7 +26,7 @@ self.addEventListener('fetch', (e) => {
   const key = keyUrl.href;
   e.respondWith((async () => {
     // 파일 해시·배포 버전이 바뀌기 전에는 같은 내용. 로고는 본 것만 저장한다.
-    const immutable = logo || notice || (['app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js'].includes(path) && url.searchParams.has('v'));
+    const immutable = logo || notice || (['app-coupons.js', 'app-coupon-ui.js', 'app-coupons.css', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js'].includes(path) && url.searchParams.has('v'));
     if (immutable) {
       try { const hit = await (await caches.open(CACHE)).match(key); if (hit) return hit; } catch { /* 저장소 접근 실패 시 네트워크 사용 */ }
     }

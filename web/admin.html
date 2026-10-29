@@ -6,7 +6,9 @@
 <meta name="robots" content="noindex, nofollow">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
-<title>AMONG 지표</title>
+<title>AMONG 관리 · 앱 전용 쿠폰과 지표</title>
+<link rel="stylesheet" href="app-coupons.css?v=20261029-8">
+<link rel="stylesheet" href="app-coupon-admin.css?v=20261029-8">
 <link rel="icon" href="icon-64.png" type="image/png">
 <script src="config.js"></script>
 <style>
@@ -70,7 +72,7 @@
 <div class="wrap">
   <header>
     <img src="icon-64.png" alt="">
-    <h1>AMONG 지표</h1>
+    <h1>AMONG 관리</h1>
     <form class="ctrl" id="authForm">
       <label class="muted" for="token">관리 토큰</label>
       <input id="token" type="password" autocomplete="off" placeholder="ADMIN_TOKEN" size="18">
@@ -81,6 +83,7 @@
   </header>
   <div class="note demo" id="demoNote" hidden>예시 지표입니다. 실제 수치가 아니므로 보고서에 쓰지 마세요. (config.js에 Apps Script URL을 넣으면 실제 지표를 불러옵니다)</div>
   <div class="note err" id="errNote" hidden></div>
+  <section id="appCouponManager" aria-label="앱 전용 쿠폰 관리"></section>
 
   <section class="tiles" id="tiles" aria-label="핵심 지표"></section>
 
@@ -109,5 +112,6 @@
 </div>
 
 <script src="admin.js"></script>
+<script type="module" src="app-coupon-admin.js?v=20261029-8"></script>
 </body>
 </html>

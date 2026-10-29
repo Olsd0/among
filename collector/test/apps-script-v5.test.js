@@ -34,7 +34,7 @@ test('v4 시트 → v5: 쿠폰 사진 열은 끝에, news 탭 생성, 소식과 
   const gas = bootV4();
   const r = gas.post({ action: 'ingest', token: 'tok', run_id: 'r1', coupons: [coupon()], news: [news()], sources_ok: ['dominos-event'] });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(gas.props.get('SCHEMA_VERSION'), '5');
+  assert.equal(gas.props.get('SCHEMA_VERSION'), '6');
   assert.equal(gas.sheet('coupons').data[0].at(-1), 'image_url');
   assert.ok(gas.sheet('news'));
   assert.deepEqual(r.result.news, { inserted: 1, updated: 0, unchanged: 0, gone: 0, expired: 0 });

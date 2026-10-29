@@ -4,7 +4,7 @@ name: pages
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'collector/src/engine.js', 'collector/src/product-images.js', 'collector/src/notice-images.js', 'collector/src/verified-news.js', 'collector/scripts/prepare-pages.js', '.github/workflows/pages.yml']
+    paths: ['web/**', 'collector/src/engine.js', 'collector/src/app-coupons.js', 'collector/src/product-images.js', 'collector/src/notice-images.js', 'collector/src/verified-news.js', 'collector/scripts/prepare-pages.js', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 # 보안: 배포에 필요한 권한만 (저장소 쓰기 없음). 외부 액션은 커밋 해시로 고정
@@ -37,6 +37,8 @@ jobs:
         run: cmp collector/src/notice-images.js web/notice-images.js
       - name: 수동 확인 공지 사본 확인
         run: cmp collector/src/verified-news.js web/verified-news.js
+      - name: 앱 쿠폰 규칙 사본 확인
+        run: cmp collector/src/app-coupons.js web/app-coupons.js
       # 저장소 변수가 있으면 그 값으로 바꾸고(없으면 저장소의 값 유지), JSON으로 안전하게 써 넣는다.
       # API 주소는 화면 보안 정책(CSP)이 허용한 script.google.com만, 문의 메일은 메일 형식만 받는다.
       - name: 화면 설정 주입 (APPS_SCRIPT_URL · CONTACT_EMAIL)

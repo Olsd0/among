@@ -26,3 +26,13 @@ jobs:
       - run: npm ci --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm test
+        env:
+          AMONG_QA_SCREENSHOT: /tmp/among-app-coupons-mobile.png
+      - name: 앱 쿠폰 모바일 검증 화면
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: app-coupons-mobile-qa
+          path: /tmp/among-app-coupons-mobile*.png
+          if-no-files-found: ignore
+          retention-days: 7

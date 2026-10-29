@@ -53,7 +53,7 @@ test('자동 마이그레이션: 새 열은 끝에, 기존 데이터 그대로, 
   assert.equal(kt.program, 'KT');
   assert.ok(kt.follow_text.includes('도미노'));
   assert.ok(gas.sheet('nutrition'));
-  assert.equal(gas.props.get('SCHEMA_VERSION'), '5');
+  assert.equal(gas.props.get('SCHEMA_VERSION'), '6');
   // 사용자가 출처를 지워도 다음 요청에서 되살리지 않음
   const src = gas.sheet('sources');
   src.data = src.data.filter((r) => r[0] !== 'npay-cafe');
