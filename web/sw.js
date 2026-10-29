@@ -1,6 +1,6 @@
 // 최소 서비스 워커: 화면 파일은 네트워크 우선, 끊기면 마지막 사본. 쿠폰 API는 캐시하지 않는다.
-const CACHE = 'among-shell-v9';
-const SHELL = ['./', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
+const CACHE = 'among-shell-v10';
+const SHELL = ['./', 'index.html', 'app.js?v=20261029-1', 'engine.js?v=20261029-1', 'product-images.js?v=20261029-1', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
 const ASSETS = new Set(['', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'config.js', 'manifest.webmanifest',
   'about.html', 'privacy.html', 'terms.html', 'doc.js', 'doc.css',
   'icon-32.png', 'icon-64.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']);
@@ -18,11 +18,13 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const path = url.pathname.slice(scope.pathname.length);
   if (!ASSETS.has(path)) return;
-  // 공유 링크의 쿼리는 캐시 키에서 빼 같은 파일을 여러 번 저장하지 않는다.
-  const key = new URL(path || './', scope).href;
+  // 공유 조건은 제외하되 배포 버전(v)은 보존해 서로 다른 모듈 버전을 섞지 않는다.
+  const keyUrl = new URL(path || './', scope);
+  if (url.searchParams.has('v')) keyUrl.searchParams.set('v', url.searchParams.get('v'));
+  const key = keyUrl.href;
   e.respondWith((async () => {
     try {
-      const res = await fetch(e.request);
+      const res = await fetch(e.request, { cache: 'no-cache' });
       if (res.ok) {
         try { const c = await caches.open(CACHE); await c.put(key, res.clone()); } catch { /* 캐시가 안 돼도 화면은 표시 */ }
       }

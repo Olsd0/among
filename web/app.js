@@ -2,8 +2,8 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js';
-import { productImage, productPhoto } from './product-images.js';
+} from './engine.js?v=20261029-1';
+import { productImage, productPhoto } from './product-images.js?v=20261029-1';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
