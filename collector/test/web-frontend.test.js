@@ -282,6 +282,7 @@ test('정렬·구독 때 그대로인 핫딜과 검색 입력을 보존하고 �
   await page.goto(`${site.base}/index.html`);
   await page.locator('#card-a').waitFor();
   await page.evaluate(() => { window.testHot = document.querySelector('#hotRail').firstElementChild; window.testGrid = document.querySelector('#grid').firstElementChild; });
+  await page.locator('#sortSel').focus();
   await page.locator('#sortSel').selectOption('price');
   assert.equal(await page.evaluate(() => window.testHot === document.querySelector('#hotRail').firstElementChild), true, '핫딜 이미지 노드를 재생성하지 않는다');
   assert.equal(await page.evaluate(() => window.testGrid === document.querySelector('#grid').firstElementChild), true);

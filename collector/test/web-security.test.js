@@ -111,7 +111,7 @@ test('버전 모듈과 해시 로고는 재요청하지 않고 HTML·설정은 �
   assert.equal(calls, 2);
   await w.request('app.js?v=release-2');
   assert.equal(calls, 3, '새 배포 버전은 네트워크에서 받는다');
-  for (const path of ['index.html', 'config.js', 'guide.html']) {
+  for (const path of ['index.html', 'config.js', 'config.js?v=current', 'guide.html']) {
     const first = await (await w.request(path)).text();
     assert.notEqual(await (await w.request(path)).text(), first);
   }

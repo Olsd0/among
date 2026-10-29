@@ -25,7 +25,7 @@ self.addEventListener('fetch', (e) => {
   const key = keyUrl.href;
   e.respondWith((async () => {
     // 파일 해시·배포 버전이 바뀌기 전에는 같은 내용. 로고는 본 것만 저장한다.
-    const immutable = logo || (path.endsWith('.js') && url.searchParams.has('v'));
+    const immutable = logo || (['app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'brand-logos.js'].includes(path) && url.searchParams.has('v'));
     if (immutable) {
       try { const hit = await (await caches.open(CACHE)).match(key); if (hit) return hit; } catch { /* 저장소 접근 실패 시 네트워크 사용 */ }
     }
