@@ -21,7 +21,7 @@
 <style>
   :root {
     --bg: #ffffff; --surface: #ffffff; --surface-2: #f6f6f9; --line: #ececf2; --line-strong: #dcdce6;
-    --text: #17161c; --text-2: #4a4957; --muted: #8a8a99;
+    --text: #17161c; --text-2: #4a4957; --muted: #72717f;
     --primary: #5b3df5; --primary-ink: #ffffff; --primary-soft: #efebff;
     --sale: #e5283b; --sale-soft: #fff0f1; --warn: #a35400; --warn-soft: #fff3df; --info: #2457c5; --info-soft: #eaf1ff;
     --good: #12805a; --good-soft: #e5f6ee;
@@ -295,6 +295,91 @@
   .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px); opacity: 0; transition: .25s; background: var(--text); color: var(--bg); padding: 11px 16px; border-radius: 12px; font-size: 14px; z-index: 50; max-width: calc(100% - 32px); pointer-events: none; }
   .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* v7: 브랜드 중심 탐색 · 공지 미디어와 내용을 분리한 카드 */
+  [hidden] { display: none !important; }
+  body { background: var(--surface-2); }
+  .shell { max-width: 720px; background: var(--bg); }
+  .bar { padding-top: 14px; padding-bottom: 12px; }
+  .logo { gap: 9px; }
+  .logo img { width: 40px; height: 40px; border-radius: 12px; }
+  .wordmark { font-size: 25px; font-weight: 900; letter-spacing: -.055em; line-height: 1; }
+  .view-nav { display: flex; padding: 0 16px; gap: 20px; border-bottom: 1px solid var(--line); }
+  .view-nav button { min-height: 46px; position: relative; font-size: 14px; font-weight: 700; color: var(--muted); }
+  .view-nav button[aria-pressed="true"] { color: var(--text); }
+  .view-nav button[aria-pressed="true"]::after { content: ''; height: 3px; position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px; background: var(--primary); }
+  #followingCount:not(:empty) { background: var(--primary-soft); color: var(--primary); border-radius: 6px; padding: 1px 5px; font-size: 11px; }
+  .intro { margin-top: 22px; margin-bottom: 14px; font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -.04em; }
+  .me { padding: 12px 14px; background: var(--surface-2); }
+  .sec-h { padding-top: 22px; padding-bottom: 12px; }
+  .sec-h small { font-size: 11px; }
+  .rail { gap: 14px; padding-bottom: 8px; }
+  .hcard { height: 284px; max-width: 320px; flex-basis: 84%; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 3px 12px rgba(23,22,28,.04); }
+  .hcard::before { display: none; }
+  .hot-visual { display: block; position: relative; height: 160px; overflow: hidden; background: var(--hbg); }
+  .hcard .hot-visual .ph { position: static; display: block; width: 100%; height: 100%; border-radius: 0; object-fit: cover; object-position: center top; z-index: auto; background: #fff; }
+  .hcard[data-hot^="coupon:"] .hot-visual .ph { object-fit: contain; object-position: center; padding: 10px; }
+  .hcard .art { top: 20px; right: calc(50% - 60px); z-index: auto; }
+  .hcard .hot-copy { display: flex; flex-direction: column; gap: 7px; height: 124px; padding: 13px 14px; }
+  .hcard .top, .hcard .lbl { position: static; }
+  .hcard .top { display: flex; justify-content: space-between; }
+  .hcard .br { font-size: 12px; color: var(--text-2); font-weight: 700; }
+  .hcard .tt { font-size: 15px; min-height: 20px; }
+  .hcard .why { background: var(--sale-soft); font-size: 10px; padding: 2px 6px; }
+  .hcard .hot-meta { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+  .hcard .lbl { font-size: 20px; color: var(--primary); text-shadow: none; max-width: none; }
+  .hcard.has-ph .lbl { max-width: none; }
+  .hcard .kind { color: var(--muted); background: none; padding: 0; backdrop-filter: none; font-size: 11px; flex: none; }
+  .news-hero.has-ph { height: 300px; background: #f4f4f4; }
+  .news-hero.has-ph::before, .news-hero.has-ph .lbl { display: none; }
+  .news-hero.has-ph img.ph { position: static; display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 0; }
+  .notice-original { display: inline-block; color: var(--primary); font-size: 13px; margin-bottom: 16px; }
+  .grid { margin-top: 12px; padding-bottom: 20px; border-bottom: 8px solid var(--surface-2); }
+  .gi .ic { border-radius: 19px; }
+  .ticket { --stub: 96px; box-shadow: none; }
+  .stub img.ph { border-radius: 9px; }
+  .body { padding: 14px 13px; }
+  .brand-link { color: var(--text-2); font-weight: 700; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+  .brand-panel { padding: 18px 16px 4px; scroll-margin-top: 126px; }
+  .brand-intro h2 { margin: 0; font-size: 21px; letter-spacing: -.04em; }
+  .brand-intro p, .brand-heading p { margin: 6px 0 16px; color: var(--muted); font-size: 12px; }
+  .brand-search { width: 100%; height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--text); padding: 0 13px; font: inherit; font-size: 14px; margin-bottom: 14px; }
+  .brand-directory { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  .brand-tile { border: 1px solid var(--line); border-radius: 16px; padding: 12px 10px 5px; background: var(--surface); display: flex; flex-wrap: wrap; justify-content: flex-end; }
+  .brand-open { display: flex; align-items: center; gap: 9px; text-align: left; width: 100%; min-height: 50px; }
+  .brand-open b { display: block; font-size: 13px; font-weight: 750; overflow-wrap: anywhere; }
+  .brand-open small { display: block; color: var(--muted); margin-top: 4px; font-size: 11px; }
+  .brand-avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--primary); font-weight: 800; flex: none; overflow: hidden; }
+  .brand-avatar img.logo { width: 25px; height: 25px; object-fit: contain; border-radius: 5px; }
+  .follow { min-width: 72px; min-height: 44px; font-size: 12px; font-weight: 750; color: var(--primary); border-radius: 10px; }
+  .follow:hover, .follow.active { background: var(--primary-soft); }
+  .brand-tile .follow { margin-top: 3px; }
+  .brand-heading { display: flex; gap: 12px; align-items: center; padding: 16px 0; }
+  .brand-heading > div { flex: 1; min-width: 0; }
+  .brand-heading h2 { font-size: 24px; margin: 0; letter-spacing: -.04em; }
+  .brand-heading p { margin-bottom: 0; }
+  .brand-back { min-height: 44px; font-size: 13px; color: var(--muted); }
+  .follow-empty { text-align: center; padding: 36px 10px; border-radius: 18px; background: var(--surface-2); }
+  .follow-empty > span { font-size: 36px; color: var(--primary); }
+  .follow-empty h3 { font-size: 17px; margin: 12px 0 7px; }
+  .follow-empty p { color: var(--muted); font-size: 13px; }
+  .browse-brands { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 12px; background: var(--primary); color: var(--primary-ink); font-size: 13px; font-weight: 700; margin-top: 8px; }
+  .brand-empty { grid-column: 1/-1; text-align: center; color: var(--muted); padding: 20px; }
+  button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+  .card { scroll-margin-top: 150px; }
+  @media (min-width: 680px) {
+    .shell { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+    #list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: 12px; }
+    #list > .empty { grid-column: 1/-1; }
+    #list > .card { margin: 0; }
+    .brand-directory { grid-template-columns: repeat(3,minmax(0,1fr)); }
+    .ticket { --stub: 82px; }
+    .grid { grid-template-columns: repeat(10,minmax(0,1fr)); }
+    .grid > hr { display: none; }
+    .gi { font-size: 11px; }
+    .gi .ic { width: 46px; height: 46px; }
+    .gi .ic svg { width: 33px; height: 33px; }
+  }
 </style>
 </head>
 <body>
@@ -314,7 +399,7 @@
 <div class="shell">
   <header class="top">
     <div class="bar">
-      <a class="logo" href="./" aria-label="AMONG 처음으로"><img src="icon-192.png" alt="">AMONG</a>
+      <a class="logo" href="./" aria-label="AMONG 처음으로"><img src="icon-192.png" alt="" width="40" height="40"><span class="wordmark">AMONG</span></a>
       <span class="sp"></span>
       <button class="icon-btn" id="searchBtn" aria-label="메뉴 검색" aria-expanded="false">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -327,9 +412,10 @@
       </button>
     </div>
     <div class="search" id="searchRow"><label class="sr" for="q">메뉴·브랜드 검색</label><input id="q" type="search" placeholder="메뉴·브랜드·통신사 검색 (예: 불고기, KT)" autocomplete="off"></div>
+    <nav class="view-nav" id="viewNav" aria-label="혜택 탐색"><button data-view="all" aria-pressed="true">전체 혜택</button><button data-view="brands" aria-pressed="false">브랜드별</button><button data-view="following" aria-pressed="false">구독 브랜드 <span id="followingCount"></span></button></nav>
   </header>
 
-  <h1 class="intro">프랜차이즈 쿠폰과 멤버십 혜택을 한눈에</h1>
+  <h1 class="intro">좋아하는 브랜드의 혜택을, 한곳에.</h1>
 
   <div class="notice demo" id="demoNote" hidden>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
@@ -340,8 +426,10 @@
 
   <div class="me" id="meBar" hidden></div>
 
+  <section id="brandPanel" class="brand-panel" aria-label="브랜드 탐색" hidden></section>
+
   <section class="hot" id="hot" hidden aria-label="오늘의 핫딜">
-    <div class="sec-h"><h2>오늘의 핫딜</h2><small>공식 이벤트·공지에서 매일 골라요</small><span class="sp"></span><span class="count" id="hotCount"></span></div>
+    <div class="sec-h"><h2>오늘의 핫딜</h2><small>놓치기 아쉬운 공식 소식</small><span class="sp"></span><span class="count" id="hotCount"></span></div>
     <div class="rail" id="hotRail"></div>
     <div class="dots" id="hotDots" aria-hidden="true"></div>
   </section>
@@ -370,8 +458,8 @@
     <p>실제 혜택과 영양정보는 공식 앱·매장에서 최종 확인하세요.</p>
     <p id="lastChecked"></p>
     <p class="fine">AMONG은 각 브랜드·통신사와 제휴하지 않은 독립 서비스로, 공개된 공식 페이지의 행사 정보를 자동으로 확인해 같은 기준으로 정리합니다.
-      사진은 브랜드 공식 메뉴에서 확인한 해당 상품의 사진만 원래 주소로 보여드리며 저장하지 않아요. 상품·크기·구성이 일치하는 사진을 확인하지 못한 혜택에는 사진을 표시하지 않아요. 소식은 공식 이벤트·공지의 사실만 짧게 정리하고 원문 링크를 함께 둡니다.
-      영양성분은 식품의약품안전처 공공데이터를 사용합니다. 가입 없이 이용할 수 있으며, 브라우저별 무작위 번호를 이용한 이용 기록(방문·이동·고른 할인 수단 종류)은 서비스 개선에 씁니다(끌 수 있어요). 제보 메모에는 이름·연락처 등 개인정보를 적지 말아 주세요. 통신사·결제수단 설정은 이 기기에만 저장돼요.
+      상품 혜택은 공식 상품 사진, 핫딜 소식은 해당 공지에서 확인한 이미지만 원래 주소로 보여드리며 저장하지 않아요. 상품·크기·구성이 일치하는 사진을 확인하지 못한 혜택에는 사진을 표시하지 않아요. 소식은 공식 이벤트·공지의 사실만 짧게 정리하고 원문 링크를 함께 둡니다.
+      영양성분은 식품의약품안전처 공공데이터를 사용합니다. 가입 없이 이용할 수 있으며, 브라우저별 무작위 번호를 이용한 이용 기록(방문·이동·고른 할인 수단 종류)은 서비스 개선에 씁니다(끌 수 있어요). 제보 메모에는 이름·연락처 등 개인정보를 적지 말아 주세요. 통신사·결제수단 설정과 구독 브랜드는 이 기기에만 저장돼요.
       <br><button class="link-btn" id="themeBtn">화면 테마 바꾸기</button></p>
     <nav class="legal" aria-label="서비스 정보">
       <a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a>
@@ -434,6 +522,6 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261029-1"></script>
+<script type="module" src="app.js?v=20261029-2"></script>
 </body>
 </html>

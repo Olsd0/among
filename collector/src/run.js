@@ -1,3 +1,4 @@
+import { noticeImage } from './notice-images.js';
 // AMONG 수집 실행: 출처 목록 → 렌더링 → Claude 추출 → 엔진 검증 → 시트 반영 → 실행 기록
 // 사용: node src/run.js   (환경변수는 README 참고)
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -130,7 +131,7 @@ export async function runCollector(o = {}) {
           }
           for (const raw of ext.news || []) {
             const n = normalizeNews(raw, nctx);
-            n.image_url = n.status !== 'rejected' ? pickImage(n, page, source.brand) : '';
+            n.image_url = n.status !== 'rejected' ? noticeImage(n) : '';
             n.id = newsId(n);
             n.checked_at = now.toISOString();
             allNews.push(n);
@@ -202,7 +203,7 @@ export async function runCollector(o = {}) {
     const newsById = new Map();
     for (const n of allNews) { const cur = newsById.get(n.id); if (!cur || rank(n) > rank(cur)) newsById.set(n.id, n); }
     const news = mergeNews(linkNews([...newsById.values()], merged))
-      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? pickImage(n) : '' }))
+      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? noticeImage(n) : '' }))
       .map((n) => ({ ...n, hash: newsHash(n) }));
     report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };
     report.with_image = merged.filter((c) => c.status === 'published' && c.image_url).length;

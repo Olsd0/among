@@ -2,8 +2,10 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261029-1';
-import { productImage, productPhoto } from './product-images.js?v=20261029-1';
+} from './engine.js?v=20261029-2';
+import { productImage, productPhoto } from './product-images.js?v=20261029-2';
+
+import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-2';
 
 // ---------- 설정 ----------
 const CFG = window.AMONG_CONFIG || {};
@@ -55,7 +57,7 @@ const LINK_LABELS = [[/tworld\.co\.kr|sktmembership/, 'T멤버십'], [/membershi
 // ---------- 저장소 (이 기기에만 · 실패해도 동작) ----------
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 저장 불가 환경 */ } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
 };
 const sid = (() => {
   let s = store.get('among_sid', null);
@@ -67,7 +69,10 @@ const sid = (() => {
 const prefs0 = store.get('among_prefs', {});
 // v5 홈: 카테고리 탭 대신 아이콘. 예전 설정의 기본 탭(햄버거)·빠른 칩(통신사·곧 끝나는)은 아이콘으로 옮겨져 처음 한 번 초기화
 const prefs = prefs0.v === 5 ? prefs0 : { ...prefs0, category: '전체', kind: '', quick: { ...(prefs0.quick || {}), programsOnly: false, endingSoon: false } };
+const storedBrands = store.get('among_following', []);
 const state = {
+  view: 'all', brand: '', brandQuery: '',
+  following: new Set(Array.isArray(storedBrands) ? storedBrands.filter((x) => typeof x === 'string' && x.length < 80) : []),
   category: CATS.some((c) => c.id === prefs.category) ? prefs.category : '전체',
   kind: KINDS.some((k) => k.id === prefs.kind) ? prefs.kind : '',
   sort: ['best', 'price', 'rate', 'deadline'].includes(prefs.sort) ? prefs.sort : 'best',
@@ -118,7 +123,7 @@ const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('goo
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
 const safeImg = (u) => { try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
-const phFail = (img) => { const box = img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
+const phFail = (img) => { const box = img.closest('.hcard') || img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
 const phCheck = (img) => { if (img.naturalWidth && img.naturalWidth < 80) phFail(img); };
 // load·error는 위로 전달되지 않으므로 캡처 단계에서 한 번에 받는다 (그려지기 전에 등록됨)
 document.addEventListener('load', (e) => { const t = e.target; if (t.tagName !== 'IMG') return; if (t.classList.contains('ph')) phCheck(t); else if (t.classList.contains('logo')) logoCheck(t); }, true);
@@ -219,7 +224,7 @@ async function loadCoupons() {
 }
 function applyData(data) {
   state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: productImage(c), programs: c.programs || [] }));
-  state.news = (data.news || []).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: productImage(n), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
+  state.news = (data.news || []).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImage(n), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();
@@ -242,6 +247,77 @@ async function loadNutrition() {
   })();
   return state.nutritionLoading;
 }
+
+// ---------- 브랜드 탐색 · 기기에 저장하는 구독 ----------
+const brandMatch = (item) => (!state.brand || item.brand === state.brand) && (state.view !== 'following' || state.following.has(item.brand));
+function brandNames() {
+  return [...new Set([...state.coupons.map((c) => c.brand), ...state.news.map((n) => n.brand), ...state.following])].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko'));
+}
+const followButton = (brand) => `<button class="follow${state.following.has(brand) ? ' active' : ''}" data-follow="${esc(brand)}" aria-pressed="${state.following.has(brand)}" aria-label="${esc(brand)} ${state.following.has(brand) ? '구독 취소' : '구독'}">${state.following.has(brand) ? '✓ 구독 중' : '+ 구독'}</button>`;
+function brandAvatar(brand) {
+  const c = state.coupons.find((x) => x.brand === brand);
+  const url = c && logoUrl(c);
+  return `<span class="brand-avatar">${url ? `<img class="logo" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : esc(brand.slice(0, 1))}</span>`;
+}
+function renderBrandDirectory() {
+  const names = brandNames().filter((b) => (state.view !== 'following' || state.following.has(b)) && b.toLowerCase().includes(state.brandQuery.toLowerCase()));
+  $('#brandDirectory').innerHTML = names.map((brand) => `<div class="brand-tile"><button class="brand-open" data-brand-open="${esc(brand)}">${brandAvatar(brand)}<span><b>${esc(brand)}</b><small>혜택 ${state.coupons.filter((c) => c.brand === brand).length}개</small></span></button>${followButton(brand)}</div>`).join('') || '<p class="brand-empty">검색한 브랜드가 없어요.</p>';
+}
+function renderBrands() {
+  document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
+  $('#followingCount').textContent = state.following.size || '';
+  const panel = $('#brandPanel');
+  panel.hidden = state.view === 'all';
+  if (panel.hidden) return;
+  if (state.brand) {
+    panel.innerHTML = `<button class="brand-back" data-brand-back>← ${state.view === 'following' ? '구독 브랜드' : '브랜드 목록'}</button><div class="brand-heading">${brandAvatar(state.brand)}<div><h2 tabindex="-1" id="brandTitle">${esc(state.brand)}</h2><p>공식 혜택과 소식을 한곳에</p></div>${followButton(state.brand)}</div>`;
+    return;
+  }
+  const following = state.view === 'following';
+  panel.innerHTML = `<div class="brand-intro"><h2>${following ? '내가 구독한 브랜드' : '어떤 브랜드를 좋아하세요?'}</h2><p>구독한 브랜드의 혜택을 이 기기에서 모아봐요.</p></div>${following && !state.following.size ? '<div class="follow-empty"><span aria-hidden="true">♡</span><h3>좋아하는 브랜드부터 담아보세요</h3><p>브랜드 옆 + 구독을 누르면 여기에 모여요.</p><button class="browse-brands" data-browse>브랜드 둘러보기</button></div>' : '<label class="sr" for="brandSearch">브랜드 찾기</label><input id="brandSearch" class="brand-search" type="search" placeholder="브랜드 이름 검색" autocomplete="off"><div class="brand-directory" id="brandDirectory"></div>'}`;
+  if ($('#brandDirectory')) { $('#brandSearch').value = state.brandQuery; renderBrandDirectory(); }
+}
+function changeView(view) {
+  state.view = view; state.brand = ''; state.brandQuery = ''; state.q = ''; $('#q').value = '';
+  state.category = '전체'; state.kind = ''; state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
+  Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
+  state.open.clear(); render();
+}
+function openBrand(brand) {
+  if (!brandNames().includes(brand)) return;
+  if (state.view !== 'following') state.view = 'brands';
+  state.brand = brand; state.q = ''; $('#q').value = ''; state.category = '전체'; state.kind = '';
+  state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
+  Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
+  state.open.clear(); render(); $('#brandTitle')?.focus({ preventScroll: true });
+  $('#brandPanel').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function toggleFollow(brand) {
+  if (!brandNames().includes(brand)) return;
+  const next = new Set(state.following); const adding = !next.has(brand);
+  if (adding) next.add(brand); else next.delete(brand);
+  if (!store.set('among_following', [...next])) { toast('이 기기에 저장하지 못했어요. 브라우저 저장 설정을 확인해 주세요.'); return; }
+  state.following = next;
+  if (state.view === 'following' && state.brand === brand && !adding) state.brand = '';
+  render();
+  document.querySelector(`[data-follow="${CSS.escape(brand)}"]`)?.focus({ preventScroll: true });
+  toast(adding ? `${brand}를 구독했어요` : `${brand} 구독을 취소했어요`);
+}
+$('#viewNav').addEventListener('click', (e) => { const b = e.target.closest('[data-view]'); if (b) changeView(b.dataset.view); });
+$('#brandPanel').addEventListener('click', (e) => {
+  const f = e.target.closest('[data-follow]'); if (f) { toggleFollow(f.dataset.follow); return; }
+  const b = e.target.closest('[data-brand-open]'); if (b) { openBrand(b.dataset.brandOpen); return; }
+  if (e.target.closest('[data-brand-back]')) { state.brand = ''; render(); }
+  if (e.target.closest('[data-browse]')) changeView('brands');
+});
+$('#brandPanel').addEventListener('input', (e) => { if (e.target.id === 'brandSearch') { state.brandQuery = e.target.value; renderBrandDirectory(); } });
+addEventListener('storage', (e) => {
+  if (e.key !== 'among_following') return;
+  const saved = store.get('among_following', []);
+  state.following = new Set(Array.isArray(saved) ? saved.filter((x) => typeof x === 'string') : []);
+  if (state.view === 'following' && state.brand && !state.following.has(state.brand)) state.brand = '';
+  render();
+});
 
 // ---------- 화면 조각 ----------
 const KIND_LABEL = Object.fromEntries(KINDS.map((k) => [k.id, k.label]));
@@ -266,17 +342,15 @@ function hotCard(h, i) {
   const lbl = h.label || '';
   const size = /[0-9]원/.test(lbl) ? 'font-size:18px' : lbl.length > 9 ? 'font-size:20px' : lbl.length > 6 ? 'font-size:24px' : '';
   return `<button class="hcard${img ? ' has-ph' : ' noph'}" style="--hbg:${HBG[h.category] || HBG['']}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
-    ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="${i ? 'lazy' : 'eager'}" referrerpolicy="no-referrer">` : ''}
-    <span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span>
-    <span class="top">${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}<span class="kind">${h.kind === 'news' ? '공식 소식' : (h.programs || []).length ? esc((h.programs || []).map(progLabel).join('·')) : '누구나'}</span></span>
-    ${lbl ? `<span class="lbl" style="${size}">${esc(lbl)}</span>` : ''}
-    <span class="bt">${title.includes(h.brand) ? '' : `<span class="br">${esc(h.brand)}</span>`}<span class="tt">${esc(title)}</span></span>
+    <span class="hot-visual">${img ? `<img class="ph" src="${esc(img)}" alt="${esc(h.kind === 'news' ? h.brand + ' 공식 공지 이미지' : title)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer">` : ''}<span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span></span>
+    <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span>
+    <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl" style="${size}">${esc(lbl)}</span>` : ''}<span class="kind">${h.kind === 'news' ? '공지 보기 ↗' : '혜택 보기 ↗'}</span></span></span>
   </button>`;
 }
 function renderHot() {
   // 오래됐거나 확인 시각을 알 수 없는 출처는 '오늘의' 핫딜로 추천하지 않는다.
   const fresh = (x) => verificationStatus(x.checked_at) === 'fresh';
-  const hot = state.q ? [] : pickHeadlines(state.coupons.filter(fresh), state.news.filter(fresh), { today: todayKST(), profile: profileObj(), limit: 8 });
+  const hot = state.q || (state.view === 'brands' && !state.brand) ? [] : pickHeadlines(state.coupons.filter((x) => fresh(x) && brandMatch(x)), state.news.filter((x) => fresh(x) && brandMatch(x)), { today: todayKST(), profile: profileObj(), limit: 8 });
   state.hot = hot;
   $('#hot').hidden = !hot.length;
   if (!hot.length) return;
@@ -417,7 +491,7 @@ function card(c, today) {
         <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}"${st.unit === '원' ? '' : bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>
       <div class="body" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
-        <div class="who"><span class="bn">${esc(c.brand)}${ch ? `<span class="chn"> · ${esc(ch)}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</div>
+        <div class="who"><span class="bn"><button class="brand-link" data-brand-open="${esc(c.brand)}" aria-label="${esc(c.brand)} 브랜드 보기">${esc(c.brand)}</button>${ch ? `<span class="chn"> · ${esc(ch)}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</div>
         ${b ? `<div class="badges">${b}</div>` : ''}
         <h3 class="menu"><span class="sr">${esc(c.brand)} </span>${esc(c.menu)}</h3>
         <div class="price">${priceLine(c)}</div>
@@ -444,7 +518,7 @@ function baseFilters() {
 /** 지금 조건에서 카테고리·혜택 종류만 바꿔 보면 몇 개인지 (아이콘 숫자용) */
 function visibleWith(over) {
   const ctx = { today: todayKST(), profile: profileObj() || {}, since: visit.since };
-  return state.coupons.filter((c) => matchesFilters(c, { ...baseFilters(), ...quickFilters(), ...over }, ctx));
+  return state.coupons.filter((c) => brandMatch(c) && matchesFilters(c, { ...baseFilters(), ...quickFilters(), ...over }, ctx));
 }
 function quickFilters(q = state.quick) {
   return { mine: q.mine, fresh: q.fresh, ids: q.saved ? state.saved : null };
@@ -452,7 +526,7 @@ function quickFilters(q = state.quick) {
 function visible(extra = quickFilters()) {
   const today = todayKST();
   const ctx = { today, profile: profileObj() || {}, since: visit.since };
-  return state.coupons.filter((c) => matchesFilters(c, { ...baseFilters(), ...extra }, ctx));
+  return state.coupons.filter((c) => brandMatch(c) && matchesFilters(c, { ...baseFilters(), ...extra }, ctx));
 }
 
 function renderQuick() {
@@ -495,6 +569,7 @@ function render() {
   const today = todayKST();
   renderFreshness();
   renderMeBar();
+  renderBrands();
   renderGrid();
   renderHot();
   $('#sortSel').value = state.sort;
@@ -510,6 +585,10 @@ function render() {
     return;
   }
   renderQuick();
+  if (state.brand) $('#listTitle').textContent = `${state.brand} 혜택`;
+  else if (state.view === 'following') $('#listTitle').textContent = '구독 브랜드 혜택';
+  const directory = state.view === 'brands' && !state.brand;
+  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
   const shown = sortCoupons(visible(), state.sort, today, profileObj());
   const brands = new Set(shown.map((c) => c.brand)).size;
   const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;
@@ -619,6 +698,7 @@ addEventListener('scroll', () => $('header.top').classList.toggle('scrolled', sc
 function jumpTo(id) {
   const c = state.coupons.find((x) => x.id === id);
   if (!c) { toast('이 혜택은 이미 끝났거나 바뀌었어요.'); return; }
+  state.view = 'all'; state.brand = '';
   state.category = c.category || '전체';
   state.kind = '';
   state.q = ''; $('#q').value = '';
@@ -637,18 +717,20 @@ function openNews(id) {
   if (!n) { toast('이 소식은 이미 끝났거나 바뀌었어요.'); return; }
   const today = todayKST();
   const rel = (n.related_ids || []).map((rid) => state.coupons.find((c) => c.id === rid)).filter(Boolean);
-  const img = productImage(n);
+  const img = noticeImage(n);
+  const photo = noticePhoto(n);
   const d = daysLeft(n.end_date, today);
   const period = n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}` : n.start_date ? `${md(n.start_date)}부터` : '끝나는 날 공지 없음';
   const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
-  const src = safeUrl(n.source_url);
+  const src = safeUrl(photo?.source || n.source_url);
   $('#newsBody').innerHTML = `
     <div class="news-hero${img ? ' has-ph' : ''}" style="--hbg:${HBG[n.category] || HBG['']}">
-      ${img ? `<img class="ph" src="${esc(img)}" alt="" referrerpolicy="no-referrer">` : ''}
+      ${img ? `<img class="ph" src="${esc(img)}" alt="${esc(n.brand)} 공식 공지 이미지" referrerpolicy="no-referrer">` : ''}
       <span class="art" aria-hidden="true">${ART[n.category] || ART.free}</span>
       ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
+    ${photo ? `<a class="notice-original" href="${esc(photo.image)}" target="_blank" rel="noopener">공지 이미지 크게 보기 ↗</a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(period)}${need ? ` · ${esc(need)}` : ''}</p>
     <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
@@ -689,6 +771,8 @@ $('#quick').addEventListener('click', (e) => {
 
 $('#list').addEventListener('click', async (e) => {
   if (e.target.closest('[data-retry]')) { state.loading = true; state.loadFailed = false; render(); loadCoupons(); return; }
+  const brand = e.target.closest('[data-brand-open]');
+  if (brand) { openBrand(brand.dataset.brandOpen); return; }
   const cta = e.target.closest('[data-click]');
   if (cta) { const c = state.coupons.find((x) => x.id === cta.dataset.click); track('click', { coupon_id: c?.id, brand: c?.brand }); return; }
   const rep = e.target.closest('[data-report]');
