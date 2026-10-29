@@ -32,7 +32,8 @@ async function setup(data, options = {}) {
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (options.requests) options.requests.push(url.href);
-    if (options.photoUrl === url.href) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC', 'base64') });
+    // 실제 상품 사진처럼 최소 너비(80px) 검증을 통과하는 100px PNG.
+    if (options.photoUrl === url.href) return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNL9dz5WIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbP8QPFyqa8aAAAAABJRU5ErkJggg==', 'base64') });
     if (url.origin === site.base) return route.continue();
     if (url.hostname === 'script.google.com') {
       if (url.searchParams.get('action') === 'coupons') {

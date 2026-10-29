@@ -116,7 +116,7 @@ const logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== 
 const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
 // 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
-// 사진은 https 주소만 (수집기가 공식 행사 페이지에서 고른 것). 못 불러오면 사진 없는 모양으로
+// 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
 const safeImg = (u) => { try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => { const box = img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
 const phCheck = (img) => { if (img.naturalWidth && img.naturalWidth < 80) phFail(img); };
