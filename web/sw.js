@@ -1,7 +1,7 @@
 // HTML·설정은 최신 사본 우선. 버전이 고정된 모듈·로고만 캐시 우선. 쿠폰 API는 저장하지 않는다.
-const CACHE = 'among-shell-v14';
-const SHELL = ['./', 'index.html', 'app.js?v=20261029-5', 'engine.js?v=20261029-5', 'product-images.js?v=20261029-5', 'notice-images.js?v=20261029-5', 'brand-logos.js?v=20261029-5', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
-const ASSETS = new Set(['', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'brand-logos.js', 'config.js', 'manifest.webmanifest',
+const CACHE = 'among-shell-v16';
+const SHELL = ['./', 'index.html', 'app.js?v=20261029-7', 'engine.js?v=20261029-7', 'product-images.js?v=20261029-7', 'notice-images.js?v=20261029-7', 'verified-news.js?v=20261029-7', 'brand-logos.js?v=20261029-7', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
+const ASSETS = new Set(['', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js', 'config.js', 'manifest.webmanifest',
   'about.html', 'guide.html', 'privacy.html', 'terms.html', 'doc.js', 'doc.css',
   'icon-32.png', 'icon-64.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']);
 
@@ -18,14 +18,15 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const path = url.pathname.slice(scope.pathname.length);
   const logo = /^assets\/brands\/[a-z]+-[a-f0-9]{12}\.(png|ico|svg)$/.test(path);
-  if (!ASSETS.has(path) && !logo) return;
+  const notice = /^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.jpg$/.test(path);
+  if (!ASSETS.has(path) && !logo && !notice) return;
   // 공유 조건은 제외하되 배포 버전(v)은 보존해 서로 다른 모듈 버전을 섞지 않는다.
   const keyUrl = new URL(path || './', scope);
   if (url.searchParams.has('v')) keyUrl.searchParams.set('v', url.searchParams.get('v'));
   const key = keyUrl.href;
   e.respondWith((async () => {
     // 파일 해시·배포 버전이 바뀌기 전에는 같은 내용. 로고는 본 것만 저장한다.
-    const immutable = logo || (['app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'brand-logos.js'].includes(path) && url.searchParams.has('v'));
+    const immutable = logo || notice || (['app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js'].includes(path) && url.searchParams.has('v'));
     if (immutable) {
       try { const hit = await (await caches.open(CACHE)).match(key); if (hit) return hit; } catch { /* 저장소 접근 실패 시 네트워크 사용 */ }
     }
