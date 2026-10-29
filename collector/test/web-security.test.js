@@ -85,3 +85,17 @@ test('서비스 워커는 다른 앱 캐시와 정상 사본을 보존하고, �
   assert.equal((await w.request('doc.js')).type, 'error');
   assert.equal(await w.request('admin.html', 'navigate'), undefined, '관리 화면은 서비스 워커에 저장하지 않음');
 });
+
+
+test('배포 스크립트는 HTTP 캐시를 재검증하고 오프라인에서도 다른 버전과 섞지 않는다', async () => {
+  const w = worker();
+  w.setNetwork(async (_request, options) => {
+    assert.equal(options.cache, 'no-cache');
+    return new Response('new module');
+  });
+  assert.equal(await (await w.request('app.js?v=current')).text(), 'new module');
+  w.setNetwork(async () => { throw new Error('offline'); });
+  assert.equal(await (await w.request('app.js?v=current')).text(), 'new module');
+  assert.equal((await w.request('app.js?v=older')).type, 'error', '다른 버전 사본으로 대체하지 않음');
+  assert.equal((await w.request('engine.js?v=current')).type, 'error', '없는 모듈에 HTML을 반환하지 않음');
+});
