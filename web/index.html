@@ -353,6 +353,8 @@
   .brand-avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--primary); font-weight: 800; flex: none; overflow: hidden; }
   .brand-avatar > * { grid-area: 1 / 1; }
   .brand-avatar img.logo { width: 38px; height: 38px; padding: 6px; background: var(--surface-2); object-fit: contain; border-radius: 5px; }
+  /* 공식 흰색 워드마크가 밝은 테마에서도 보이도록 이미지 뒤 배경만 조정한다. */
+  .brand-avatar img.logo[src*="/brandlogo_lotteria.png"], .body .who img.logo[src*="/brandlogo_lotteria.png"] { background: #242424; }
   .follow { min-width: 72px; min-height: 44px; font-size: 12px; font-weight: 750; color: var(--primary); border-radius: 10px; }
   .follow:hover, .follow.active { background: var(--primary-soft); }
   .brand-tile .follow { margin-top: 3px; }
