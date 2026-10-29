@@ -6,6 +6,7 @@
 .ac-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
 .ac-filters button, .ac-actions button { background: var(--surface, #fff); border: 1px solid var(--line, #e7e5ed); border-radius: 12px; padding: 10px 13px; color: inherit; min-height: 44px; font: inherit; cursor: pointer; }
 .ac-filters button[aria-pressed="true"] { color: #fff; border-color: #6b4cf6; background: #6b4cf6; }
+.ac-filters button { font-size: 13px; padding: 10px 12px; }
 .ac-controls { display: grid; grid-template-columns: 1.15fr 1fr; gap: 10px; }
 .ac-controls label { display: grid; gap: 6px; font-size: 12px; color: var(--muted, #686579); min-width: 0; }
 .ac-controls input, .ac-controls select { width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; border: 1px solid var(--line, #e7e5ed); border-radius: 10px; padding: 8px; background: var(--surface, white); color: var(--text, #222); font: inherit; font-size: 14px; }
@@ -30,7 +31,7 @@
 .ac-dialog { width: min(600px, calc(100% - 20px)); max-height: 88dvh; padding: 0; border: 1px solid var(--line, #e7e5ed); border-radius: 22px; background: var(--surface, white); color: var(--text, #222); }
 .ac-dialog::backdrop { background: #17122580; }
 .ac-dialog-body { padding: 22px; overflow-wrap: anywhere; }
-.ac-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ac-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 2; background: var(--surface, white); }
 .ac-detail-head button { background: transparent; color: inherit; border: 0; min-width: 44px; min-height: 44px; font-size: 20px; cursor: pointer; }
 .ac-dialog h2 { font-size: 22px; margin: 14px 0; line-height: 1.5; }
 .ac-details { margin: 24px 0 14px; }

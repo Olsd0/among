@@ -79,7 +79,7 @@ function editor(c) {
     </div></details>
     <fieldset><legend>공식 출처·이용 링크</legend><div class="ac-form-grid">
     ${input(c, 'source_url', '정보를 확인한 공식 출처 URL', 'url')}${area(c, 'source_note', '출처에서 확인한 내용', '핵심 사실을 직접 정리하고 배너·사용 코드는 복제하지 마세요.')}
-    ${input(c, 'official_link', '이용자가 이동할 공식 URL', 'url')}${select(c, 'link_type', '버튼 목적지', AC_LINK_LABELS)}
+    ${input(c, 'official_link', '이용자가 이동할 공식 URL', 'url', '공식 행사 상세 → 작동을 확인한 앱 화면 → 설치 안내와 앱 내 경로 순으로 선택하세요.')}${select(c, 'link_type', '버튼 목적지', AC_LINK_LABELS)}
     ${area(c, 'app_path', '실제로 확인한 앱 내 이동 경로', '개별 링크가 없으면 공식 설치 안내 + 앱 내 경로를 입력하세요.')}
     ${check({}, 'confirm_link', '지금 이 링크의 목적지가 정상임을 직접 확인함')}
     <p class="muted">링크 접속 확인 ${esc(acKST(c.link_checked_at))} · 링크가 열리는 것만으로 쿠폰 발급 가능을 확정하지 않습니다.</p>

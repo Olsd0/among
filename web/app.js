@@ -599,6 +599,9 @@ function renderFreshness() {
     ? '연결이 불안정해 마지막으로 받은 혜택을 보여드려요. 결제 전 공식 페이지에서 확인해 주세요.'
     : '혜택을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
   else if (state.checkingNetwork) message = '저장된 혜택을 먼저 보여드려요. 최신 정보를 확인하고 있어요.';
+  else if (state.view === 'appCoupons') {
+    if (!state.loading && state.appCoupons.some(x => verificationStatus(x.checked_at) !== 'fresh')) message = '일부 앱 쿠폰의 조건은 재확인이 필요해요. 카드의 확인 표시와 공식 안내를 살펴봐 주세요.';
+  }
   else if (!state.loading && verificationStatus(state.meta.last_checked_at) !== 'fresh') message = '최근 확인 시각이 오래됐거나 확인되지 않아요. 결제 전 공식 페이지를 확인해 주세요.';
   else if (!state.loading && [...state.coupons, ...state.news].some((x) => verificationStatus(x.checked_at) !== 'fresh')) message = '일부 혜택의 출처를 최근에 확인하지 못했어요. 재확인 표시와 공식 페이지를 살펴봐 주세요.';
   $('#errNote').textContent = message;

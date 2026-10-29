@@ -41,6 +41,7 @@ test('390px mobile: app filters, exact tiers, full conditions, official CTA and 
   save(appCoupon({ issuer_app: '해피포인트', brand: '테스트 사용처', audience_type: 'all_members', tiers: [], discount_rate: 10, source_url: 'https://www.happypointcard.com/event/test', official_link: 'https://www.happypointcard.com/event/test' }));
   await ready(page);
   assert.equal(await page.locator('.ac-card').count(), 2);
+  assert.equal(await page.locator('#errNote').isVisible(), false, 'app coupon freshness is independent of the collector run timestamp');
   assert.equal(await page.locator('body').innerText().then(t => t.includes('상세 확인 대기')), false);
   await page.getByRole('button', { name: '버거킹', exact: true }).click();
   assert.equal(await page.locator('.ac-card').count(), 1);
