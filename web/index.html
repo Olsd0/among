@@ -327,6 +327,7 @@
   .hcard .tt { font-size: 15px; min-height: 20px; }
   .hcard .why { background: var(--sale-soft); font-size: 10px; padding: 2px 6px; }
   .hcard .hot-meta { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+  .hcard[data-hot^="news:"] .hot-meta { justify-content: flex-end; }
   .hcard .lbl { font-size: 20px; color: var(--primary); text-shadow: none; max-width: none; }
   .hcard.has-ph .lbl { max-width: none; }
   .hcard .kind { color: var(--muted); background: none; padding: 0; backdrop-filter: none; font-size: 11px; flex: none; }
@@ -523,6 +524,6 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261029-3"></script>
+<script type="module" src="app.js?v=20261029-4"></script>
 </body>
 </html>
