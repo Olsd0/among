@@ -1,5 +1,5 @@
 import { noticeImage } from './notice-images.js?v=20261031-3';
-import { productImage } from './product-images.js?v=20261029-7';
+import { productImage, couponImage } from './product-images.js?v=20261031-4';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -1231,7 +1231,7 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
     if (profile && !usableBy(c, profile)) score -= 30;
     out.push({
       kind: 'coupon', id: c.id, brand: c.brand, category: c.category, title: `${c.brand} ${c.menu}`,
-      summary: '', label: benefitLabel(c), start_date: c.start_date || null, end_date: c.end_date || null, image_url: productImage(c),
+      summary: '', label: benefitLabel(c), start_date: c.start_date || null, end_date: c.end_date || null, image_url: couponImage(c, today),
       programs: c.programs || [], related_ids: [c.id], reason: reasonOf(c), score,
       tier: headlineTier(facts, Math.max(size(c), facts.benefit)), usable: !profile || usableBy(c, profile),
     });

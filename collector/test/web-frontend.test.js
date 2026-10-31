@@ -298,6 +298,37 @@ test('실제 상품 사진만 표시하고 API와 저장본의 배너·다른 �
   assert.ok(!requests.some((url) => url.includes('banner.jpg')), '저장본의 행사 배너도 요청하지 않는다');
 });
 
+test('명일방주 제휴 메뉴와 쉐이크쉑 전 메뉴 쿠폰에 공식 포스터·버거 모음을 보여준다', { timeout: 30000 }, async t => {
+  const now = '2026-10-31T03:00:00.000Z';
+  const collab = { ...coupon('collab', now), brand: '반올림피자', menu: '제휴 메뉴', item_type: '세트', category: '피자',
+    discount_type: 'free_item', first_seen: now, end_date: '2026-11-08',
+    source_url: 'https://order.banolimpizza.com/event/detail/163814c2-cc1e-4051-b35c-91ba2906ea36?eventStatus=ongoing' };
+  const shack = { ...coupon('shack', now), brand: '쉐이크쉑', menu: '전 메뉴', item_type: '기타', discount_type: 'percent', discount_rate: 30, first_seen: now };
+  const { context, page } = await setup({ ok: true, coupons: [collab, shack], news: [], last_checked_at: now });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  for (const [id, imageName, label] of [['collab', 'banolim-arknights', '공식 행사'], ['shack', 'shack-square', '대표 메뉴']]) {
+    const card = page.locator(`#card-${id}`);
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForFunction(id => document.querySelector(`#card-${id} .stub img.ph`)?.naturalWidth > 0, id);
+    assert.ok((await card.locator('.stub img.ph').getAttribute('src')).includes(imageName));
+    assert.equal(await card.locator('.coupon-image-label').innerText(), label);
+    await card.locator('.body').click();
+    const art = card.locator('.coupon-artwork');
+    await art.scrollIntoViewIfNeeded();
+    assert.ok((await art.locator('img').getAttribute('src')).includes(imageName));
+    assert.match(await art.innerText(), /공식 출처/);
+    assert.equal(await art.locator('img').evaluate(el => getComputedStyle(el).objectFit), 'contain');
+    await card.locator('.body').click();
+    await card.screenshot({ path: `/tmp/among-coupon-${id}.png` });
+    const hot = page.locator(`[data-hot="coupon:${id}"]`);
+    assert.ok((await hot.locator('img.ph').getAttribute('src')).includes(imageName));
+    assert.match(await hot.locator('.notice-image-label').innerText(), new RegExp(label));
+  }
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
 test('정렬·구독 때 그대로인 핫딜과 검색 입력을 보존하고 동작 줄이기를 따른다', { timeout: 30000 }, async (t) => {
   const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('a'), coupon('b')], news: [news('one', ago(1)), news('two', ago(1))] };
   const { context, page } = await setup(data);

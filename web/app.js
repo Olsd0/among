@@ -2,8 +2,8 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261031-3';
-import { productImage, productPhoto } from './product-images.js?v=20261029-8';
+} from './engine.js?v=20261031-4';
+import { couponImage, couponPhoto } from './product-images.js?v=20261031-4';
 
 import { noticePhoto, noticeImage } from './notice-images.js?v=20261031-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
@@ -138,7 +138,7 @@ const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('goo
 // 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
-const safeImg = (u) => { if (/^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.(?:jpg|png)$/.test(String(u || ''))) return u; try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
+const safeImg = (u) => { if (/^assets\/(?:notices|products)\/[a-z0-9-]+-[a-f0-9]{12}\.(?:jpg|png|webp)$/.test(String(u || ''))) return u; try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => {
   const box = img.closest('.hcard') || img.parentElement;
   if (box) {
@@ -263,7 +263,7 @@ async function readCoupons() {
 function applyData(data) {
   state.appCoupons = (data.app_coupons || []).filter(c => acPublic(c));
   state.appCouponRefs = data.app_coupon_refs || [];
-  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: productImage(c), programs: c.programs || [] }));
+  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: couponImage(c), programs: c.programs || [] }));
   state.news = (DEMO ? (data.news || []) : withVerifiedNews(data.news || [])).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImage(n), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
@@ -432,6 +432,7 @@ function noticePreview(n) {
 }
 function hotCard(h, i) {
   const img = safeImg(h.image_url);
+  const photo = h.kind === 'coupon' ? couponPhoto(state.coupons.find(c => c.id === h.id) || {}) : null;
   const why = h.reason || '';
   const whyCls = /마감|D-/.test(why) ? '' : why === 'NEW' ? ' n' : ' d';
   const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : h.title;
@@ -449,7 +450,7 @@ function hotCard(h, i) {
     </article>`;
   }
   return `<button class="hcard${img ? ' has-ph' : ' noph'}" style="--hbg:${HBG[h.category] || HBG['']}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
-    <span class="hot-visual">${img ? `<img class="ph" src="${esc(img)}" alt="${esc(h.kind === 'news' ? h.brand + ' 공식 공지 이미지' : title)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer">` : ''}<span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span></span>
+    <span class="hot-visual">${img ? `<img class="ph" src="${esc(img)}" alt="${esc(photo ? `${h.brand} ${photo.name} ${photo.label}` : title)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer">${photo?.label ? `<span class="notice-image-label">${esc(photo.label)}</span>` : ''}` : ''}<span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span></span>
     <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span>
     <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl" style="${size}">${esc(lbl)}</span>` : ''}<span class="kind">${h.kind === 'news' ? '공지 보기 ↗' : '혜택 보기 ↗'}</span></span></span>
   </button>`;
@@ -565,6 +566,7 @@ function nutritionBlock(c) {
 }
 
 function detailHtml(c, today) {
+  const photo = couponPhoto(c, today);
   const progs = c.programs || [];
   const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${moneyDigits(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
   const period = c.end_date
@@ -576,6 +578,7 @@ function detailHtml(c, today) {
   const steps = howTo(c);
   const saved = state.saved.has(c.id);
   return `
+    ${photo && photo.kind !== 'product' ? `<figure class="coupon-artwork"><img src="${esc(photo.url)}" alt="${esc(`${c.brand} ${photo.name} ${photo.label}`)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${esc(photo.label)} · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>${photo.kind === 'campaign' ? ` · <a href="${esc(photo.detailUrl)}" target="_blank" rel="noopener noreferrer">포스터 원본 ↗</a>` : ''}</figcaption></figure>` : ''}
     ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
     <section><h4>꼭 확인할 조건</h4><dl>
       <dt>필요</dt><dd>${esc(need)}</dd>
@@ -584,7 +587,7 @@ function detailHtml(c, today) {
       ${c.stackable === 'no' ? '<dt>중복</dt><dd class="warn-line">다른 쿠폰·할인과 같이 못 써요</dd>' : c.stackable === 'yes' ? '<dt>중복</dt><dd>다른 할인과 같이 쓸 수 있어요</dd>' : ''}
     </dl></section>
     <div data-nut="${esc(c.id)}">${nutritionBlock(c)}</div>
-    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${productPhoto(c) ? ` · <a href="${esc(productPhoto(c).source)}" target="_blank" rel="noopener">공식 상품 사진 출처</a>` : ''}</p></section>` : ''}
+    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${photo ? ` · <a href="${esc(photo.source)}" target="_blank" rel="noopener">${photo.kind === 'product' ? '공식 상품 사진' : photo.label} 출처</a>` : ''}</p></section>` : ''}
     <div class="acts">
       <button class="act-btn" data-save="${esc(c.id)}" aria-pressed="${saved}">${ICON.heart}${saved ? '찜함' : '찜'}</button>
       <button class="act-btn" data-share="${esc(c.id)}">${ICON.share}공유</button>
@@ -598,14 +601,16 @@ function card(c, today) {
   const ch = (c.channels || []).length ? c.channels.join(' · ') : '';
   const b = badges(c);
   const st = stubParts(c);
-  const img = productImage(c);
+  const photo = couponPhoto(c, today);
+  const img = photo?.url || '';
   // 표시할 글자와 단위를 분리해 HTML을 제거하는 정규식 없이 길이를 계산한다.
   const bigLen = st.big.length + (st.unit || '').length;
   return `
   <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
     <div class="tk"><div class="ticket">
-      <div class="stub ${st.tone}${img ? ' has-ph' : ''}" aria-hidden="true">
+      <div class="stub ${st.tone}${img ? ' has-ph' : ''}${photo?.kind === 'campaign' ? ' campaign-photo' : ''}" aria-hidden="true">
         ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+        ${photo?.label ? `<span class="coupon-image-label">${photo.kind === 'campaign' ? '공식 행사' : '대표 메뉴'}</span>` : ''}
         <span class="cat-art">${ART[c.category] || ''}</span>
         <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}"${st.unit === '원' ? '' : bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>
