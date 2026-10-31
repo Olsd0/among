@@ -2,10 +2,10 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isFresh, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261029-8';
+} from './engine.js?v=20261031-3';
 import { productImage, productPhoto } from './product-images.js?v=20261029-8';
 
-import { noticePhoto, noticeImage } from './notice-images.js?v=20261029-8';
+import { noticePhoto, noticeImage } from './notice-images.js?v=20261031-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { officialBrandLogo } from './brand-logos.js?v=20261029-8';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
@@ -138,7 +138,7 @@ const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('goo
 // 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
-const safeImg = (u) => { if (/^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.jpg$/.test(String(u || ''))) return u; try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
+const safeImg = (u) => { if (/^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.(?:jpg|png)$/.test(String(u || ''))) return u; try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => {
   const box = img.closest('.hcard') || img.parentElement;
   if (box) {
@@ -425,15 +425,10 @@ function noticeSource(n) {
     return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
   } catch { return ''; }
 }
-// 사진이 없을 때도 원문과 연결된 정보가 보이도록 한다. 페이지 캡처가 아닌 공지 요약이다.
-function noticePreview(n, detail = false) {
+// 확인한 행사 이미지가 없으면 공식 브랜드 로고만 표시한다. 요약문을 이미지 대신 반복하지 않는다.
+function noticePreview(n) {
   const logo = officialBrandLogo(n.brand)?.image;
-  const period = n.end_date ? `${n.start_date ? md(n.start_date) + ' – ' : ''}${md(n.end_date)}까지` : '기간은 원문에서 확인';
-  return `<span class="notice-preview">
-    <span class="notice-preview-head"><span class="notice-brand-icon"><span aria-hidden="true">${esc((n.brand || '공').slice(0, 1))}</span>${logo ? `<img class="logo" src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span><span>${esc(n.brand || '공식 출처')}</span><small>공지 요약</small></span>
-    <span class="notice-excerpt">${esc(detail ? n.title : n.summary || n.title)}</span>
-    <span class="notice-period">${esc(period)}</span>
-  </span>`;
+  return logo ? `<span class="notice-preview"><img class="logo notice-brand-logo" src="${esc(logo)}" alt="${esc(n.brand)} 공식 브랜드 로고" loading="lazy" referrerpolicy="no-referrer"><span class="notice-brand-label">브랜드 로고</span></span>` : '<span class="notice-preview notice-placeholder" aria-hidden="true"></span>';
 }
 function hotCard(h, i) {
   const img = safeImg(h.image_url);
@@ -877,7 +872,7 @@ function openNews(id) {
   const src = noticeSource(n);
   $('#newsBody').innerHTML = `
     <div class="news-hero news-notice${img ? ' has-ph' : ''}">
-      ${noticePreview(n, true)}
+      ${noticePreview(n)}
       ${img ? `<img class="ph" src="${esc(img)}" alt="${esc(n.brand)} 공식 공지 이미지" referrerpolicy="no-referrer">` : ''}
       ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>

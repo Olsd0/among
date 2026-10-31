@@ -1,6 +1,6 @@
 // HTML·설정은 최신 사본 우선. 버전이 고정된 모듈·로고만 캐시 우선. 쿠폰 API는 저장하지 않는다.
-const CACHE = 'among-shell-v20';
-const SHELL = ['./', 'index.html', 'app.js?v=20261031-2', 'engine.js?v=20261029-8', 'product-images.js?v=20261029-8', 'notice-images.js?v=20261029-8', 'verified-news.js?v=20261029-8', 'brand-logos.js?v=20261029-8', 'app-coupons.js?v=20261029-8', 'app-coupon-ui.js?v=20261029-8', 'app-coupons.css?v=20261029-8', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'hot-notices.css?v=20261031-2'];
+const CACHE = 'among-shell-v21';
+const SHELL = ['./', 'index.html', 'app.js?v=20261031-3', 'engine.js?v=20261031-3', 'product-images.js?v=20261029-8', 'notice-images.js?v=20261031-3', 'verified-news.js?v=20261029-8', 'brand-logos.js?v=20261029-8', 'app-coupons.js?v=20261029-8', 'app-coupon-ui.js?v=20261029-8', 'app-coupons.css?v=20261029-8', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'hot-notices.css?v=20261031-3'];
 // 온라인 특가 코드·스타일은 첫 방문 때만 저장하며 상품 JSON은 캐시하지 않는다.
 const ASSETS = new Set(['online-deals.js', 'online-deals.css', 'app-coupons.js', 'app-coupon-ui.js', 'app-coupons.css', '', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js', 'config.js', 'manifest.webmanifest',
   'hot-notices.css', 'partners.html', 'sponsor.js', 'launch.css', 'guide-calculator.js', 'about.html', 'guide.html', 'privacy.html', 'terms.html', 'doc.js', 'doc.css',
@@ -19,7 +19,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const path = url.pathname.slice(scope.pathname.length);
   const logo = /^assets\/brands\/[a-z]+-[a-f0-9]{12}\.(png|ico|svg)$/.test(path);
-  const notice = /^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.jpg$/.test(path);
+  const notice = /^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.(jpg|png)$/.test(path);
   if (!ASSETS.has(path) && !logo && !notice) return;
   // 공유 조건은 제외하되 배포 버전(v)은 보존해 서로 다른 모듈 버전을 섞지 않는다.
   const keyUrl = new URL(path || './', scope);

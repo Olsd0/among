@@ -167,7 +167,7 @@ test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원�
   assert.equal(await hot.locator('.lbl').count(), 0, '공지 카드 아래에 혜택 숫자를 중복 표시하지 않는다');
   assert.equal(await hot.locator('img.ph').getAttribute('src'), photoUrl);
   assert.match(await hot.locator('.hot-source').getAttribute('href'), /detail\/1130$/);
-  assert.equal(await hot.locator('img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'cover');
+  assert.equal(await hot.locator('img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'contain');
   await hot.click();
   assert.equal(await page.locator('.notice-original').getAttribute('href'), photoUrl);
   assert.match(await page.locator('[data-news-src]').getAttribute('href'), /detail\/1130$/);
@@ -370,7 +370,7 @@ test('핫딜 목록은 썸네일만 받고 상세를 열면 큰 공지 원본을
   assert.equal(await page.locator('.notice-original').getAttribute('href'), full);
 });
 
-test('사진 없는 공지는 브랜드·요약·원문을 보여주며 원문 링크는 상세를 열지 않는다', { timeout: 30000 }, async t => {
+test('사진 없는 공지는 공식 브랜드 로고만 보여주며 원문 링크는 상세를 열지 않는다', { timeout: 30000 }, async t => {
   const now = '2026-10-29T03:00:00.000Z';
   const n = { id: 'source-preview', brand: 'KFC', title: '공식 앱 한정 행사 안내', category: '햄버거', summary: '매장에서 공식 앱으로 사용 조건을 확인하세요. <img src=x onerror=alert(1)>', discount_label: '30%', start_date: '2026-10-28', end_date: '2026-10-31', checked_at: now, source_url: 'https://example.test/event', image_url: 'https://example.test/unverified-banner.jpg' };
   const requests = [];
@@ -380,8 +380,9 @@ test('사진 없는 공지는 브랜드·요약·원문을 보여주며 원문 �
   await page.goto(`${site.base}/index.html`);
   const card = page.locator('[data-hot="news:source-preview"]');
   await card.waitFor();
-  assert.match(await card.locator('.notice-preview').innerText(), /공지 요약.*매장에서.*10\/28.*10\/31/s);
-  assert.match(await card.locator('.notice-brand-icon img').getAttribute('src'), /assets\/brands\/kfc-/);
+  assert.equal((await card.locator('.notice-preview').innerText()).trim(), '브랜드 로고');
+  assert.doesNotMatch(await card.locator('.hot-visual').innerText(), /매장에서|img src|공지 요약/);
+  assert.match(await card.locator('.notice-brand-logo').getAttribute('src'), /assets\/brands\/kfc-/);
   assert.equal(await card.locator('img.ph').count(), 0);
   assert.equal(await card.locator('.notice-excerpt img').count(), 0);
   const link = card.getByRole('link', { name: 'KFC 공식 공지 원문 보기 (새 탭)' });
@@ -407,7 +408,7 @@ test('사진 없는 공지는 브랜드·요약·원문을 보여주며 원문 �
   await card.screenshot({ path: '/tmp/among-hot-notice-source.png' });
 });
 
-test('공식 이미지 로딩 실패 시 공지 요약으로 복원하고 깨진 이미지 링크를 숨긴다', { timeout: 30000 }, async t => {
+test('공식 이미지 로딩 실패 시 브랜드 로고로 복원하고 깨진 이미지 링크를 숨긴다', { timeout: 30000 }, async t => {
   const now = '2026-10-29T03:00:00.000Z';
   const n = { id: 'failed-photo', brand: '피자헛', category: '피자', title: '피자헛 주말 1+1 핫딜', summary: '주말 한정 행사 조건을 공식 원문에서 확인하세요.', checked_at: now, start_date: '2026-10-01', end_date: '2026-10-31', source_url: 'https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut' };
   const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] });
