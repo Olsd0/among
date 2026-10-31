@@ -1,0 +1,25 @@
+/* 처음 방문한 이용자를 위한 안내와 독립 광고 영역 */
+.skip-link { position: fixed; top: -100px; left: 16px; z-index: 100; padding: 12px 18px; background: var(--primary); color: var(--primary-ink); border-radius: 12px; }
+.skip-link:focus { top: 12px; }
+.intro-detail { margin: -4px 16px 18px; color: var(--text-2); font-size: 13px; line-height: 1.7; }
+.intro-detail p { margin: 0 0 8px; }
+.intro-detail a { color: var(--primary); font-weight: 700; text-underline-offset: 3px; }
+.service-guide { margin: 28px 16px 20px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; }
+.service-guide h2 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.03em; }
+.service-guide > p { margin: 0 0 18px; font-size: 13px; color: var(--text-2); line-height: 1.7; }
+.service-guide ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0; list-style: none; counter-reset: steps; }
+.service-guide li { counter-increment: steps; font-size: 13px; line-height: 1.6; }
+.service-guide li::before { content: '0' counter(steps); display: block; color: var(--primary); font-weight: 800; margin-bottom: 6px; }
+.service-guide li strong { display: block; }
+.service-guide li span { color: var(--text-2); font-size: 12px; }
+.service-guide details { border-top: 1px solid var(--line); padding: 14px 0; font-size: 13px; line-height: 1.7; }
+.service-guide summary { cursor: pointer; font-weight: 700; }
+.service-guide details p { margin: 10px 0 0; color: var(--text-2); }
+.service-guide a { color: var(--primary); text-underline-offset: 3px; }
+.sponsor { margin: 16px; padding: 20px; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--surface-2); overflow-wrap: anywhere; }
+.sponsor[hidden] { display: none; }
+.sponsor-label { display: block; color: var(--text-2); font-size: 12px; margin-bottom: 10px; }
+.sponsor h2 { margin: 0 0 8px; font-size: 18px; }
+.sponsor p { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: var(--text-2); }
+.sponsor a { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary); font-size: 13px; font-weight: 700; text-underline-offset: 3px; }
+@media (max-width: 359px) { .service-guide ol { grid-template-columns: 1fr; } }

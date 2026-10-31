@@ -391,6 +391,9 @@
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   }
 </style>
+<link rel="stylesheet" href="app-coupons.css?v=20261029-8">
+<link rel="stylesheet" href="launch.css?v=20261031-1">
+<link rel="stylesheet" href="hot-notices.css?v=20261031-2">
 <!-- deploy-meta -->
 <link rel="canonical" href="https://olsd0.github.io/among/">
 <meta property="og:url" content="https://olsd0.github.io/among/">
@@ -398,9 +401,9 @@
 <meta property="og:locale" content="ko_KR">
 <meta property="og:image" content="https://olsd0.github.io/among/icon-512.png">
 <!-- /deploy-meta -->
-<link rel="stylesheet" href="app-coupons.css?v=20261029-8">
 </head>
 <body>
+<a class="skip-link" href="#list">혜택 목록으로 바로 가기</a>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
   <linearGradient id="g-bun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd58a"/><stop offset="1" stop-color="#ee9128"/></linearGradient>
   <linearGradient id="g-coffee" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d59a6a"/><stop offset="1" stop-color="#8a4f2e"/></linearGradient>
@@ -434,6 +437,7 @@
   </header>
 
   <h1 class="intro">좋아하는 브랜드의 혜택을, 한곳에.</h1>
+  <div class="intro-detail" id="introDetail"><p>쿠폰 가격부터 통신사·페이 조건까지 비교하고<br>공식 앱에서 마지막으로 확인하세요.</p><a href="guide.html">처음이라면, 할인 비교 가이드 ↗</a></div>
 
   <div class="notice demo" id="demoNote" hidden>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
@@ -472,17 +476,26 @@
   </div>
   <div class="summary" id="summary" aria-live="polite"></div>
 
-  <main id="list" aria-busy="true"></main>
+  <main id="list" tabindex="-1" aria-label="쿠폰 비교 결과" aria-busy="true"></main>
 
+  <aside class="sponsor" id="sponsor" aria-label="유료 광고" hidden></aside>
+  <section class="service-guide" aria-labelledby="startGuide">
+    <h2 id="startGuide">혜택을 고르는 세 가지 기준</h2>
+    <p>할인율만 보기 전에, 같은 메뉴·같은 주문 조건인지 확인해 보세요.</p>
+    <ol><li><strong>실제 결제 금액</strong><span>최소 주문금액과 할인 한도를 함께 확인해요.</span></li><li><strong>내가 쓸 수 있는 조건</strong><span>통신사·결제수단·신규 회원 조건을 살펴봐요.</span></li><li><strong>공식 앱의 최종 안내</strong><span>행사 기간과 참여 매장, 소진 여부를 확인해요.</span></li></ol>
+    <details><summary>여기서 쿠폰을 구매하거나 발급받나요?</summary><p>AMONG은 혜택을 비교하고 공식 페이지로 연결하는 서비스예요. 쿠폰 발급·주문·결제는 해당 브랜드의 공식 앱이나 매장에서 진행합니다. 공개 페이지에서 확인하지 못한 개인별 쿠폰이나 모든 앱 전용 혜택이 포함되는 것은 아니에요.</p></details>
+    <details><summary>50% 적립은 반값 할인과 같은가요?</summary><p>즉시 할인은 지금 결제할 금액을 줄이고, 적립은 결제 후 조건에 따라 포인트를 받는 방식이에요. 사용처·유효기간·한도를 확인해야 합니다. <a href="guide.html#points">적립과 할인의 차이 알아보기</a></p></details>
+    <details><summary>정보가 오래됐거나 실제 조건과 다르면요?</summary><p>각 혜택의 확인 시각과 공식 출처를 먼저 살펴보세요. 실제 혜택은 예고 없이 바뀌거나 일찍 끝날 수 있어요. 카드의 ‘정보가 달라요’로 제보할 수 있으며, 메모에는 이름·전화번호·주문번호를 적지 말아 주세요.</p></details>
+    <p><a href="guide.html#calculator">내 주문 금액으로 할인 비교하기 →</a></p>
+  </section>
+  <noscript><div class="service-guide"><h2>쿠폰 목록은 자바스크립트가 필요해요</h2><p>브라우저에서 자바스크립트를 켠 뒤 다시 방문해 주세요. <a href="guide.html">할인 비교 가이드</a>와 <a href="about.html">서비스 소개</a>는 바로 읽을 수 있어요.</p></div></noscript>
   <footer class="bottom">
     <p id="footerHint">실제 혜택과 영양정보는 공식 앱·매장에서 최종 확인하세요.</p>
     <p id="lastChecked"></p>
-    <p class="fine"><span id="couponFooterNotes">AMONG은 각 브랜드·통신사가 운영하는 서비스가 아니며, 공식 공개 자료와 운영자가 확인한 앱 쿠폰 조건을 정리합니다.
-      상품 혜택은 공식 상품 사진, 핫딜 소식은 해당 공지에서 확인한 이미지를 보여드려요. 주소가 만료되는 공지 이미지는 원본 사본을 보관할 수 있어요. 상품·크기·구성이 일치하는 사진을 확인하지 못한 혜택에는 사진을 표시하지 않아요. 소식은 공식 이벤트·공지의 사실만 짧게 정리하고 원문 링크를 함께 둡니다.
-      영양성분은 식품의약품안전처 공공데이터를 사용합니다. 가입 없이 이용할 수 있으며, 브라우저별 무작위 번호를 이용한 이용 기록(방문·이동·고른 할인 수단 종류)은 서비스 개선에 씁니다(끌 수 있어요). 제보 메모에는 이름·연락처 등 개인정보를 적지 말아 주세요. 통신사·결제수단 설정과 구독 브랜드는 이 기기에만 저장돼요.</span>
+    <p class="fine"><span id="couponFooterNotes">AMONG은 브랜드·통신사가 운영하는 서비스가 아닙니다. 공식 출처와 확인 시각을 기준으로 혜택을 정리하며, 가격·기간·참여 매장은 결제 전에 확인해 주세요.<br>통신사·결제수단 설정과 구독 브랜드는 이 기기에 저장됩니다. 이용 기록은 개인정보처리방침에서 끌 수 있어요.</span>
       <br><button class="link-btn" id="themeBtn">화면 테마 바꾸기</button></p>
     <nav class="legal" aria-label="서비스 정보">
-      <a href="guide.html">할인 비교 가이드</a><a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a>
+      <a href="guide.html">할인 비교 가이드</a><a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a><a href="partners.html">광고·제휴</a>
     </nav>
   </footer>
 </div>
@@ -543,6 +556,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261029-9"></script>
+<script type="module" src="app.js?v=20261031-2"></script>
+<script type="module" src="sponsor.js?v=20261031-1"></script>
 </body>
 </html>

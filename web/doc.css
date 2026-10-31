@@ -1,7 +1,7 @@
 /* AMONG 안내 페이지 공통 (서비스 소개 · 개인정보처리방침 · 이용약관) — 홈과 같은 색·글꼴 */
 :root {
   --bg: #ffffff; --surface: #ffffff; --surface-2: #f6f6f9; --line: #ececf2; --line-strong: #dcdce6;
-  --text: #17161c; --text-2: #4a4957; --muted: #8a8a99;
+  --text: #17161c; --text-2: #4a4957; --muted: #72717f;
   --primary: #5b3df5; --primary-ink: #ffffff; --primary-soft: #efebff;
   --good: #12805a; --good-soft: #e5f6ee; --warn: #a35400; --warn-soft: #fff3df;
   --radius: 16px;
@@ -109,3 +109,10 @@ tr:last-child td { border-bottom: 0; }
   .top-in { flex-wrap: wrap; }
   .top nav { width: 100%; margin-left: 0; justify-content: space-between; }
 }
+
+.calculator { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.calculator label { font-size: 13px; font-weight: 700; }
+.calculator input { display: block; width: 100%; min-width: 0; margin-top: 6px; padding: 12px; font: inherit; font-size: 16px; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; }
+.calculator button { justify-self: start; min-height: 44px; }
+.calculation-result { font-weight: 700; line-height: 1.8; }
+@media (max-width: 420px) { .calculator { grid-template-columns: 1fr; } }

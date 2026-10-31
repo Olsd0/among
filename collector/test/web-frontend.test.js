@@ -166,6 +166,7 @@ test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원�
   await hot.waitFor();
   assert.equal(await hot.locator('.lbl').count(), 0, '공지 카드 아래에 혜택 숫자를 중복 표시하지 않는다');
   assert.equal(await hot.locator('img.ph').getAttribute('src'), photoUrl);
+  assert.match(await hot.locator('.hot-source').getAttribute('href'), /detail\/1130$/);
   assert.equal(await hot.locator('img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'cover');
   await hot.click();
   assert.equal(await page.locator('.notice-original').getAttribute('href'), photoUrl);
@@ -209,7 +210,9 @@ test('연결 실패 시 저장본임을 알리고, 저장본이 없으면 다시
   await second.page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
   await second.page.getByRole('button', { name: '다시 불러오기' }).click();
   await second.page.locator('#card-available').waitFor();
-  assert.equal(await second.page.locator('#errNote').isHidden(), true);
+  // 날짜에 따라 수동 공지의 최신성 경고가 남을 수 있다. 통신 실패 상태는 해제돼야 한다.
+  assert.doesNotMatch(await second.page.locator('#errNote').innerText(), /연결이 불안정|불러오지 못|저장된 혜택/);
+  assert.doesNotMatch(await second.page.locator('#card-available').innerText(), /출처 재확인 필요/);
 });
 
 test('할인 숫자와 단위를 분리해도 금액·할인·적립 티켓 표시를 유지한다', { timeout: 30000 }, async (t) => {
@@ -323,14 +326,14 @@ test('가이드는 자바스크립트 없이 읽히고 작은 화면에서도 �
   t.after(() => context.close());
   await context.route('**/*', (route) => new URL(route.request().url()).origin === site.base ? route.continue() : route.abort());
   const page = await context.newPage();
-  for (const path of ['guide.html', 'about.html', 'privacy.html', 'terms.html']) {
+  for (const path of ['guide.html', 'about.html', 'partners.html', 'privacy.html', 'terms.html']) {
     await page.goto(`${site.base}/${path}`);
     assert.equal(await page.locator('h1').count(), 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, path);
     assert.ok(await page.locator('a[href="guide.html"]').count());
   }
   await page.goto(`${site.base}/guide.html`);
-  assert.equal(await page.locator('main h2').count(), 5);
+  assert.equal(await page.locator('main h2').count(), 6);
   assert.ok((await page.locator('main').innerText()).includes('실제 행사가 아닙니다'));
 });
 
@@ -367,6 +370,63 @@ test('핫딜 목록은 썸네일만 받고 상세를 열면 큰 공지 원본을
   assert.equal(await page.locator('.notice-original').getAttribute('href'), full);
 });
 
+test('사진 없는 공지는 브랜드·요약·원문을 보여주며 원문 링크는 상세를 열지 않는다', { timeout: 30000 }, async t => {
+  const now = '2026-10-29T03:00:00.000Z';
+  const n = { id: 'source-preview', brand: 'KFC', title: '공식 앱 한정 행사 안내', category: '햄버거', summary: '매장에서 공식 앱으로 사용 조건을 확인하세요. <img src=x onerror=alert(1)>', discount_label: '30%', start_date: '2026-10-28', end_date: '2026-10-31', checked_at: now, source_url: 'https://example.test/event', image_url: 'https://example.test/unverified-banner.jpg' };
+  const requests = [];
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] }, { requests });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const card = page.locator('[data-hot="news:source-preview"]');
+  await card.waitFor();
+  assert.match(await card.locator('.notice-preview').innerText(), /공지 요약.*매장에서.*10\/28.*10\/31/s);
+  assert.match(await card.locator('.notice-brand-icon img').getAttribute('src'), /assets\/brands\/kfc-/);
+  assert.equal(await card.locator('img.ph').count(), 0);
+  assert.equal(await card.locator('.notice-excerpt img').count(), 0);
+  const link = card.getByRole('link', { name: 'KFC 공식 공지 원문 보기 (새 탭)' });
+  assert.equal(await link.getAttribute('href'), n.source_url);
+  await link.focus();
+  const [popup] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('Enter')]);
+  await popup.waitForLoadState('domcontentloaded');
+  assert.equal(popup.url(), n.source_url);
+  assert.equal(await page.locator('#newsSheet').evaluate(el => el.open), false);
+  await popup.close();
+  await card.getByRole('button').click();
+  assert.equal(await page.locator('.notice-source-link').getAttribute('href'), n.source_url);
+  assert.equal(await page.locator('.news-hero .notice-preview').isVisible(), true);
+  assert.equal(requests.some(url => url.includes('unverified-banner')), false);
+  await page.locator('#newsSheet').getByRole('button', { name: '닫기', exact: true }).click();
+  for (const width of [320, 390, 820]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.equal(await card.evaluate(el => el.scrollWidth <= el.clientWidth), true);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: '/tmp/among-hot-notice-source.png' });
+});
+
+test('공식 이미지 로딩 실패 시 공지 요약으로 복원하고 깨진 이미지 링크를 숨긴다', { timeout: 30000 }, async t => {
+  const now = '2026-10-29T03:00:00.000Z';
+  const n = { id: 'failed-photo', brand: '피자헛', category: '피자', title: '피자헛 주말 1+1 핫딜', summary: '주말 한정 행사 조건을 공식 원문에서 확인하세요.', checked_at: now, start_date: '2026-10-01', end_date: '2026-10-31', source_url: 'https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut' };
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const card = page.locator('[data-hot="news:failed-photo"]');
+  await card.scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.querySelector('[data-hot="news:failed-photo"]')?.classList.contains('noph'));
+  assert.equal(await card.locator('.notice-preview').isVisible(), true);
+  assert.equal(await card.locator('.notice-image-label').isVisible(), false);
+  assert.equal(await card.locator('.hot-source').getAttribute('href'), n.source_url);
+  await card.getByRole('button').click();
+  await page.locator('.notice-image-error').waitFor();
+  assert.equal(await page.locator('.notice-original').isHidden(), true);
+  assert.equal(await page.locator('.news-hero .notice-preview').isVisible(), true);
+  assert.equal(await page.locator('.notice-source-link').getAttribute('href'), n.source_url);
+});
+
 test('설빙 적립 공지가 사진·조건과 함께 노출되고 종료 다음 날에는 사라진다', { timeout: 30000 }, async (t) => {
   const now = '2026-10-29T12:00:00.000Z';
   const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [] });
@@ -378,6 +438,7 @@ test('설빙 적립 공지가 사진·조건과 함께 노출되고 종료 다�
   assert.equal(await card.locator('.lbl').count(), 0);
   assert.match(await card.innerText(), /50% 포인트 적립/);
   assert.match(await card.locator('img.ph').getAttribute('src'), /^assets\/notices\/sulbing-npay-[a-f0-9]{12}\.jpg$/);
+  await card.screenshot({ path: '/tmp/among-hot-notice-image.png' });
   await card.click();
   assert.match(await page.locator('.news-meta').innerText(), /10\/28.*11\/1/);
   assert.match(await page.locator('.news-sum').innerText(), /9900원.*50%.*포인트.*30000원.*카드/);

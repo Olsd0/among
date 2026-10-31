@@ -139,7 +139,19 @@ const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('goo
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
 const safeImg = (u) => { if (/^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.jpg$/.test(String(u || ''))) return u; try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
-const phFail = (img) => { const box = img.closest('.hcard') || img.parentElement; if (box) { box.classList.remove('has-ph'); box.classList.add('noph'); } img.remove(); };
+const phFail = (img) => {
+  const box = img.closest('.hcard') || img.parentElement;
+  if (box) {
+    box.classList.remove('has-ph'); box.classList.add('noph');
+    if (box.classList.contains('news-hero')) {
+      const original = $('#newsBody .notice-original');
+      if (original) original.hidden = true;
+      const note = $('#newsBody .notice-image-error');
+      if (note) note.hidden = false;
+    }
+  }
+  img.remove();
+};
 const phCheck = (img) => { if (img.naturalWidth && img.naturalWidth < 80) phFail(img); };
 // load·error는 위로 전달되지 않으므로 캡처 단계에서 한 번에 받는다 (그려지기 전에 등록됨)
 document.addEventListener('load', (e) => { const t = e.target; if (t.tagName !== 'IMG') return; if (t.classList.contains('ph')) phCheck(t); else if (t.classList.contains('logo')) logoCheck(t); }, true);
@@ -406,6 +418,23 @@ function renderGrid() {
 }
 
 /** 오늘의 핫딜: 공식 소식 + 마감 임박·새로 시작한 큰 혜택 (엔진 pickHeadlines) */
+function noticeSource(n) {
+  const value = noticePhoto(n)?.source || n.source_url;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
+  } catch { return ''; }
+}
+// 사진이 없을 때도 원문과 연결된 정보가 보이도록 한다. 페이지 캡처가 아닌 공지 요약이다.
+function noticePreview(n, detail = false) {
+  const logo = officialBrandLogo(n.brand)?.image;
+  const period = n.end_date ? `${n.start_date ? md(n.start_date) + ' – ' : ''}${md(n.end_date)}까지` : '기간은 원문에서 확인';
+  return `<span class="notice-preview">
+    <span class="notice-preview-head"><span class="notice-brand-icon"><span aria-hidden="true">${esc((n.brand || '공').slice(0, 1))}</span>${logo ? `<img class="logo" src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span><span>${esc(n.brand || '공식 출처')}</span><small>공지 요약</small></span>
+    <span class="notice-excerpt">${esc(detail ? n.title : n.summary || n.title)}</span>
+    <span class="notice-period">${esc(period)}</span>
+  </span>`;
+}
 function hotCard(h, i) {
   const img = safeImg(h.image_url);
   const why = h.reason || '';
@@ -413,6 +442,17 @@ function hotCard(h, i) {
   const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : h.title;
   const lbl = h.kind === 'news' ? '' : h.label || '';
   const size = /[0-9]원/.test(lbl) ? 'font-size:18px' : lbl.length > 9 ? 'font-size:20px' : lbl.length > 6 ? 'font-size:24px' : '';
+  if (h.kind === 'news') {
+    const n = state.news.find(n => n.id === h.id) || h;
+    const source = noticeSource(n);
+    return `<article class="hcard hot-notice${img ? ' has-ph' : ' noph'}" data-hot="news:${esc(h.id)}">
+      <button class="hot-open" type="button" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} · 공지 상세 보기`)}">
+        <span class="hot-visual">${noticePreview(n)}${img ? `<img class="ph" src="${esc(img)}" alt="${esc(h.brand)} 공식 공지 이미지" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer"><span class="notice-image-label">공식 공지 이미지</span>` : ''}</span>
+        <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span><span class="tt">${esc(title)}</span><span class="hot-meta"><span class="kind">공지 자세히 보기</span></span></span>
+      </button>
+      ${source ? `<a class="hot-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(h.brand)} 공식 공지 원문 보기 (새 탭)"><span class="source-host">${esc(host(source))}</span><span>공식 원문 ↗</span></a>` : '<span class="hot-source source-unavailable">원문 주소 확인 중</span>'}
+    </article>`;
+  }
   return `<button class="hcard${img ? ' has-ph' : ' noph'}" style="--hbg:${HBG[h.category] || HBG['']}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
     <span class="hot-visual">${img ? `<img class="ph" src="${esc(img)}" alt="${esc(h.kind === 'news' ? h.brand + ' 공식 공지 이미지' : title)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer">` : ''}<span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span></span>
     <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span>
@@ -658,6 +698,7 @@ function render() {
   renderViewNav();
   const onlineView = state.view === 'onlineDeals';
   $('#onlineDeals').hidden = !onlineView;
+  $('#introDetail').hidden = state.view !== 'all';
   for (const el of [$('#searchBtn'), $('#meBtn'), $('#refreshBtn'), $('#searchRow'), $('#lastChecked'), $('#couponFooterNotes')]) el.hidden = onlineView;
   $('#footerHint').textContent = onlineView ? '상품 가격과 구매 조건은 쿠팡에서 최종 확인하세요.' : '실제 혜택과 영양정보는 공식 앱·매장에서 최종 확인하세요.';
   $('#demoNote').hidden = onlineView || !DEMO;
@@ -791,6 +832,7 @@ $('#grid').addEventListener('click', (e) => {
 $('#clearGrid').addEventListener('click', () => { state.category = '전체'; state.kind = ''; savePrefs(); render(); });
 // 핫딜 카드: 소식이면 소식 상세, 쿠폰이면 그 쿠폰으로 이동
 $('#hotRail').addEventListener('click', (e) => {
+  if (e.target.closest('a')) return;
   const b = e.target.closest('[data-hot]'); if (!b) return;
   const [kind, id] = b.dataset.hot.split(/:(.+)/);
   track('detail', { value: `hot:${kind}`, coupon_id: kind === 'coupon' ? id : '' });
@@ -832,15 +874,17 @@ function openNews(id) {
   const d = daysLeft(n.end_date, today);
   const period = n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}` : n.start_date ? `${md(n.start_date)}부터` : '끝나는 날 공지 없음';
   const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
-  const src = safeUrl(photo?.source || n.source_url);
+  const src = noticeSource(n);
   $('#newsBody').innerHTML = `
-    <div class="news-hero${img ? ' has-ph' : ''}" style="--hbg:${HBG[n.category] || HBG['']}">
+    <div class="news-hero news-notice${img ? ' has-ph' : ''}">
+      ${noticePreview(n, true)}
       ${img ? `<img class="ph" src="${esc(img)}" alt="${esc(n.brand)} 공식 공지 이미지" referrerpolicy="no-referrer">` : ''}
-      <span class="art" aria-hidden="true">${ART[n.category] || ART.free}</span>
       ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
     ${img ? `<a class="notice-original" href="${esc(img)}" target="_blank" rel="noopener">공지 이미지 크게 보기 ↗</a>` : ''}
+    <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 원문에서 확인해 주세요.</p>
+    ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer"><span>공식 원문</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(period)}${need ? ` · ${esc(need)}` : ''}</p>
     <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}

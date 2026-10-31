@@ -4,12 +4,12 @@ import { mkdtempSync, copyFileSync, readFileSync, rmSync, readdirSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { preparePages } from '../scripts/prepare-pages.js';
+import { preparePages, PUBLIC_PAGES } from '../scripts/prepare-pages.js';
 
 test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과 사이트맵에 예전 주소가 남지 않는다', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'among-pages-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const pages = ['index.html', 'guide.html', 'about.html', 'privacy.html', 'terms.html'];
+  const pages = PUBLIC_PAGES;
   for (const p of pages) copyFileSync(new URL(`../../web/${p}`, import.meta.url), join(dir, p));
   preparePages(dir, 'https://olsd0.github.io/among');
   assert.match(readFileSync(join(dir, 'robots.txt'), 'utf8'), /Disallow: \/among\/admin.html/);
@@ -24,7 +24,7 @@ test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과
     assert.equal(shared, canonical);
   }
   const sitemap = readFileSync(join(dir, 'sitemap.xml'), 'utf8');
-  assert.equal((sitemap.match(/<loc>/g) || []).length, 5);
+  assert.equal((sitemap.match(/<loc>/g) || []).length, PUBLIC_PAGES.length);
   assert.ok(!sitemap.includes('admin'));
   assert.match(readFileSync(join(dir, 'robots.txt'), 'utf8'), /Disallow: \/admin.html/);
   const before = readFileSync(join(dir, 'index.html'), 'utf8');

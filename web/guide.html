@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="doc.css">
 <script src="config.js"></script>
 <script src="doc.js" defer></script>
+<script type="module" src="guide-calculator.js"></script>
 <!-- deploy-meta -->
 <link rel="canonical" href="https://olsd0.github.io/among/guide.html">
 <meta property="og:url" content="https://olsd0.github.io/among/guide.html">
@@ -35,12 +36,27 @@
   <h1>할인 숫자보다,<br>내가 내는 금액부터</h1>
   <p class="lead">같은 30%라도 할인 한도와 주문 방식에 따라 결제 금액이 달라져요. AMONG에서 혜택을 비교할 때 필요한 계산과 확인 순서를 정리했습니다.</p>
   <p class="meta">AMONG 작성 · 2026년 10월 29일 · 아래 금액은 계산을 설명하기 위한 예시이며 실제 행사가 아닙니다.</p>
-  <nav class="reading-nav" aria-label="가이드 목차"><a href="#price">가격과 할인</a><a href="#oneplus">1+1과 세트</a><a href="#points">포인트 적립</a><a href="#conditions">사용 조건</a><a href="#verify">출처 확인</a></nav>
+  <nav class="reading-nav" aria-label="가이드 목차"><a href="#price">가격과 할인</a><a href="#calculator">할인 계산기</a><a href="#oneplus">1+1과 세트</a><a href="#points">포인트 적립</a><a href="#conditions">사용 조건</a><a href="#verify">출처 확인</a></nav>
 
   <h2 id="price">1. 쿠폰가·정액·정률은 같은 주문으로 비교해요</h2>
   <p><strong>쿠폰가</strong>는 특정 상품을 살 때 내는 가격입니다. <strong>정액 할인</strong>은 주문에서 일정 금액을 빼고, <strong>정률 할인</strong>은 할인 대상 금액의 일정 비율을 뺍니다. 상품이나 주문 구성이 다르면 할인율만 나란히 놓아도 실제 차이를 알기 어렵습니다.</p>
   <div class="example"><p>같은 15000원 주문을 비교한다고 가정해 볼게요.</p><ul><li>3000원 할인: 15000 − 3000 = <strong>12000원 결제</strong></li><li>20% 할인: 15000 × 20% = 3000원 할인, <strong>12000원 결제</strong></li><li>30% 할인, 최대 2000원: 비율상 4500원이지만 한도를 적용하면 <strong>13000원 결제</strong></li></ul></div>
   <p>‘최대’라는 말이 있으면 할인 한도를 먼저 확인하세요. 최소 주문금액을 맞추려고 필요 없는 메뉴를 추가한다면, 할인 전보다 총지출이 커질 수 있습니다. AMONG에서 확정 가격이 없는 주문 할인은 상품의 최종 가격으로 단정하지 않습니다.</p>
+
+  <section class="box soft" aria-labelledby="calculator">
+    <h2 id="calculator">내 주문에는 어떤 쿠폰이 유리할까요?</h2>
+    <p>같은 주문에 정액 쿠폰 또는 정률 쿠폰 하나를 사용하는 경우를 비교해 보세요.</p>
+    <form id="discountCalculator" class="calculator">
+      <label>할인 대상 주문금액 (원)<input name="amount" type="number" min="1" max="100000000" step="1" value="15000" required inputmode="numeric"></label>
+      <label>정액 할인금액 (원)<input name="fixed" type="number" min="0" max="100000000" step="1" value="3000" required inputmode="numeric"></label>
+      <label>정률 할인율 (%)<input name="rate" type="number" min="0" max="100" step="0.1" value="30" required inputmode="decimal"></label>
+      <label>정률 할인 한도 (원, 0은 제한 없음)<input name="cap" type="number" min="0" max="100000000" step="1" value="2000" required inputmode="numeric"></label>
+      <button class="btn" type="submit">결제 금액 비교하기</button>
+    </form>
+    <p id="comparisonResult" class="calculation-result" role="status">위 예시에서는 정액 쿠폰으로 12000원, 정률 쿠폰으로 13000원을 결제합니다.</p>
+    <p class="small">배송비·추가금·최소 주문 조건·중복 할인·포인트 적립은 포함하지 않습니다. 할인액의 원 미만은 버림으로 계산하며, 실제 결제처의 반올림 방식과 다를 수 있습니다. 입력값은 저장하거나 전송하지 않습니다.</p>
+    <noscript><p>계산기를 사용하려면 자바스크립트를 켜 주세요. 위 계산 예시는 그대로 읽을 수 있습니다.</p></noscript>
+  </section>
 
   <h2 id="oneplus">2. 1+1은 두 개가 필요할 때 유리해요</h2>
   <p>동일한 6000원 상품 두 개를 6000원에 사면 두 개를 모두 정가로 살 때보다 50% 저렴합니다. 하지만 원래 한 개만 필요했다면 지출은 여전히 6000원입니다. 한 개를 4500원에 살 수 있는 쿠폰과는 필요한 수량을 기준으로 비교해야 합니다.</p>
@@ -61,8 +77,8 @@
   <p><a href="./"><strong>혜택 비교하러 가기 →</strong></a> · <a href="about.html#how">정보 수집·정정 기준</a></p>
 </main>
 <footer class="foot">
-  <nav aria-label="서비스 정보"><a href="./">쿠폰 비교</a><a href="guide.html">할인 비교 가이드</a><a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a></nav>
-  <p>AMONG은 브랜드·통신사와 제휴하지 않은 독립 서비스입니다.</p>
+  <nav aria-label="서비스 정보"><a href="./">쿠폰 비교</a><a href="guide.html">할인 비교 가이드</a><a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a><a href="partners.html">광고·제휴</a></nav>
+  <p>AMONG은 각 브랜드·통신사가 운영하는 서비스가 아닙니다.</p>
 </footer>
 </body>
 </html>

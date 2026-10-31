@@ -63,6 +63,8 @@ jobs:
       - name: 검색 주소 생성 (Pages 실제 도메인 기준)
         env:
           PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
+          ADSENSE_PUBLISHER_ID: ${{ vars.ADSENSE_PUBLISHER_ID }}
+          CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
         run: node collector/scripts/prepare-pages.js
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
