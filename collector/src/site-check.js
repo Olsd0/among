@@ -22,9 +22,12 @@ try {
   await page.goto(`${SITE}?check=${Date.now()}`, { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForTimeout(3000);
   const data = await page.evaluate(async () => {
-    const r = await fetch(`${window.AMONG_CONFIG.apiUrl}?action=coupons&t=${Date.now()}`).then((x) => x.json());
-    return { coupons: r.coupons || [], news: r.news || [] };
+    try {
+      const r = await fetch(`${window.AMONG_CONFIG.apiUrl}?action=coupons&t=${Date.now()}`).then((x) => x.json());
+      return { coupons: r.coupons || [], news: r.news || [] };
+    } catch (e) { return { coupons: [], news: [], error: String(e) }; }
   });
+  if (data.error) out.errors.push(`API: ${data.error}`.slice(0, 200));
   // 아래까지 천천히 내려 지연 로딩 사진을 모두 부른다
   for (let i = 0; i < 60; i++) { await page.mouse.wheel(0, 700); await page.waitForTimeout(120); }
   await page.waitForTimeout(4000);
@@ -33,7 +36,10 @@ try {
   await page.waitForTimeout(2500);
 
   const view = await page.evaluate(() => ({
-    hot: [...document.querySelectorAll('.hcard')].map((h) => `${h.classList.contains('has-ph') ? '사진' : '그림'}|${h.dataset.hot.split(':')[0]}|${h.getAttribute('aria-label').replace(/^\d+번째 핫딜: /, '')}`),
+    // 공지 카드는 <article> 안의 버튼에 이름이 있다 (10/29~). 이름이 없으면 보이는 글자로
+    hot: [...document.querySelectorAll('.hcard')].map((h) => `${h.classList.contains('has-ph') ? '사진' : '그림'}|${(h.dataset.hot || '').split(':')[0]}|${(h.getAttribute('aria-label') || h.querySelector('[aria-label]')?.getAttribute('aria-label') || h.innerText || '').replace(/\s+/g, ' ').replace(/^\d+번째 핫딜: /, '').slice(0, 80)}`),
+    cards: [...document.querySelectorAll('.hcard')].map((h) => h.offsetHeight).join(','),
+    overflow: document.documentElement.scrollWidth > innerWidth,
     tickets: document.querySelectorAll('.ticket').length,
     stubPhoto: document.querySelectorAll('.stub.has-ph').length,
     stubFailed: document.querySelectorAll('.stub.noph').length,
@@ -73,6 +79,7 @@ try {
     `아이콘: ${view.grid}`,
     `목록: ${view.summary}`,
     `소식 상세: ${newsSheet}`,
+    `핫딜 카드 높이 ${view.cards || '-'} · 가로 넘침 ${view.overflow ? '있음' : '없음'}`,
     `화면 오류 ${out.errors.length}건${out.errors.length ? ': ' + out.errors.slice(0, 3).join(' / ') : ''}`,
   ];
   console.log(lines.join('\n'));
@@ -83,6 +90,12 @@ try {
     console.log(`::notice title=핫딜 ${view.hot.length}장::${view.hot.map(n).join('%0A')}`);
     console.log(`::notice title=사진 불러오기 (사이트별)::${Object.entries(byHost).map(([h, v]) => n(`${h}|성공 ${v.ok}|실패 ${v.bad}|안 부름 ${v.notLoaded}${v.sample ? `|예: ${v.sample}` : ''}`)).join('%0A') || '사진 없음'}`);
   }
+} catch (e) {
+  // 점검 스크립트가 멈추면 원인을 주석으로 남긴다 (로그를 내려받지 않아도 보이게)
+  const msg = String(e && e.stack || e).replace(/\r?\n/g, ' ').slice(0, 400);
+  console.error(msg);
+  if (process.env.GITHUB_ACTIONS) console.log(`::error title=화면 점검 실패::${msg.replace(/%/g, '%25')}`);
+  process.exitCode = 1;
 } finally {
   await browser.close();
 }
