@@ -63,7 +63,10 @@ try {
   // 사진 주소별 결과 (사이트별로 묶음)
   const want = new Set([...data.coupons.map((c) => c.image_url), ...data.news.map((n) => n.image_url)].filter(Boolean));
   const byHost = {};
-  for (const u of want) {
+  for (const raw of want) {
+    // 10/29부터 확인한 공식 사진은 사이트 안의 파일(assets/...)일 수 있어 사이트 주소 기준으로 해석한다
+    let u;
+    try { u = new URL(raw, SITE).href; } catch { continue; }
     const h = new URL(u).hostname;
     const st = out.images.get(u);
     const ok = st === 200 || st === 304;
