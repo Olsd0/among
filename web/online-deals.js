@@ -126,9 +126,10 @@ export function createOnlineDealsUI(root, options = {}) {
     list.innerHTML = items.map(onlineDealCard).join('');
     if (loading) status.textContent = '상품 정보를 확인하고 있어요…';
     else if (failed) status.innerHTML = '<span>상품 정보를 불러오지 못했어요.</span><button type="button" data-od-retry>다시 불러오기</button>';
-    else if (!items.length) status.innerHTML = '<strong>확인한 상품을 준비하고 있어요.</strong><span>가격과 조건을 확인한 상품부터 안내할게요.</span>';
     else status.textContent = '';
     status.hidden = !status.textContent;
+    // 확인한 상품이 아직 없으면 빈 목록 제목과 '준비 중' 안내를 내보이지 않는다 (공식 특가 바로가기만).
+    root.querySelector('.od-list-heading').hidden = !items.length && !loading && !failed;
     if (active && items.length) {
       const next = Math.min(...items.map(item => item.validUntil));
       expiryTimer = setTimeout(render, Math.max(1, next - Date.now() + 20));

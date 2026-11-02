@@ -484,3 +484,53 @@ test('설빙 적립 공지가 사진·조건과 함께 노출되고 종료 다�
   await page.locator('#list').waitFor({ state: 'attached' });
   assert.equal(await card.count(), 0);
 });
+
+test('검색하면 소개·핫딜을 접고 결과를 바로 보여 주며, 결과가 없으면 브랜드를 추천하고 Esc로 닫는다', { timeout: 30000 }, async (t) => {
+  const coupons = [{ ...coupon('burger'), brand: '테스트버거', menu: '불고기 버거' }, { ...coupon('coffee'), brand: '테스트카페', category: '카페', menu: '아메리카노' }];
+  const { context, page } = await setup({ ok: true, last_checked_at: ago(1), coupons, news: [news('event', ago(1))] });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('#card-burger').waitFor();
+  await page.click('#searchBtn');
+  await page.fill('#q', '아메리카노');
+  assert.equal(await page.locator('#hot').isVisible(), false, '검색 중에는 핫딜을 접는다');
+  assert.equal(await page.locator('#grid').isVisible(), false);
+  assert.equal(await page.locator('#listTitle').innerText(), '‘아메리카노’ 검색 결과');
+  const top = await page.locator('#card-coffee').evaluate((el) => el.getBoundingClientRect().top);
+  assert.ok(top < 844, '첫 결과가 첫 화면 안에 보인다');
+  await page.fill('#q', '없는 메뉴');
+  assert.match(await page.locator('#list .empty').innerText(), /맞는 혜택이 없어요/);
+  await page.locator('[data-suggest="테스트버거"]').click();
+  assert.equal(await page.inputValue('#q'), '테스트버거');
+  assert.equal(await page.locator('#card-burger').isVisible(), true);
+  await page.locator('#q').press('Escape');
+  assert.equal(await page.locator('#q').isVisible(), false);
+  assert.equal(await page.locator('#hot').isVisible(), true, '검색을 닫으면 핫딜이 돌아온다');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'searchBtn');
+});
+
+test('내 조건 버튼은 고른 조건을 보여 주고, 시트의 닫기(✕)는 저장하지 않는다', { timeout: 30000 }, async (t) => {
+  const { context, page } = await setup({ ok: true, last_checked_at: ago(1), coupons: [{ ...coupon('kt'), programs: ['KT'], audience: '멤버십' }], news: [] });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('#card-kt').waitFor();
+  assert.equal(await page.locator('#meLabel').innerText(), '내 조건');
+  await page.click('#meBtn');
+  await page.click('#meSheet [data-v="KT"]');
+  await page.locator('#meSheet').getByRole('button', { name: '닫기' }).click();
+  assert.equal(await page.locator('#meSheet').evaluate((d) => d.open), false);
+  assert.equal(await page.evaluate(() => localStorage.getItem('among_profile')), null, '닫기는 저장하지 않음');
+  await page.click('#meBtn');
+  await page.click('#meSheet [data-v="KT"]');
+  await page.click('#meSheet .btn.primary');
+  assert.equal(await page.locator('#meLabel').innerText(), 'KT');
+  assert.match(await page.locator('#card-kt .badges').innerText(), /내 KT 혜택/);
+  // 목록을 내려도 정렬·필터 줄은 머리글 바로 아래에 남는다
+  await page.evaluate(() => scrollTo(0, document.body.scrollHeight / 2));
+  const gap = await page.evaluate(() => document.querySelector('.tools').getBoundingClientRect().top - document.querySelector('header.top').getBoundingClientRect().bottom);
+  assert.ok(Math.abs(gap) < 2 || (await page.evaluate(() => document.body.scrollHeight <= innerHeight * 1.6)), `정렬 줄 위치 ${gap}`);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `폭 ${width}`);
+  }
+});

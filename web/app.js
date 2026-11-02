@@ -42,11 +42,7 @@ const ART = {
 };
 const TINT = { 햄버거: '--t-bun', 카페: '--t-cafe', 치킨: '--t-chk', 피자: '--t-piz', 디저트: '--t-des', free: '--t-vio', ending: '--t-red', telecom: '--t-blue', pay: '--t-grn', new: '--t-gold' };
 // 핫딜 카드 바탕 (사진이 없을 때): 카테고리 색 그라데이션 + 우리 아이콘 — 브랜드 배너처럼 보이지 않게
-const HBG = {
-  햄버거: 'linear-gradient(135deg, #ffb54d 0%, #f2702c 100%)', 카페: 'linear-gradient(135deg, #c18a5e 0%, #6f3f22 100%)',
-  치킨: 'linear-gradient(135deg, #ffc451 0%, #e2711a 100%)', 피자: 'linear-gradient(135deg, #ff8063 0%, #d33a2b 100%)',
-  디저트: 'linear-gradient(135deg, #ff9fc6 0%, #cf4a83 100%)', '': 'linear-gradient(135deg, #9a87ff 0%, #5b3df5 100%)',
-};
+const HBG = { 햄버거: 'var(--t-bun)', 카페: 'var(--t-cafe)', 치킨: 'var(--t-chk)', 피자: 'var(--t-piz)', 디저트: 'var(--t-des)', '': 'var(--t-vio)' };
 const ICON = {
   store: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-4h4v4"/></svg>',
   cal: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
@@ -333,7 +329,7 @@ function showOnlineDeals() {
   const panel = $('#onlineDeals');
   panel.innerHTML = '<div class="empty" role="status">온라인 특가를 불러오고 있어요.</div>';
   // 코드·스타일·상품 JSON 모두 실제로 이 탭을 열 때만 요청한다.
-  onlineDealsLoading = import('./online-deals.js?v=20261029-9').then(({ createOnlineDealsUI }) => {
+  onlineDealsLoading = import('./online-deals.js?v=20261102-1').then(({ createOnlineDealsUI }) => {
     onlineDealsUI = createOnlineDealsUI(panel, { dataUrl: CFG.onlineDeals.dataUrl });
     if (state.view === 'onlineDeals') onlineDealsUI.show();
     else onlineDealsUI.hide();
@@ -433,11 +429,13 @@ function noticePreview(n) {
 function hotCard(h, i) {
   const img = safeImg(h.image_url);
   const photo = h.kind === 'coupon' ? couponPhoto(state.coupons.find(c => c.id === h.id) || {}) : null;
-  const why = h.reason || '';
-  const whyCls = /마감|D-/.test(why) ? '' : why === 'NEW' ? ' n' : ' d';
+  const why = h.reason === 'NEW' ? '새 혜택' : h.reason || '';
+  const whyCls = /마감|D-/.test(why) ? '' : h.reason === 'NEW' ? ' n' : ' d';
   const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : h.title;
   const lbl = h.kind === 'news' ? '' : h.label || '';
-  const size = /[0-9]원/.test(lbl) ? 'font-size:18px' : lbl.length > 9 ? 'font-size:20px' : lbl.length > 6 ? 'font-size:24px' : '';
+  const hc = h.kind === 'coupon' ? state.coupons.find(c => c.id === h.id) : null;
+  const tone = hc ? stubParts(hc).tone : 'sale';
+  const size = /[0-9]원/.test(lbl) ? 'font-size:18px' : lbl.length > 9 ? 'font-size:17px' : lbl.length > 6 ? 'font-size:19px' : '';
   if (h.kind === 'news') {
     const n = state.news.find(n => n.id === h.id) || h;
     const source = noticeSource(n);
@@ -452,7 +450,7 @@ function hotCard(h, i) {
   return `<button class="hcard${img ? ' has-ph' : ' noph'}" style="--hbg:${HBG[h.category] || HBG['']}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
     <span class="hot-visual">${img ? `<img class="ph" src="${esc(img)}" alt="${esc(photo ? `${h.brand} ${photo.name} ${photo.label}` : title)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer">${photo?.label ? `<span class="notice-image-label">${esc(photo.label)}</span>` : ''}` : ''}<span class="art" aria-hidden="true">${ART[h.category] || ART.free}</span></span>
     <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span>
-    <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl" style="${size}">${esc(lbl)}</span>` : ''}<span class="kind">${h.kind === 'news' ? '공지 보기 ↗' : '혜택 보기 ↗'}</span></span></span>
+    <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl tone-${tone}" style="${size}">${esc(lbl)}</span>` : ''}<span class="kind">${h.kind === 'news' ? '공지 보기 ›' : '자세히 ›'}</span></span></span>
   </button>`;
 }
 function renderHot() {
@@ -483,8 +481,9 @@ function dueChip(c, today) {
   if (c.start_date && c.start_date > today) return `<span class="chip soon">${ICON.cal}${md(c.start_date)} 시작</span>`;
   const d = daysLeft(c.end_date, today);
   if (d === null) return '';
-  if (d > 30) return `<span class="chip">${ICON.cal}~${md(c.end_date)}</span>`;   // 한참 남은 건 날짜만
-  return `<span class="chip${d <= 7 ? ' due' : ''}">${ICON.cal}${d === 0 ? '오늘 종료' : `D-${d}`}</span>`;
+  if (d === 0) return `<span class="chip due today">${ICON.cal}오늘 종료</span>`;
+  if (d > 7) return `<span class="chip">${ICON.cal}${md(c.end_date)}까지</span>`;   // 여유가 있으면 날짜로
+  return `<span class="chip${d <= 3 ? ' due' : ''}">${ICON.cal}D-${d}</span>`;
 }
 
 const upTo = (c) => /^최대/.test(c.program_note || '');
@@ -581,6 +580,7 @@ function detailHtml(c, today) {
     ${photo && photo.kind !== 'product' ? `<figure class="coupon-artwork"><img src="${esc(photo.url)}" alt="${esc(`${c.brand} ${photo.name} ${photo.label}`)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${esc(photo.label)} · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>${photo.kind === 'campaign' ? ` · <a href="${esc(photo.detailUrl)}" target="_blank" rel="noopener noreferrer">포스터 원본 ↗</a>` : ''}</figcaption></figure>` : ''}
     ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
     <section><h4>꼭 확인할 조건</h4><dl>
+      ${String(c.menu || '').length > 22 ? `<dt>메뉴</dt><dd>${esc(c.menu)}</dd>` : ''}
       <dt>필요</dt><dd>${esc(need)}</dd>
       <dt>기간</dt><dd>${esc(period)}</dd>
       ${cond ? `<dt>조건</dt><dd>${esc(cond)}</dd>` : ''}
@@ -671,19 +671,19 @@ function renderMeBar() {
     setHTML(bar, `<span class="grow">${items.length ? `<b>${esc(items.join(' · '))}</b> 기준으로 내가 쓸 수 있는 혜택을 먼저 보여드려요` : '조건 없는 쿠폰을 먼저 보여드려요'}</span><button class="act" data-open-me>변경</button>`);
     bar.hidden = false;
   } else if (!store.get('among_me_dismissed', false)) {
-    setHTML(bar, '<span class="grow">통신사·자주 쓰는 페이를 알려주시면 <b>내가 쓸 수 있는 할인</b>만 골라드려요</span><button class="act" data-open-me>설정</button><button class="x" data-dismiss-me aria-label="닫기">✕</button>');
+    setHTML(bar, '<span class="grow">통신사·자주 쓰는 페이를 알려주시면 <b>내가 쓸 수 있는 할인</b>만 골라드려요</span><button class="act" data-open-me>설정</button><button class="x" data-dismiss-me aria-label="안내 닫기">✕</button>');
     bar.hidden = false;
   } else bar.hidden = true;
-  const dot = $('#meBtn .dot');
-  if (p && !dot) { const el = document.createElement('span'); el.className = 'dot'; $('#meBtn').append(el); }
-  else if (!p && dot) dot.remove();
+  const picked = p ? [p.telecom === 'LGU+' ? 'LG U+' : p.telecom, ...(p.pays || [])].filter(Boolean) : [];
+  $('#meLabel').textContent = p ? (picked.length ? picked.join('·') : '조건 없음') : '내 조건';
+  $('#meBtn').classList.toggle('set', !!p);
 }
 
 function renderFreshness() {
   let message = '';
   if (state.loadFailed) message = state.coupons.length || state.news.length
     ? '연결이 불안정해 마지막으로 받은 혜택을 보여드려요. 결제 전 공식 페이지에서 확인해 주세요.'
-    : '혜택을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
+    : state.view === 'all' ? '' : '혜택을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
   else if (state.checkingNetwork) message = '저장된 혜택을 먼저 보여드려요. 최신 정보를 확인하고 있어요.';
   else if (state.view === 'appCoupons') {
     if (!state.loading && state.appCoupons.some(x => verificationStatus(x.checked_at) !== 'fresh')) message = '일부 앱 쿠폰의 조건은 재확인이 필요해요. 카드의 확인 표시와 공식 안내를 살펴봐 주세요.';
@@ -704,10 +704,10 @@ function render() {
   $('#demoNote').hidden = onlineView || !DEMO;
   $('#syncNote').hidden = onlineView || !state.syncing;
   if (onlineView) {
-    for (const el of [$('.intro'), $('#appCoupons'), $('#brandPanel'), $('#hot'), $('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list'), $('#meBar'), $('#errNote')]) el.hidden = true;
+    for (const el of [$('.intro'), $('#appCoupons'), $('#brandPanel'), $('#hot'), $('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar'), $('#errNote')]) el.hidden = true;
     return;
   }
-  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list')]) el.hidden = false;
+  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = false;
   const today = todayKST();
   renderFreshness();
   renderMeBar();
@@ -717,9 +717,10 @@ function render() {
   const appView = state.view === 'appCoupons';
   $('#appCoupons').hidden = !appView;
   $('.intro').hidden = appView;
+  $('.intro').classList.toggle('sr', state.view === 'brands' || state.view === 'following');
   appCouponUI.update(state.appCoupons, { loading: state.loading, failed: state.loadFailed });
   if (appView) {
-    for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list'), $('#meBar')]) el.hidden = true;
+    for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar')]) el.hidden = true;
     return;
   }
   $('#sortSel').value = state.sort;
@@ -729,28 +730,33 @@ function render() {
   const list = $('#list');
   list.setAttribute('aria-busy', String(state.loading));
   if (state.loading && !state.coupons.length) {
-    setHTML(list, '<div class="skel"></div><div class="skel"></div><div class="skel"></div>');
+    setHTML(list, '<div class="skel" aria-hidden="true"><span class="sk-stub"></span><span class="sk-lines"><i></i><i></i><i></i><i></i></span></div>'.repeat(3));
     $('#summary').textContent = '';
     setHTML($('#quick'), '');
     return;
   }
   renderQuick();
-  if (state.brand) $('#listTitle').textContent = `${state.brand} 혜택`;
+  document.body.classList.toggle('searching', !!state.q);
+  if (state.q) $('#listTitle').textContent = `‘${state.q}’ 검색 결과`;
+  else if (state.brand) $('#listTitle').textContent = `${state.brand} 혜택`;
   else if (state.view === 'following') $('#listTitle').textContent = '구독 브랜드 혜택';
   const directory = state.view === 'brands' && !state.brand;
-  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
+  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
   const shown = sortCoupons(visible(), state.sort, today, profileObj());
   const brands = new Set(shown.map((c) => c.brand)).size;
   const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;
   $('#summary').textContent = shown.length
-    ? `${shown.length}개 · 브랜드 ${brands}곳${profileObj() ? ` · 내가 쓸 수 있는 것 ${usable}개` : ''}`
+    ? `${shown.length}개 · 브랜드 ${brands}곳${profileObj() ? ` · 쓸 수 있는 ${usable}개` : ''}`
     : '';
 
   if (!shown.length) {
     const inCat = state.coupons.some((c) => state.category === '전체' || c.category === state.category);
     const anyQuick = Object.values(state.quick).some(Boolean);
+    const popular = Object.entries(state.coupons.reduce((m, c) => { m[c.brand] = (m[c.brand] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([b]) => b);
     setHTML(list, state.loadFailed && !state.coupons.length
       ? '<div class="empty"><b>혜택을 불러오지 못했어요</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 불러오기</button></div>'
+      : state.q
+      ? `<div class="empty"><b>‘${esc(state.q)}’에 맞는 혜택이 없어요</b>브랜드 이름이나 메뉴 이름으로 찾아보세요.${popular.length ? `<div class="suggest">${popular.map((b) => `<button class="chip-btn" data-suggest="${esc(b)}">${esc(b)}</button>`).join('')}</div>` : ''}</div>`
       : inCat
       ? `<div class="empty"><b>조건에 맞는 혜택이 없어요</b>${anyQuick || state.kind ? '위 아이콘이나 빠른 필터를 꺼 보세요.' : '필터나 검색어를 바꿔 보세요.'}${anyQuick || state.kind ? '<br><button class="chip-btn" data-clear-quick>조건 모두 끄기</button>' : ''}</div>`
       : `<div class="empty"><b>${esc(state.category)} 혜택은 준비 중이에요</b>브랜드를 차례로 늘려가고 있어요.</div>`);
@@ -758,6 +764,7 @@ function render() {
     setHTML(list, shown.map((c) => card(c, today)).join(''));
   }
   $('#lastChecked').textContent = fmtChecked(state.meta.last_checked_at) ? `매일 공식 페이지 확인을 시도해요 · 마지막 수집 ${fmtChecked(state.meta.last_checked_at)}` : '';
+  $('#freshLine').textContent = fmtChecked(state.meta.last_checked_at) ? `${fmtChecked(state.meta.last_checked_at)} 확인` : '';
 }
 
 let toastTimer;
@@ -840,7 +847,7 @@ $('#hotRail').addEventListener('click', (e) => {
 });
 $('#hotRail').addEventListener('scroll', () => {
   const rail = $('#hotRail'); const first = rail.firstElementChild; if (!first) return;
-  const i = Math.round(rail.scrollLeft / (first.offsetWidth + 10));
+  const i = Math.round(rail.scrollLeft / (first.offsetWidth + 12));
   $('#hotDots').querySelectorAll('i').forEach((d, k) => d.classList.toggle('on', k === i));
   if (state.hot && state.hot.length > 1) $('#hotCount').textContent = `${Math.min(i + 1, state.hot.length)} / ${state.hot.length}`;
 }, { passive: true });
@@ -925,6 +932,8 @@ $('#quick').addEventListener('click', (e) => {
 
 $('#list').addEventListener('click', async (e) => {
   if (e.target.closest('[data-retry]')) { state.loading = true; state.loadFailed = false; render(); loadCoupons(); return; }
+  const sug = e.target.closest('[data-suggest]');
+  if (sug) { $('#q').value = sug.dataset.suggest; state.q = sug.dataset.suggest; render(); return; }
   const brand = e.target.closest('[data-brand-open]');
   if (brand) { openBrand(brand.dataset.brandOpen); return; }
   const cta = e.target.closest('[data-click]');
@@ -993,8 +1002,14 @@ $('#searchBtn').addEventListener('click', () => {
   row.classList.toggle('on', on); $('#searchBtn').setAttribute('aria-expanded', String(on));
   if (on) $('#q').focus(); else { $('#q').value = ''; state.q = ''; render(); }
 });
-$('#q').addEventListener('input', (e) => { state.q = e.target.value.trim(); render(); });
+$('#q').addEventListener('input', (e) => { state.q = e.target.value.trim(); render(); if (state.q) window.scrollTo({ top: 0, behavior: 'auto' }); });
+$('#q').addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#searchRow').classList.contains('on')) { e.preventDefault(); $('#searchBtn').click(); $('#searchBtn').focus(); } });
 $('#refreshBtn').addEventListener('click', refresh);
+
+document.addEventListener('click', (e) => { const x = e.target.closest('[data-sheet-close]'); if (x) x.closest('dialog')?.close('cancel'); });
+// 머리글 높이를 정렬·필터 줄의 고정 위치로 쓴다 (검색 줄이 열리면 높이가 바뀜)
+const setHeaderHeight = () => document.documentElement.style.setProperty('--hh', `${$('header.top').offsetHeight}px`);
+if ('ResizeObserver' in window) new ResizeObserver(setHeaderHeight).observe($('header.top')); else setHeaderHeight();
 
 // 시트 저장은 form의 submit에서 처리한다. dialog의 'close' 이벤트에 기대지 않는다:
 // 앱 속 브라우저(웹뷰) 중에는 close 이벤트를 보내지 않아 설정이 저장되지 않는 곳이 있었다 (10/27 확인)
@@ -1008,7 +1023,7 @@ function onSheetSubmit(sheet, fn) {
   });
 }
 
-// 내 할인 수단 시트
+// 내 조건(통신사·결제수단) 시트
 const meSheet = $('#meSheet');
 let meDraft = null;
 let meTurnOnMine = false;
