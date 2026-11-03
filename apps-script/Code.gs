@@ -260,8 +260,9 @@ function requestRefresh_() {
 
 function dispatchWorkflow_(trigger) {
   const p = PropertiesService.getScriptProperties();
-  const token = p.getProperty('GITHUB_TOKEN');
-  const repo = p.getProperty('GITHUB_REPO');
+  // 붙여넣을 때 딸려 온 앞뒤 공백·줄바꿈은 무시한다
+  const token = String(p.getProperty('GITHUB_TOKEN') || '').trim();
+  const repo = String(p.getProperty('GITHUB_REPO') || '').trim();
   if (!token || !repo) return { ok: false, error: 'GITHUB_TOKEN / GITHUB_REPO 미설정' };
   const wf = p.getProperty('GITHUB_WORKFLOW') || 'collect.yml';
   const ref = p.getProperty('GITHUB_REF') || 'main';
@@ -789,6 +790,30 @@ function installTriggers() {
     .forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('scheduledCollect').timeBased().atHour(0).nearMinute(5).everyDays(1).inTimezone(TZ).create();
   Logger.log('설치 완료: 매일 00시대에 scheduledCollect 실행 (GitHub 토큰 GITHUB_TOKEN·GITHUB_REPO 필요)');
+}
+
+/**
+ * 편집기에서 실행: '새로 확인' 버튼 연결 점검. 수집을 시작하지 않고(워크플로 조회만) 토큰 값도 기록하지 않는다.
+ * 마지막 버튼 오류, 속성 형식, GitHub 응답 코드(401 토큰 틀림·만료 / 403 권한 부족 / 404 저장소 미선택·이름 틀림)를 보여 준다.
+ */
+function checkRefreshSetup() {
+  const p = PropertiesService.getScriptProperties();
+  const rawToken = String(p.getProperty('GITHUB_TOKEN') || '');
+  const rawRepo = String(p.getProperty('GITHUB_REPO') || '');
+  const token = rawToken.trim();
+  const repo = rawRepo.trim();
+  Logger.log('GITHUB_TOKEN: ' + (token ? '있음 · ' + (/^github_pat_/.test(token) ? 'fine-grained 형식' : /^gh[pousr]_/.test(token) ? 'classic 형식' : '알 수 없는 형식') + (token !== rawToken ? ' · 앞뒤 공백 있음(무시함)' : '') : '없음'));
+  Logger.log('GITHUB_REPO: ' + (repo ? JSON.stringify(repo) + (/^[\w.-]+\/[\w.-]+$/.test(repo) ? '' : ' · owner/repo 형식 아님') + (repo !== rawRepo ? ' · 앞뒤 공백 있음(무시함)' : '') : '없음'));
+  Logger.log('마지막 버튼 오류: ' + (p.getProperty('LAST_REFRESH_ERROR') || '없음') + ' (' + (p.getProperty('LAST_REFRESH_ERROR_AT') || '-') + ')');
+  Logger.log('설치된 트리거: ' + ScriptApp.getProjectTriggers().map((t) => t.getHandlerFunction()).join(', '));
+  if (!token || !repo) return;
+  const wf = p.getProperty('GITHUB_WORKFLOW') || 'collect.yml';
+  const res = UrlFetchApp.fetch('https://api.github.com/repos/' + repo + '/actions/workflows/' + wf, {
+    headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    muteHttpExceptions: true,
+  });
+  const code = res.getResponseCode();
+  Logger.log('GitHub 워크플로 조회: ' + code + (code === 200 ? ' (토큰·저장소 정상)' : ' ' + String(res.getContentText()).slice(0, 200)));
 }
 
 // ============ 초기 설정 ============
