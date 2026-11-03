@@ -186,6 +186,19 @@ test('실제 수집(10/28 11:30)에서 본 것: 경품·초청 이벤트 제외,
   const musical = normalizeNews({ title: '뮤지컬 초청 문화 이벤트', summary: '추첨으로 뮤지컬 티켓 증정', discount_label: '뮤지컬 티켓 1인 2매', end_date: '2026-11-08', programs: [], evidence: '뮤지컬 두도시이야기 초청 이벤트', evidence_source: 'text', confidence: 0.9 }, ctx);
   assert.equal(musical.status, 'rejected');
   assert.ok(musical.issues.includes('경품·추첨 이벤트'));
+  // 11/03 교촌 '무나매표소': SNS 참여 후 당첨, 경품은 영화 예매권 — '추첨' 낱말 없이 '예매권 증정'으로 요약돼도 버린다
+  const kyo = { now: NOW, brand: '교촌치킨', category: '치킨', sourceId: 'k', sourceUrl: 'https://k.kr', pageText: '[교촌] 11월 무나매표소 이벤트 기간 : 2026-11-02 ~ 2026-11-08 [진행중]이제 허니도 윙콤비로 [이벤트기간]2026-10-22 ~ 2026-11-30 허니메뉴7종 최대5,000원 할인' };
+  const movie = normalizeNews({ title: '교촌치킨 스크루지 영화 예매권 증정', summary: '11월 무나매표소 이벤트 참여 시 영화 예매권을 증정합니다.', discount_label: '영화 예매권 증정', start_date: '2026-11-02', end_date: '2026-11-08', programs: [], evidence: '[교촌] 11월 무나매표소 이벤트 기간 : 2026-11-02 ~ 2026-11-08', evidence_source: 'text', confidence: 0.95 }, kyo);
+  assert.equal(movie.status, 'rejected');
+  assert.ok(movie.issues.includes('경품·추첨 이벤트'));
+  const sns = normalizeNews({ title: '인스타 팔로우 이벤트', summary: '팔로우하고 댓글을 남기면 기프티콘 증정', discount_label: '기프티콘 증정', end_date: '2026-11-08', programs: [], evidence: '[교촌] 11월 무나매표소 이벤트 기간 : 2026-11-02 ~ 2026-11-08', evidence_source: 'text', confidence: 0.95 }, kyo);
+  assert.equal(sns.status, 'rejected');
+  // 할인 없는 신메뉴 출시 알림은 핫딜이 아니고, 출시 기념 할인은 그대로 둔다
+  const launch = normalizeNews({ title: '교촌치킨 허니도 윙콤비로 출시', summary: '허니윙콤비 신메뉴가 출시되었습니다.', discount_label: '', start_date: '2026-10-22', end_date: '2026-11-30', programs: [], evidence: '[진행중]이제 허니도 윙콤비로 [이벤트기간]2026-10-22 ~ 2026-11-30', evidence_source: 'text', confidence: 0.95 }, kyo);
+  assert.equal(launch.status, 'rejected');
+  assert.ok(launch.issues.includes('신메뉴 소개'));
+  const launchSale = normalizeNews({ title: '허니메뉴 7종 최대 5천원 할인', summary: '신메뉴 출시 기념 허니메뉴 7종 할인', discount_label: '최대 5,000원', end_date: '2026-11-30', programs: [], evidence: '허니메뉴7종 최대5,000원 할인', evidence_source: 'text', confidence: 0.95 }, kyo);
+  assert.notEqual(launchSale.status, 'rejected');
   const longRun = normalizeNews({ title: '치즈페스타 할인', summary: '', discount_label: '최대 1만원 할인', start_date: '2026-08-31', end_date: '2026-12-31', programs: [], evidence: '치즈페스타 최대 1만원 할인 8/31~12/31', evidence_source: 'text', confidence: 0.9 }, ctx);
   assert.equal(longRun.status, 'pending');
   assert.ok(longRun.issues.includes('기간이 긴 상시성 행사'));

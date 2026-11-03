@@ -455,6 +455,8 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
 
 // ---------- 근거 대조 (AI 환각 방지) ----------
 
+const PRIZE_WORDS = /추첨|응모|당첨|경품|초청|예매권|관람권|영화\s*티켓|뮤지컬|공연\s*티켓|콘서트|팔로우|댓글|인증샷|리그램|해시태그/;
+const HARD_BENEFIT = /\d+\s*%|\d[\d,]*\s*원|\d+\s*천\s*원|1\s*\+\s*1|반값|할인/;
 const PROMO_WORDS = /할인|특가|적립|캐시백|쿠폰|이벤트|프로모션|행사|세일|반값|단돈|딜|해피|스낵|1\s*\+\s*1|증정|무료|%|원에|인하|혜택|한정|기념|오픈|첫\s*주문|신규|멤버십|데이|타임/;
 function squash(s) { return String(s || '').replace(/[\s,·•\-–—~()\[\]"'“”‘’]/g, '').toLowerCase(); }
 
@@ -1154,7 +1156,11 @@ export function normalizeNews(raw = {}, ctx = {}) {
   else if (!n.programs.length && needsOtherPayment(allText)) reject.push('특정 결제수단 할인');
   if (!PROMO_WORDS.test(allText)) reject.push('혜택 소식이 아님');
   // 경품 추첨·초청 이벤트는 할인 소식이 아니다 (할인·1+1이 함께 있으면 그 혜택으로 본다)
-  else if (/추첨|응모|당첨|경품|초청/.test(allText) && !/\d+\s*%|\d[\d,]*\s*원|1\s*\+\s*1|반값|할인/.test(allText)) reject.push('경품·추첨 이벤트');
+  // 11/03: 교촌 '무나매표소'(인스타 팔로우·댓글 → 25명 당첨, 경품 영화 예매권)가 '예매권 증정'으로만 요약돼 핫딜에 올라옴
+  //        → 영화·공연 예매권, SNS 참여(팔로우·댓글·인증샷) 이벤트도 경품으로 본다
+  else if (PRIZE_WORDS.test(allText) && !HARD_BENEFIT.test(allText)) reject.push('경품·추첨 이벤트');
+  // 신메뉴 출시 알림만 있고 값·증정·적립 혜택이 없으면 핫딜 소식이 아니다 (11/03 교촌 '허니도 윙콤비로', '웨지가 달콤하구마')
+  else if (/신메뉴|신제품|출시|\bnew\b/i.test(allText) && !HARD_BENEFIT.test(allText) && !/증정|적립|무료|쿠폰|특가|사은품/.test(allText)) reject.push('신메뉴 소개');
   const hold = [];
   const ev = squash(n.evidence);
   if (raw.evidence_source !== 'image' && pageSq && ev.length >= 4 && !pageSq.includes(ev)) {
