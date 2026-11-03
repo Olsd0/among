@@ -48,9 +48,12 @@ test('같은 점수의 이미지가 다른 카드에 있으면 애매하므로 �
 });
 
 test('상세 페이지에 공지가 하나뿐일 때만 공유용 대표 이미지(og:image)를 쓴다', () => {
-  const detail = { isDetail: true, ogImage: 'https://cdn.brand.kr/event/share-1129.png', images: [] };
+  // og는 본문에도 보이는 이미지일 때만 (본문 이미지는 주변 글이 공지와 안 맞아도 됨)
+  const detail = { isDetail: true, ogImage: 'https://cdn.brand.kr/event/share-1129.png', images: [img('share-1129.png', card('KFC 프로모션'))] };
   const n = { brand: 'KFC', title: '닭껍질튀김 특가', evidence: '2배 더 풍성하게 돌아온 바삭함!' };
   assert.equal(pickNoticeImage(n, [detail], { own: detail, single: true }), 'https://cdn.brand.kr/event/share-1129.png');
+  const hidden = { ...detail, images: [] };
+  assert.equal(pickNoticeImage(n, [hidden], { own: hidden, single: true }), '', '본문에 없는 og(다른 행사 배너일 수 있음)는 쓰지 않는다 — 11/03 맥도날드');
   assert.equal(pickNoticeImage(n, [detail], { own: detail, single: false }), '', '공지가 여럿이면 어느 것의 이미지인지 모름');
   assert.equal(pickNoticeImage(n, [{ ...detail, isDetail: false }], { own: { ...detail, isDetail: false }, single: true }), '', '목록 페이지의 og는 사이트 공통');
   const logoOg = { ...detail, ogImage: 'https://brand.kr/images/common/logo_share.png' };
