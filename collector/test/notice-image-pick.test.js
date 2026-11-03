@@ -147,3 +147,10 @@ test('한 줄에 카드 둘이 든 목록에서는 대체텍스트로 그 공지
   const noAlt = { isDetail: false, images: list.images.map((i) => ({ ...i, alt: '' })) };
   assert.equal(pickNoticeImage(combo, [noAlt], {}), '', '대체텍스트가 없으면 어느 쪽인지 몰라 비워 둔다');
 });
+
+test('확인 목록에서 다른 공지의 이미지로 올라 있는 주소는 자동 선택으로 쓰지 않는다 — 11/03 피자헛 콜라 딜·클리커', () => {
+  const clicker = 'https://akamai.pizzahut.co.kr/2020pizzahut-prod/public/event/9725e387-0139-4887-ad09-cb44e8e7f99f.png';
+  const cola = { brand: '피자헛', title: '슈프림 피자 3종 콜라 1천원 딜', source_url: 'https://www.pizzahut.co.kr/cs/event/extra/newsupreme', end_date: '2026-11-16' };
+  assert.equal(noticeImageFor(cola, clicker, '2026-11-03'), '');
+  assert.equal(noticeImageFor(cola, 'https://akamai.pizzahut.co.kr/2020pizzahut-prod/public/event/new-cola.png', '2026-11-03'), 'https://akamai.pizzahut.co.kr/2020pizzahut-prod/public/event/new-cola.png');
+});

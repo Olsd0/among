@@ -1,4 +1,4 @@
-import { noticePhoto } from './notice-images.js?v=20261103-1';
+import { noticePhoto } from './notice-images.js?v=20261103-2';
 
 // 공식 메뉴 페이지에서 상품과 사진을 직접 확인한 목록.
 // 추가할 때 브랜드, 상품명, 크기/수량, 사진, 출처를 함께 확인하고 npm run sync-web을 실행한다.

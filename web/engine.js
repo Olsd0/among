@@ -1,11 +1,13 @@
-import { noticeImage, noticePhoto } from './notice-images.js?v=20261103-1';
+import { noticeImage, noticePhoto, isListedNoticeImage } from './notice-images.js?v=20261103-2';
 
 /** 확인 목록에 있는 공지는 그 목록의 이미지만(비어 있으면 일부러 뺀 것: 예 9MB 원본), 없으면 수집 때 고른 공지 이미지 */
 export function noticeImageFor(n = {}, picked = '', today) {
   const v = noticePhoto(n, today);
-  return v ? (v.image || '') : (picked || '');
+  if (v) return v.image || '';
+  // 확인 목록에서 다른 공지의 이미지로 올라 있는 주소는 이 공지 것이 아니다
+  return picked && !isListedNoticeImage(picked) ? picked : '';
 }
-import { productImage, couponImage } from './product-images.js?v=20261103-4';
+import { productImage, couponImage } from './product-images.js?v=20261103-5';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------

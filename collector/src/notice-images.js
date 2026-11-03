@@ -58,3 +58,8 @@ export function noticePhoto(news = {}, today = new Date(Date.now() + 9 * 3600e3)
     && n.words.every((word) => titleKey(news.title).includes(titleKey(word)))) || null;
 }
 export const noticeImage = (news, today) => noticePhoto(news, today)?.image || '';
+
+// 확인 목록에 다른 공지의 이미지로 올라 있는 주소인가 — 자동으로 고른 이미지가 이것이면 다른 행사 것이다
+// (11/03 피자헛 '슈프림 3종 콜라 1천원'에 '클리커 증정' 공지의 확인된 이미지가 붙음)
+const listedImages = new Set(notices.flatMap((n) => [n.image, n.detailImage, n.originalImage]).filter(Boolean).map(urlKey).filter(Boolean));
+export const isListedNoticeImage = (url) => listedImages.has(urlKey(url));

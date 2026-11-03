@@ -2,10 +2,10 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor,
-} from './engine.js?v=20261103-8';
-import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-4';
+} from './engine.js?v=20261103-9';
+import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-5';
 
-import { noticePhoto } from './notice-images.js?v=20261103-1';
+import { noticePhoto } from './notice-images.js?v=20261103-2';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { officialBrandLogo } from './brand-logos.js?v=20261029-8';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
