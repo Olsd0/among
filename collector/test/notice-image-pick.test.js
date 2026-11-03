@@ -47,17 +47,14 @@ test('같은 점수의 이미지가 다른 카드에 있으면 애매하므로 �
   assert.equal(pickNoticeImage({ brand: '도미노피자', title: '목요일 1+1', evidence: '목요일 1+1 스페셜데이' }, [sameCard], {}), 'https://cdn.brand.kr/event/mo.jpg');
 });
 
-test('상세 페이지에 공지가 하나뿐일 때만 공유용 대표 이미지(og:image)를 쓴다', () => {
-  // og는 본문에도 보이는 이미지일 때만 (본문 이미지는 주변 글이 공지와 안 맞아도 됨)
-  const detail = { isDetail: true, ogImage: 'https://cdn.brand.kr/event/share-1129.png', images: [img('share-1129.png', card('KFC 프로모션'))] };
-  const n = { brand: 'KFC', title: '닭껍질튀김 특가', evidence: '2배 더 풍성하게 돌아온 바삭함!' };
-  assert.equal(pickNoticeImage(n, [detail], { own: detail, single: true }), 'https://cdn.brand.kr/event/share-1129.png');
-  const hidden = { ...detail, images: [] };
-  assert.equal(pickNoticeImage(n, [hidden], { own: hidden, single: true }), '', '본문에 없는 og(다른 행사 배너일 수 있음)는 쓰지 않는다 — 11/03 맥도날드');
-  assert.equal(pickNoticeImage(n, [detail], { own: detail, single: false }), '', '공지가 여럿이면 어느 것의 이미지인지 모름');
-  assert.equal(pickNoticeImage(n, [{ ...detail, isDetail: false }], { own: { ...detail, isDetail: false }, single: true }), '', '목록 페이지의 og는 사이트 공통');
-  const logoOg = { ...detail, ogImage: 'https://brand.kr/images/common/logo_share.png' };
-  assert.equal(pickNoticeImage(n, [logoOg], { own: logoOg, single: true }), '');
+test('공유용 대표 이미지(og)는 공지 이미지로 쓰지 않는다 — 11/03 파파존스·맥도날드에서 다른 행사 이미지가 붙음', () => {
+  // 불닭 통신사 상세 페이지에서 '파파스데이' 공지를 함께 읽은 경우: og·본문 포스터는 불닭 행사 것
+  const detail = { isDetail: true, ogImage: 'https://cdn.brand.kr/event/buldak_telecom.jpg', images: [img('buldak_telecom.jpg', { ...card('불닭 까르보 치킨 통신사 최대 30% 할인 이벤트'), alt: '불닭 까르보 치킨 통신사 최대 30% 할인 이벤트' })] };
+  const papasday = { brand: '파파존스', title: '파파스데이 30% 할인', evidence: '11월 8일은 파파스데이!!! 라지 30% 할인' };
+  assert.equal(pickNoticeImage(papasday, [detail], { own: detail, single: true }), '');
+  // 같은 페이지의 불닭 공지는 제목과 맞는 카드라 그대로 쓴다
+  const buldak = { brand: '파파존스', title: '불닭 까르보 치킨 통신사 최대 30% 할인', evidence: '불닭 까르보 치킨 통신사 최대 30% 할인 이벤트' };
+  assert.equal(pickNoticeImage(buldak, [detail], { own: detail, single: true }), 'https://cdn.brand.kr/event/buldak_telecom.jpg');
 });
 
 test('로고·아이콘·띠 배너·긴 통이미지·http·gif는 공지 이미지 후보가 아니다', () => {

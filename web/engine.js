@@ -1033,16 +1033,14 @@ const dice = (a, b) => {
   for (const g of x) if (y.has(g)) hit++;
   return (2 * hit) / (x.size + y.size);
 };
-const imgKey = (u) => { try { const x = new URL(u); return decodeURIComponent(x.host + x.pathname); } catch { return String(u || ''); } };
 const squareness = (i) => ((+i.w || 0) && (+i.h || 0) ? Math.abs(Math.log(i.w / i.h)) : 9);
 
 /**
  * 핫딜 공지의 공식 이미지 고르기 — 그 공지를 읽은 공식 출처의 페이지(목록·상세)에 실제로 있던 이미지만. 파일은 받지 않고 주소만 둔다.
  * 1) 이미지 대체텍스트가 공지 원문(근거 문구)·제목과 맞거나, 이미지를 감싼 카드 하나의 글에 근거 문구 앞부분이 있으면 그 이미지.
  *    같은 점수의 이미지가 다른 카드에도 있으면 어느 공지 것인지 애매하므로 고르지 않는다.
- * 2) 공지 하나만 실린 상세 페이지면 그 페이지의 공유용 대표 이미지(og:image) — 본문에도 보이는 이미지일 때만.
- *    목록과 같은 og, 상세 여러 곳에 같은 og는 수집 때 이미 뺌
- * 3) 그 밖에는 '' — 화면이 같은 브랜드의 상품 사진, 그것도 없으면 로고로 대신한다. 다른 행사·예시 사진으로 채우지 않는다.
+ * 2) 그 밖에는 '' — 화면이 같은 브랜드의 상품 사진, 그것도 없으면 로고로 대신한다. 다른 행사·예시 사진으로 채우지 않는다.
+ *    (공유용 대표 이미지 og:image는 11/03 실제 수집에서 다른 행사 이미지가 붙어 쓰지 않는다)
  * pages: [{ images: [{src, alt, w, h, near, nearLen}], ogImage, isDetail }], own: 공지를 읽은 페이지, single: 그 페이지의 공지가 하나뿐
  */
 export function pickNoticeImage(n = {}, pages = [], { own = null, single = false } = {}) {
@@ -1071,9 +1069,10 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
     const cards = new Set(best.map((i) => squash(i.near || '') || squash(i.alt || '')));
     if (cards.size === 1) return [...best].sort((a, b) => squareness(a) - squareness(b))[0].src;
   }
-  // 공유 대표 이미지(og)는 그 상세 페이지 본문에도 실제로 보이는 이미지일 때만 (11/03 맥도날드: og가 다른 행사 '제주 맥피즈' 배너)
-  const shown = (u) => { const k = imgKey(u); return [...imgs.keys()].some((src) => imgKey(src) === k); };
-  if (single && own && own.isDetail && own.ogImage && shown(own.ogImage) && !isNonPhoto({ src: own.ogImage, alt: '' }, brand)) return own.ogImage;
+  // 공유 대표 이미지(og)는 쓰지 않는다. 상세 페이지에서 AI가 그 페이지의 행사가 아닌 공지를 함께 읽으면
+  // og가 다른 행사 이미지가 된다 (11/03 실제: 파파존스 '파파스데이'에 불닭 통신사 이미지, 맥도날드 '앱 신규 가입'에 '제주 맥피즈' 배너).
+  // 제목·원문과 맞는 카드 이미지만 쓰고, 없으면 화면이 같은 브랜드의 상품 사진으로 대신한다.
+  void own; void single;
   return '';
 }
 
