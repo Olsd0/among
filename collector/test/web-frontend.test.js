@@ -152,7 +152,9 @@ test('제휴 혜택과 공지만 있는 브랜드도 공식 로고를 쓰고, �
   assert.equal(await failed.locator('.brand-avatar').innerText(), '도');
   // 핫딜의 공식 상품 사진(관련 상품·대표 메뉴)은 별개 — 로고만 확인한다
   const productUrls = ['공차', '도미노피자', '파파이스'].map((b) => brandPhoto(b, '')?.url).filter(Boolean);
-  assert.ok(!requests.some((url) => /gong-cha|popeyes\.co\.kr|dominos\.co\.kr/.test(url) && !productUrls.includes(url)), '확인된 로고는 외부 브랜드 서버에 요청하지 않는다');
+  // 로고는 파일로 저장하지 않고 확인한 공식 로고 주소만 부른다 (다른 아이콘 주소를 더듬지 않음)
+  const logoUrls = ['공차', '도미노피자', '파파이스'].map((b) => officialBrandLogo(b).image);
+  assert.ok(!requests.some((url) => /gong-cha|popeyes\.co\.kr|dominos\.co\.kr/.test(url) && !productUrls.includes(url) && !logoUrls.includes(url)), '확인된 로고 외의 브랜드 서버 주소는 요청하지 않는다');
   assert.ok(!requests.some((url) => url.includes('favicons?domain=tworld') || url.includes('tworld.co.kr/favicon')), '통신사 아이콘을 브랜드 로고로 요청하지 않는다');
 });
 
@@ -312,11 +314,14 @@ test('명일방주 제휴 메뉴와 쉐이크쉑 전 메뉴 쿠폰에 공식 포
     discount_type: 'free_item', first_seen: now, end_date: '2026-11-08',
     source_url: 'https://order.banolimpizza.com/event/detail/163814c2-cc1e-4051-b35c-91ba2906ea36?eventStatus=ongoing' };
   const shack = { ...coupon('shack', now), brand: '쉐이크쉑', menu: '전 메뉴', item_type: '기타', discount_type: 'percent', discount_rate: 30, first_seen: now };
-  const { context, page } = await setup({ ok: true, coupons: [collab, shack], news: [], last_checked_at: now });
+  // 사진은 파일로 저장하지 않고 공식 주소를 그대로 불러온다
+  const photoUrls = ['https://cdn.banolimpizza.com/event/b6cb07152f824c0a91c40039dbb11a29.png', 'https://cdn.banolimpizza.com/event/5fc80c5e10204080979d1782a56f8f5e.jpg',
+    'https://www.sangmidang.co.kr/files/brand/eng/2024/06/aef71c88-32b1-44a3-b0f5-55351f3d31a5.webp'];
+  const { context, page } = await setup({ ok: true, coupons: [collab, shack], news: [], last_checked_at: now }, { photoUrls });
   t.after(() => context.close());
   await page.clock.setFixedTime(new Date(now));
   await page.goto(`${site.base}/index.html`);
-  for (const [id, imageName, label] of [['collab', 'banolim-arknights', '공식 행사'], ['shack', 'shack-square', '대표 메뉴']]) {
+  for (const [id, imageName, label] of [['collab', 'cdn.banolimpizza.com/event/', '공식 행사'], ['shack', 'aef71c88-32b1-44a3-b0f5-55351f3d31a5', '대표 메뉴']]) {
     const card = page.locator(`#card-${id}`);
     await card.scrollIntoViewIfNeeded();
     await page.waitForFunction(id => document.querySelector(`#card-${id} .stub img.ph`)?.naturalWidth > 0, id);
@@ -413,7 +418,7 @@ test('공지 이미지가 없고 상품 사진도 못 불러오면 공식 브랜
   const now = '2026-10-29T03:00:00.000Z';
   const n = { id: 'source-preview', brand: 'KFC', title: '공식 앱 한정 행사 안내', category: '햄버거', summary: '매장에서 공식 앱으로 사용 조건을 확인하세요. <img src=x onerror=alert(1)>', discount_label: '30%', start_date: '2026-10-28', end_date: '2026-10-31', checked_at: now, source_url: 'https://example.test/event' };
   const requests = [];
-  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] }, { requests });
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] }, { requests, photoUrls: ['https://www.kfckorea.com/assets/favicon.ico?d230bc62da40125151da1a5391159397'] });
   t.after(() => context.close());
   await page.clock.setFixedTime(new Date(now));
   await page.goto(`${site.base}/index.html`);
@@ -424,7 +429,7 @@ test('공지 이미지가 없고 상품 사진도 못 불러오면 공식 브랜
   await page.waitForFunction(() => document.querySelector('[data-hot="news:source-preview"]')?.classList.contains('noph'));
   assert.equal((await card.locator('.notice-preview').innerText()).trim(), '브랜드 로고');
   assert.doesNotMatch(await card.locator('.hot-visual').innerText(), /매장에서|img src|공지 요약/);
-  assert.match(await card.locator('.notice-brand-logo').getAttribute('src'), /assets\/brands\/kfc-/);
+  assert.match(await card.locator('.notice-brand-logo').getAttribute('src'), /^https:\/\/www\.kfckorea\.com\/assets\/favicon\.ico/);
   assert.equal(await card.locator('img.ph').count(), 0);
   assert.equal(await card.locator('.notice-excerpt img').count(), 0);
   const link = card.getByRole('link', { name: 'KFC 공식 공지 원문 보기 (새 탭)' });
@@ -506,7 +511,7 @@ test('행사 이미지가 없는 쿠폰 핫딜은 일러스트 대신 같은 브
 
 test('설빙 적립 공지가 사진·조건과 함께 노출되고 종료 다음 날에는 사라진다', { timeout: 30000 }, async (t) => {
   const now = '2026-10-29T12:00:00.000Z';
-  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [] });
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [] }, { photoUrls: ['https://sulbing.com/new/data/product/regular_01.png'] });
   t.after(() => context.close());
   await page.clock.setFixedTime(new Date(now));
   await page.goto(`${site.base}/index.html`);
@@ -514,7 +519,9 @@ test('설빙 적립 공지가 사진·조건과 함께 노출되고 종료 다�
   await card.waitFor();
   assert.equal(await card.locator('.lbl').count(), 0);
   assert.match(await card.innerText(), /50% 포인트 적립/);
-  assert.match(await card.locator('img.ph').getAttribute('src'), /^assets\/notices\/sulbing-npay-[a-f0-9]{12}\.jpg$/);
+  // 포스터 파일은 저장하지 않으므로 설빙 공식 메뉴 사진으로 대신하고, 그렇다고 표시한다
+  assert.equal(await card.locator('img.ph').getAttribute('src'), 'https://sulbing.com/new/data/product/regular_01.png');
+  assert.match(await card.locator('.notice-image-label').innerText(), /대표 메뉴/);
   await card.screenshot({ path: '/tmp/among-hot-notice-image.png' });
   await card.click();
   assert.match(await page.locator('.news-meta').innerText(), /10\/28.*11\/1/);

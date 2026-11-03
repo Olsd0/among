@@ -2,12 +2,12 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor,
-} from './engine.js?v=20261103-9';
-import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-5';
+} from './engine.js?v=20261103-10';
+import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-6';
 
-import { noticePhoto } from './notice-images.js?v=20261103-2';
+import { noticePhoto } from './notice-images.js?v=20261103-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
-import { officialBrandLogo } from './brand-logos.js?v=20261029-8';
+import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';
 
@@ -132,7 +132,7 @@ const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('goo
 // 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
 // 확인된 상품 사진의 https 주소만. 못 불러오면 사진 없는 모양으로
-const safeImg = (u) => { if (/^assets\/(?:notices|products)\/[a-z0-9-]+-[a-f0-9]{12}\.(?:jpg|png|webp)$/.test(String(u || ''))) return u; try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
+const safeImg = (u) => { try { const x = new URL(String(u || '').trim()); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const phFail = (img) => {
   // 공식 공지 이미지를 못 불러오면 같은 브랜드의 관련 상품 사진으로 한 번 더 (표시 문구도 함께 바꿈)
   const fb = img.dataset.fb;

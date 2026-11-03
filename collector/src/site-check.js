@@ -72,7 +72,7 @@ try {
   const want = new Set([...data.coupons.map((c) => c.image_url), ...data.news.map((n) => n.image_url)].filter(Boolean));
   const byHost = {};
   for (const raw of want) {
-    // 10/29부터 확인한 공식 사진은 사이트 안의 파일(assets/...)일 수 있어 사이트 주소 기준으로 해석한다
+    // 사진은 공식 사이트 주소(https)다. 상대 주소가 섞여 와도 사이트 주소 기준으로 해석한다
     let u;
     try { u = new URL(raw, SITE).href; } catch { continue; }
     const h = new URL(u).hostname;

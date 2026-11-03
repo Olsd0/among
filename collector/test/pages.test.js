@@ -1,9 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, copyFileSync, readFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, copyFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
 import { preparePages, PUBLIC_PAGES } from '../scripts/prepare-pages.js';
 
 test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과 사이트맵에 예전 주소가 남지 않는다', (t) => {
@@ -33,16 +32,18 @@ test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과
   for (const url of ['http://example.com', 'https://user:password@example.com', 'https://example.com/?q=1']) assert.throws(() => preparePages(dir, url));
 });
 
-test('공식 로고 파일은 고정 해시와 일치하며 외부 참조 없는 원본 이미지다', () => {
-  const root = new URL('../../web/assets/brands/', import.meta.url);
-  const files = readdirSync(root);
-  assert.equal(files.length, 22);
-  let bytes = 0;
-  for (const name of files) {
-    const data = readFileSync(new URL(name, root));
-    bytes += data.length;
-    assert.ok(name.includes(createHash('sha256').update(data).digest('hex').slice(0, 12)));
-    if (name.endsWith('.svg')) assert.doesNotMatch(data.toString(), /<script|<foreignObject|(?:href|src)=["'](?:https?:|\/\/|data:)/i);
+test('사진·로고는 파일로 저장하지 않고 공식 https 주소를 그대로 쓴다', async () => {
+  assert.equal(existsSync(new URL('../../web/assets/', import.meta.url)), false, 'web/assets 없음');
+  const { officialBrandLogo } = await import('../../web/brand-logos.js');
+  const src = readFileSync(new URL('../../web/brand-logos.js', import.meta.url), 'utf8');
+  const brands = [...src.matchAll(/^  \["([^"]+)", \{/gm)].map((m) => m[1]);
+  assert.equal(brands.length, 22);
+  for (const brand of brands) {
+    const logo = officialBrandLogo(brand);
+    assert.match(logo.image, /^https:\/\//, brand);
+    assert.match(logo.source, /^https:\/\//, brand);
   }
-  assert.ok(bytes < 600000, '전체 로고는 600KB 미만');
+  for (const file of ['notice-images.js', 'product-images.js', 'verified-news.js', 'app.js', 'brand-logos.js']) {
+    assert.doesNotMatch(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8'), /["'`]assets\//, file);
+  }
 });

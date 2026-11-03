@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { productImage, productPhoto } from '../src/product-images.js';
 import { couponImage, couponPhoto } from '../src/product-images.js';
-import { createHash } from 'node:crypto';
 import { formatMoneyLabel, benefitLabel, pickHeadlines } from '../src/engine.js';
 
 test('금액 라벨: 천·만·쉼표를 전체 숫자로 바꾸고 할인율과 1+1은 유지한다', () => {
@@ -53,7 +52,7 @@ test('제휴 메뉴는 동일한 공식 행사 포스터를 쓰며 다른 행사
     source_url: 'https://order.banolimpizza.com/event/detail/163814c2-cc1e-4051-b35c-91ba2906ea36?eventStatus=ongoing' };
   const photo = couponPhoto(item, '2026-10-31');
   assert.equal(photo.kind, 'campaign');
-  assert.match(photo.url, /banolim-arknights/);
+  assert.equal(photo.url, 'https://cdn.banolimpizza.com/event/b6cb07152f824c0a91c40039dbb11a29.png');
   assert.match(photo.detailUrl, /5fc80c5e10204080979d1782a56f8f5e/);
   assert.equal(productImage(item), '', '행사 포스터를 정확한 단품 사진으로 저장하지 않는다');
   for (const change of [{ brand: '미스터피자' }, { menu: '다른 제휴 세트' }, { end_date: '2027-11-08' },
@@ -85,11 +84,7 @@ test('전 메뉴·복수 메뉴 할인은 같은 브랜드의 공식 대표 사�
     const representative = couponPhoto({ brand, menu: '전 메뉴' });
     assert.equal(representative.kind, 'representative', brand);
     assert.match(representative.source, /^https:\/\//);
-    if (representative.url.startsWith('assets/')) {
-      const bytes = readFileSync(new URL(`../../web/${representative.url}`, import.meta.url));
-      assert.ok(representative.url.includes(createHash('sha256').update(bytes).digest('hex').slice(0, 12)));
-      assert.match(representative.originalImage, /^https:\/\//);
-    }
+    assert.match(representative.url, /^https:\/\//, '사진 파일을 저장하지 않고 공식 주소를 쓴다');
   }
 });
 

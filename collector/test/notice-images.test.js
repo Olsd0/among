@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { noticePhoto, noticeImage } from '../src/notice-images.js';
 import { productImage } from '../src/product-images.js';
-import { createHash } from 'node:crypto';
 
 const notice = { brand: 'KFC', title: '더블 커넬위크', source_url: 'https://www.kfckorea.com/promotion/promotionList/A801', end_date: '2026-11-01' };
 test('공지는 확인한 해당 행사 원본 사진과 상세 출처로 연결한다', () => {
@@ -50,7 +49,7 @@ test('공식 목록에서 연결한 썸네일은 제목·브랜드가 맞는 행
   }
 });
 
-test('10월 31일 대조한 공식 행사 8건의 썸네일은 원본 해시·출처·기간을 보존한다', () => {
+test('10월 31일 대조한 공식 행사 8건은 파일로 저장하지 않고 공식 썸네일 주소·출처·기간을 쓴다', () => {
   const cases = [
     ['배스킨라빈스', '젤라또 피케 파우치 사전예약', 'https://www.baskinrobbins.co.kr/m/play/event/list.php', '2026-11-03'],
     ['배스킨라빈스', '파인트를 10년 전 가격으로 픽업', 'https://www.baskinrobbins.co.kr/m/play/event/list.php', '2026-11-03'],
@@ -61,21 +60,17 @@ test('10월 31일 대조한 공식 행사 8건의 썸네일은 원본 해시·�
     ['반올림피자', '반올림피자 명일방주 콜라보', 'https://order.banolimpizza.com/event/list?eventStatus=ongoing', '2026-11-08'],
     ['굽네치킨', '주말 굽네 인기메뉴 4천원 할인', 'https://www.goobne.co.kr/brd/event/list_p', '2026-11-01'],
   ];
-  let total = 0;
   for (const [brand, title, source_url, end_date] of cases) {
     const n = { brand, title, source_url, end_date };
     const photo = noticePhoto(n, '2026-10-31');
     assert.ok(photo, title);
-    assert.match(photo.image, /^assets\/notices\/[a-z0-9-]+-[a-f0-9]{12}\.(jpg|png)$/);
-    assert.match(photo.originalImage, /^https:\/\//);
+    assert.match(photo.image, /^https:\/\/[^/]+\/.+\.(jpg|png)$/);
+    assert.equal(photo.originalImage, undefined);
+    assert.equal(new URL(photo.image).hostname.split('.').slice(-2).join('.'), new URL(photo.source).hostname.replace(/^order\./, '').split('.').slice(-2).join('.'), '같은 브랜드 공식 도메인의 사진');
     assert.equal(photo.verifiedAt, '2026-10-31');
-    const bytes = readFileSync(new URL(`../../web/${photo.image}`, import.meta.url));
-    total += bytes.length;
-    assert.ok(photo.image.includes(createHash('sha256').update(bytes).digest('hex').slice(0, 12)));
     assert.equal(noticeImage({ ...n, title: '관련 없는 새 공지' }, '2026-10-31'), '');
     assert.equal(noticeImage({ ...n, source_url: 'https://example.test/event' }, '2026-10-31'), '');
     assert.equal(noticeImage({ ...n, end_date: '2027-12-31' }, '2026-10-31'), '');
     assert.equal(noticeImage(n, '2027-01-01'), '');
   }
-  assert.ok(total < 600000, '공식 썸네일 8장의 원본 합계는 600KB 미만');
 });

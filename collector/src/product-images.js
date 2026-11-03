@@ -1,4 +1,4 @@
-import { noticePhoto } from './notice-images.js?v=20261103-2';
+import { noticePhoto } from './notice-images.js?v=20261103-3';
 
 // 공식 메뉴 페이지에서 상품과 사진을 직접 확인한 목록.
 // 추가할 때 브랜드, 상품명, 크기/수량, 사진, 출처를 함께 확인하고 npm run sync-web을 실행한다.
@@ -59,9 +59,8 @@ const representatives = new Map([
   [
     "쉐이크쉑",
     {
-      "url": "assets/products/shack-square-1de5f7d5cbb5.webp",
+      "url": "https://www.sangmidang.co.kr/files/brand/eng/2024/06/aef71c88-32b1-44a3-b0f5-55351f3d31a5.webp",
       "source": "https://www.sangmidang.co.kr/brand/eat_detail?idx=38",
-      "originalImage": "https://www.sangmidang.co.kr/files/brand/eng/2024/06/aef71c88-32b1-44a3-b0f5-55351f3d31a5.webp",
       "name": "쉐이크쉑 버거 모음",
       "checked": "2026-10-31"
     }
@@ -69,9 +68,8 @@ const representatives = new Map([
   [
     "반올림피자",
     {
-      "url": "assets/products/banolim-poten-459e68f53070.png",
+      "url": "https://cdn.banolimpizza.com/menu/c2ad1ae4c9eb4983890c6ed01941cc7d.png",
       "source": "https://order.banolimpizza.com/",
-      "originalImage": "https://cdn.banolimpizza.com/menu/c2ad1ae4c9eb4983890c6ed01941cc7d.png",
       "name": "포텐 피자",
       "checked": "2026-10-31"
     }
@@ -79,9 +77,8 @@ const representatives = new Map([
   [
     "폴바셋",
     {
-      "url": "assets/products/paul-latte-d031fa25fdda.jpg",
+      "url": "https://www.baristapaulbassett.co.kr/upload/product/A/thumbnail_1_201903211053056601.jpg",
       "source": "https://www.baristapaulbassett.co.kr/menu/List.pb",
-      "originalImage": "https://www.baristapaulbassett.co.kr/upload/product/A/thumbnail_1_201903211053056601.jpg",
       "name": "카페라떼",
       "checked": "2026-10-31"
     }
@@ -89,9 +86,8 @@ const representatives = new Map([
   [
     "공차",
     {
-      "url": "assets/products/gongcha-milktea-ec7c3750c021.png",
+      "url": "https://www.gong-cha.co.kr/upload/product/f0c489ef0aede692199824a303286f34.png",
       "source": "https://www.gong-cha.co.kr/brand/menu/product_detail?category=001001&no=1088",
-      "originalImage": "https://www.gong-cha.co.kr/upload/product/f0c489ef0aede692199824a303286f34.png",
       "name": "브라운슈가 시그니처 우롱 밀크티 + 펄",
       "checked": "2026-10-31"
     }

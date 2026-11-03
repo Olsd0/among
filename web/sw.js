@@ -1,6 +1,6 @@
 // HTML·설정은 최신 사본 우선. 버전이 고정된 모듈·로고만 캐시 우선. 쿠폰 API는 저장하지 않는다.
-const CACHE = 'among-shell-v32';
-const SHELL = ['./', 'index.html', 'app.js?v=20261103-9', 'engine.js?v=20261103-9', 'product-images.js?v=20261103-5', 'notice-images.js?v=20261103-2', 'verified-news.js?v=20261029-8', 'brand-logos.js?v=20261029-8', 'app-coupons.js?v=20261029-8', 'app-coupon-ui.js?v=20261103-1', 'app-coupons.css?v=20261029-8', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'hot-notices.css?v=20261103-1'];
+const CACHE = 'among-shell-v33';
+const SHELL = ['./', 'index.html', 'app.js?v=20261103-10', 'engine.js?v=20261103-10', 'product-images.js?v=20261103-6', 'notice-images.js?v=20261103-3', 'verified-news.js?v=20261029-8', 'brand-logos.js?v=20261103-1', 'app-coupons.js?v=20261029-8', 'app-coupon-ui.js?v=20261103-1', 'app-coupons.css?v=20261029-8', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'hot-notices.css?v=20261103-1'];
 // 온라인 특가 코드·스타일은 첫 방문 때만 저장하며 상품 JSON은 캐시하지 않는다.
 const ASSETS = new Set(['online-deals.js', 'online-deals.css', 'app-coupons.js', 'app-coupon-ui.js', 'app-coupons.css', '', 'index.html', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js', 'config.js', 'manifest.webmanifest',
   'hot-notices.css', 'partners.html', 'sponsor.js', 'launch.css', 'guide-calculator.js', 'about.html', 'guide.html', 'privacy.html', 'terms.html', 'doc.js', 'doc.css',
@@ -18,16 +18,14 @@ self.addEventListener('fetch', (e) => {
   const scope = new URL(self.registration.scope);
   if (e.request.method !== 'GET' || url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const path = url.pathname.slice(scope.pathname.length);
-  const logo = /^assets\/brands\/[a-z]+-[a-f0-9]{12}\.(png|ico|svg)$/.test(path);
-  const notice = /^assets\/(?:notices|products)\/[a-z0-9-]+-[a-f0-9]{12}\.(jpg|png|webp)$/.test(path);
-  if (!ASSETS.has(path) && !logo && !notice) return;
+  if (!ASSETS.has(path)) return;
   // 공유 조건은 제외하되 배포 버전(v)은 보존해 서로 다른 모듈 버전을 섞지 않는다.
   const keyUrl = new URL(path || './', scope);
   if (url.searchParams.has('v')) keyUrl.searchParams.set('v', url.searchParams.get('v'));
   const key = keyUrl.href;
   e.respondWith((async () => {
-    // 파일 해시·배포 버전이 바뀌기 전에는 같은 내용. 로고는 본 것만 저장한다.
-    const immutable = logo || notice || (['online-deals.js', 'online-deals.css', 'app-coupons.js', 'app-coupon-ui.js', 'app-coupons.css', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js'].includes(path) && url.searchParams.has('v'));
+    // 배포 버전이 바뀌기 전에는 같은 내용. 사진·로고는 공식 사이트 주소라 여기서 저장하지 않는다.
+    const immutable = (['online-deals.js', 'online-deals.css', 'app-coupons.js', 'app-coupon-ui.js', 'app-coupons.css', 'app.js', 'engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'brand-logos.js'].includes(path) && url.searchParams.has('v'));
     if (immutable) {
       try { const hit = await (await caches.open(CACHE)).match(key); if (hit) return hit; } catch { /* 저장소 접근 실패 시 네트워크 사용 */ }
     }

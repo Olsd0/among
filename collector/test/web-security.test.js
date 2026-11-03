@@ -100,20 +100,21 @@ test('처음 받는 배포 스크립트는 HTTP 캐시를 재검증하고 오프
   assert.equal((await w.request('engine.js?v=current')).type, 'error', '없는 모듈에 HTML을 반환하지 않음');
 });
 
-test('버전 모듈과 해시 로고는 재요청하지 않고 HTML·설정은 최신본을 확인한다', async () => {
+test('버전 모듈은 재요청하지 않고 HTML·설정은 최신본을 확인하며, 사진·로고 파일은 사이트에 두지 않는다', async () => {
   const w = worker();
   let calls = 0;
   w.setNetwork(async () => new Response(`response-${++calls}`));
-  for (const path of ['app.js?v=release-1', 'assets/brands/gongcha-012345abcdef.png']) {
+  for (const path of ['app.js?v=release-1']) {
     const first = await (await w.request(path)).text();
     assert.equal(await (await w.request(path)).text(), first);
   }
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
   await w.request('app.js?v=release-2');
-  assert.equal(calls, 3, '새 배포 버전은 네트워크에서 받는다');
+  assert.equal(calls, 2, '새 배포 버전은 네트워크에서 받는다');
   for (const path of ['index.html', 'config.js', 'config.js?v=current', 'guide.html']) {
     const first = await (await w.request(path)).text();
     assert.notEqual(await (await w.request(path)).text(), first);
   }
-  assert.equal(await w.request('assets/brands/arbitrary.png'), undefined);
+  // 사진·로고 파일은 사이트에 두지 않는다 (공식 주소를 그대로 불러옴)
+  for (const path of ['assets/brands/gongcha-012345abcdef.png', 'assets/notices/baskin-pint-418e18ce7b74.png', 'assets/brands/arbitrary.png']) assert.equal(await w.request(path), undefined);
 });

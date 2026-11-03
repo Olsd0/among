@@ -88,7 +88,7 @@ test('확인 목록에 있는 공지는 목록의 이미지만 — 일부러 비
   const popeyes = { brand: '파파이스', title: '레그 순살 치킨 1+1', source_url: 'https://www.popeyes.co.kr/event', end_date: null };
   assert.equal(noticeImageFor(popeyes, 'https://popeyes.co.kr/data/file/event/huge.jpg', '2026-11-03'), '');
   const listed = { brand: '배스킨라빈스', title: '파인트를 10년 전 가격으로 픽업', source_url: 'https://www.baskinrobbins.co.kr/m/play/event/list.php', end_date: '2026-11-03' };
-  assert.match(noticeImageFor(listed, 'https://b.kr/other.png', '2026-11-03'), /assets\/notices\/baskin-pint/);
+  assert.equal(noticeImageFor(listed, 'https://b.kr/other.png', '2026-11-03'), 'https://www.baskinrobbins.co.kr/upload/promotion/event/1acda682bf0122b84b87ad886b474d8e.png');
   assert.equal(noticeImageFor({ brand: '굽네치킨', title: '새 행사', source_url: 'https://g.kr/e' }, 'https://g.kr/new.png', '2026-11-03'), 'https://g.kr/new.png');
   assert.ok(isNonPhoto({ src: 'https://p.kr/huge.jpg', w: 12000, h: 12000 }), '수천만 화소 원본은 후보에서 뺀다');
 });

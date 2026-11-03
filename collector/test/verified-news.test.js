@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { verifiedNews, withVerifiedNews } from '../src/verified-news.js';
 import { noticePhoto } from '../src/notice-images.js';
 import { pickHeadlines, verificationStatus } from '../src/engine.js';
@@ -35,10 +34,7 @@ test('쿠폰에 연결되지 않은 50% 적립 행사도 기간 한정 핫딜로
   assert.equal(pickHeadlines([], [n], { today: '2026-11-02' }).length, 0);
 });
 
-test('설빙 포스터는 변경하지 않은 공식 원본이며 웹과 수집기의 보완 목록은 같다', () => {
-  const photo = noticePhoto(n, '2026-10-29');
-  const data = readFileSync(new URL('../../web/' + photo.image, import.meta.url));
-  assert.equal(photo.image, `assets/notices/sulbing-npay-${createHash('sha256').update(data).digest('hex').slice(0, 12)}.jpg`);
-  assert.ok(data.length < 150000);
+test('설빙 포스터는 파일로 저장하지 않으며(만료되는 피드 주소) 웹과 수집기의 보완 목록은 같다', () => {
+  assert.equal(noticePhoto(n, '2026-10-29'), null);
   assert.equal(readFileSync(new URL('../src/verified-news.js', import.meta.url), 'utf8'), readFileSync(new URL('../../web/verified-news.js', import.meta.url), 'utf8'));
 });
