@@ -1033,6 +1033,29 @@ const dice = (a, b) => {
   for (const g of x) if (y.has(g)) hit++;
   return (2 * hit) / (x.size + y.size);
 };
+// 금액 표기 맞추기: 1천원·1,000원 → 1000원, 2만원 → 20000원
+const moneyKey = (s) => squash(String(s || '').normalize('NFKC')).replace(/(\d+)만(?=원)/g, (_, n) => String(n * 10000)).replace(/(\d+)천(?=원)/g, (_, n) => String(n * 1000));
+const amounts = (s) => [...new Set(moneyKey(s).match(/\d+(?:%|원)/g) || [])];
+const TITLE_GENERIC = /^(할인|이벤트|프로모션|행사|혜택|증정|특가|쿠폰|무료|구매|주문|피자|치킨|버거|햄버거|커피|메뉴|신규|회원|앱|매장|포장|배달|최대|및|진행|안내|출시|기념|한정|전용|가입|적립|1\+1|공식|홈페이지|이상|모든|전|기간)$/;
+/**
+ * 이미지 카드가 그 공지 것인지 한 번 더 확인 (11/03 실제 오류: 파파존스 '파파스데이 30%'에 '마케팅 수신 동의 20%' 카드,
+ * 피자헛 '슈프림 3종 콜라 1천원'에 '클리커 증정' 이미지, 맥도날드 '앱 가입 불고기버거'에 '제주 맥피즈')
+ * - 제목의 고유한 낱말(일반어·브랜드 이름 제외) 중 40% 이상이 카드 글·대체텍스트에 있어야 하고
+ * - 카드에 금액·할인율이 적혀 있으면 그중 하나는 공지의 금액과 같아야 한다
+ */
+function fitsNotice(n, i) {
+  const brand = squash(n.brand || '');
+  const text = moneyKey(`${i.alt || ''} ${i.near || ''}`);
+  const tokens = [...new Set(String(n.title || '').normalize('NFKC').split(/[\s·,/!?()\[\]]+/).map(moneyKey)
+    .filter((t) => t.length >= 2 && !TITLE_GENERIC.test(t) && !(brand && (t === brand || brand.includes(t) || t.includes(brand)))))];
+  if (tokens.length && tokens.filter((t) => text.includes(t)).length < Math.ceil(tokens.length * 0.4)) return false;
+  // 대체텍스트는 그 이미지 자체를 설명한다 — 내용이 있는데 제목 낱말이 하나도 없으면 다른 행사 이미지('제주 맥피즈')
+  const alt = moneyKey(i.alt || '');
+  if (tokens.length && alt.length >= 4 && !/^(이벤트|배너|이미지|썸네일|event|banner|thumbnail|image|img|\d)+$/i.test(alt) && !tokens.some((t) => alt.includes(t))) return false;
+  const own = amounts(`${i.alt || ''} ${i.near || ''}`);
+  const mine = amounts(`${n.title || ''} ${n.evidence || ''} ${n.discount_label || ''} ${n.summary || ''}`);
+  return !own.length || own.some((x) => mine.includes(x));
+}
 const squareness = (i) => ((+i.w || 0) && (+i.h || 0) ? Math.abs(Math.log(i.w / i.h)) : 9);
 
 /**
@@ -1055,11 +1078,14 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
   const usable = pages.filter((p) => p && (p === own || !p.isDetail));
   for (const p of usable) for (const i of p.images || []) if (i && i.src && !imgs.has(i.src) && !isNonPhoto(i, brand)) imgs.set(i.src, i);
   const score = (i) => {
+    if (!fitsNotice(n, i)) return 0;
     const alt = squash(i.alt || ''), near = squash(i.near || '');
     // 주변 글이 카드 하나 분량일 때만 (목록 전체 글이면 모든 공지와 겹친다)
     const card = i.nearLen ? i.nearLen <= 240 : (i.near || '').length < 160;
-    if (alt.length >= 6 && ev && (ev.includes(alt) || (head.length >= 6 && alt.includes(head)))) return 3;
-    if (alt.length >= 4 && tt.length >= 4 && (alt.includes(tt) || (alt.length >= 6 && tt.includes(alt)))) return 3;
+    // 대체텍스트가 원문·제목의 일부일 때는 10자 이상의 행사 문구만 ('슈프림 피자 3종'처럼 형제 행사에도 붙는 상품명 제외)
+    if (alt.length >= 10 && ev && ev.includes(alt)) return 3;
+    if (alt.length >= 6 && head.length >= 6 && alt.includes(head)) return 3;
+    if (alt.length >= 4 && tt.length >= 4 && (alt.includes(tt) || (alt.length >= 10 && tt.includes(alt)))) return 3;
     if (alt.length >= 8 && ev.length >= 8 && dice(alt, ev.slice(0, alt.length + 10)) >= 0.7) return 2;
     if (card && head.length >= 6 && near.includes(head)) return 2;
     return 0;

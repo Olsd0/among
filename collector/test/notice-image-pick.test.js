@@ -17,8 +17,10 @@ const list = {
 };
 
 test('목록 카드: 근거 문구가 카드 글과 맞는 이미지만 고른다', () => {
-  const n = { brand: '스타벅스', title: '온라인 스토어 쓱데이', evidence: '2026 쓱데이 특별전 2026-10-30 ~ 2026-11-08' };
+  const n = { brand: '스타벅스', title: '2026 쓱데이 특별전', evidence: '2026 쓱데이 특별전 2026-10-30 ~ 2026-11-08' };
   assert.equal(pickNoticeImage(n, [list], { own: list }), 'https://cdn.brand.kr/event/b.jpg');
+  // 원문은 같아도 제목이 다른 행사('온라인 스토어 쓱데이')면 붙이지 않는다 — 스타벅스 목록에 두 행사가 따로 있다
+  assert.equal(pickNoticeImage({ ...n, title: '온라인 스토어 쓱데이 Sweet Wonderland' }, [list], { own: list }), '');
   const none = { brand: '스타벅스', title: '겨울 프리퀀시', evidence: '2026 WINTER e-FREQUENCY 이벤트 안내' };
   assert.equal(pickNoticeImage(none, [list], { own: list }), '', '맞는 카드가 없으면 비워 둔다');
 });
@@ -116,4 +118,20 @@ test('같은 출처의 다른 행사 상세 페이지 이미지는 쓰지 않는
   // 공지를 읽은 그 상세 페이지에 있으면 쓴다
   const own2 = { isDetail: true, images: [img('cola.png', card('슈프림 피자 3종 중 1판을 구매하면 코카-콜라 1.25L를 1,000원에'))] };
   assert.equal(pickNoticeImage(cola, [list, own2, clicker], { own: own2 }), 'https://cdn.brand.kr/event/cola.png');
+});
+
+test('카드 글이 제목과 안 맞거나 금액이 다르면 그 공지 이미지가 아니다 — 11/03 파파존스·피자헛·맥도날드', () => {
+  const list = { isDetail: false, images: [
+    img('masudong.jpg', { ...card('마케팅 수신 동의 시, 20% 상시 할인 2026.03.17~'), alt: '마케팅 수신 동의 시, 20% 상시 할인' }),
+    img('papasday.jpg', { ...card('11월 8일은 파파스데이!!! 2026.10.29~2026.11.08'), alt: '파파스데이' }),
+  ] };
+  const papas = { brand: '파파존스', title: '파파스데이 30% 할인', evidence: '11월 8일은 파파스데이!!! 2026.10.29~2026.11.08', discount_label: '30%' };
+  assert.equal(pickNoticeImage(papas, [list], { own: list }), 'https://cdn.brand.kr/event/papasday.jpg');
+  // AI가 근거 문구를 옆 카드('마케팅 수신 동의 20%')에서 옮겨 적어도, 제목 낱말·금액이 안 맞으면 그 카드 이미지를 쓰지 않는다
+  assert.equal(pickNoticeImage({ ...papas, evidence: '마케팅 수신 동의 시, 20% 상시 할인' }, [list], { own: list }), '');
+  const clicker = { isDetail: false, images: [img('clicker.png', { ...card('슈프림 신메뉴 2종 매장 주문 시 피자헛 클리커 증정 선착순 10,000명'), alt: '슈프림 피자 3종' })] };
+  const cola = { brand: '피자헛', title: '슈프림 피자 3종 구매 시 콜라 1천원', evidence: '슈프림 피자 3종 중 1판을 구매하면 정상가 2,500원인 코카-콜라 1.25L를 1,000원에 구매' };
+  assert.equal(pickNoticeImage(cola, [clicker], {}), '');
+  const mcd = { isDetail: false, images: [img('jeju.jpg', { ...card('제주 맥피즈 출시! 앱가입시 불고기버거 1,500원 · 해피 스낵'), alt: '제주 맥피즈' })] };
+  assert.equal(pickNoticeImage({ brand: '맥도날드', title: '맥도날드 앱 가입 시 불고기버거 특가', evidence: '앱가입시 불고기버거 1,500원!' }, [mcd], {}), '', '카드 글에 문구가 섞여 있어도 금액·제목 낱말 기준을 둘 다 통과해야 — 여기선 대체텍스트·카드가 다른 행사');
 });
