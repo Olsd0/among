@@ -1,5 +1,11 @@
-import { noticeImage } from './notice-images.js?v=20261031-3';
-import { productImage, couponImage } from './product-images.js?v=20261103-1';
+import { noticeImage, noticePhoto } from './notice-images.js?v=20261031-3';
+
+/** 확인 목록에 있는 공지는 그 목록의 이미지만(비어 있으면 일부러 뺀 것: 예 9MB 원본), 없으면 수집 때 고른 공지 이미지 */
+export function noticeImageFor(n = {}, picked = '', today) {
+  const v = noticePhoto(n, today);
+  return v ? (v.image || '') : (picked || '');
+}
+import { productImage, couponImage } from './product-images.js?v=20261103-2';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -1012,6 +1018,7 @@ export function isNonPhoto(img = {}, brand = '') {
   if (w && h) {
     if (w < 200 || h < 120) return true;
     if (w / h > 4 || h / w > 2.5) return true;
+    if (w * h > 16e6) return true;  // 수천만 화소 원본(수 MB)은 목록 카드에 부르지 않는다
   }
   if (brand && img.alt && squash(img.alt) === squash(brand)) return true;
   return false;
@@ -1202,7 +1209,7 @@ export function linkNews(newsList, coupons) {
     const sameWho = (c) => c.brand === n.brand || (n.programs || []).some((p) => (c.programs || []).includes(p) && PROGRAM_LABEL[p] === n.brand);
     const rel = coupons.filter((c) => c.status === 'published' && urlHit(c) && sameWho(c) && overlap(c)).slice(0, 6);
     // 확인 목록의 공지 이미지 → 수집 때 같은 공식 페이지에서 고른 공지 이미지 (같은 페이지의 다른 상품 사진은 빌리지 않음)
-    return { ...n, related_ids: rel.map((c) => c.id), image_url: noticeImage(n) || n.image_url || '' };
+    return { ...n, related_ids: rel.map((c) => c.id), image_url: noticeImageFor(n, n.image_url) };
   });
 }
 
@@ -1295,7 +1302,7 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
       kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
       // 같은 페이지의 연결 쿠폰은 다른 행사일 수 있으므로 빈 소식 라벨을 쿠폰 혜택으로 채우지 않는다.
       label: formatMoneyLabel(n.discount_label), start_date: n.start_date || null, end_date: n.end_date || null,
-      image_url: noticeImage(n, today) || n.image_url || '', programs: n.programs || [], related_ids: rel.map((c) => c.id),
+      image_url: noticeImageFor(n, n.image_url, today), programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
       tier: headlineTier(facts, best), usable: mineOrOpen(n),
     });

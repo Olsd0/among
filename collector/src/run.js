@@ -4,7 +4,7 @@ import { noticeImage } from './notice-images.js';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, pickImage, pickNoticeImage, dropSharedNoticeImages } from './engine.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, pickImage, pickNoticeImage, dropSharedNoticeImages, noticeImageFor } from './engine.js';
 import { couponId, contentHash, newsId, newsHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
@@ -142,7 +142,7 @@ export async function runCollector(o = {}) {
         }
         // 공지 이미지: 확인 목록 → 이 출처의 공식 페이지(목록·상세)에서 그 공지와 맞는 이미지
         for (const [n, page, single] of srcNews) {
-          n.image_url = n.status !== 'rejected' ? (noticeImage(n) || pickNoticeImage(n, pages, { own: page, single })) : '';
+          n.image_url = n.status !== 'rejected' ? noticeImageFor(n, pickNoticeImage(n, pages, { own: page, single })) : '';
         }
         sr.ok = true;
       } catch (e) {
@@ -209,7 +209,7 @@ export async function runCollector(o = {}) {
     const newsById = new Map();
     for (const n of allNews) { const cur = newsById.get(n.id); if (!cur || rank(n) > rank(cur)) newsById.set(n.id, n); }
     const news = dropSharedNoticeImages(mergeNews(linkNews([...newsById.values()], merged))
-      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? (noticeImage(n) || n.image_url || '') : '' })), noticeImage)
+      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? noticeImageFor(n, n.image_url) : '' })), noticeImage)
       .map((n) => ({ ...n, hash: newsHash(n) }));
     report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };
     report.with_image = merged.filter((c) => c.status === 'published' && c.image_url).length;

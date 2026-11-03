@@ -1,11 +1,11 @@
 // AMONG 화면 스크립트 (index.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel,
-} from './engine.js?v=20261103-1';
-import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-1';
+  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor,
+} from './engine.js?v=20261103-2';
+import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-2';
 
-import { noticePhoto, noticeImage } from './notice-images.js?v=20261031-3';
+import { noticePhoto } from './notice-images.js?v=20261031-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { officialBrandLogo } from './brand-logos.js?v=20261029-8';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
@@ -274,7 +274,7 @@ function applyData(data) {
   state.appCoupons = (data.app_coupons || []).filter(c => acPublic(c));
   state.appCouponRefs = data.app_coupon_refs || [];
   state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: couponImage(c), programs: c.programs || [] }));
-  state.news = (DEMO ? (data.news || []) : withVerifiedNews(data.news || [])).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImage(n) || safeImg(n.image_url), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
+  state.news = (DEMO ? (data.news || []) : withVerifiedNews(data.news || [])).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImageFor(n, safeImg(n.image_url)), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();

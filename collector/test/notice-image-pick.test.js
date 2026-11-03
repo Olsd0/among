@@ -1,7 +1,7 @@
 // 핫딜 공지 이미지 자동 선택: 그 공지를 읽은 공식 페이지의 이미지 중 그 공지와 맞는 것만
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickNoticeImage, dropSharedNoticeImages, isNonPhoto } from '../src/engine.js';
+import { pickNoticeImage, dropSharedNoticeImages, isNonPhoto, noticeImageFor } from '../src/engine.js';
 
 const img = (src, o = {}) => ({ src: `https://cdn.brand.kr/event/${src}`, alt: '', w: 600, h: 400, near: '', nearLen: 0, ...o });
 const card = (text) => ({ near: text.slice(0, 160), nearLen: text.length });
@@ -79,4 +79,13 @@ test('서로 다른 공지 여럿에 붙은 같은 이미지는 떼고, 확인 �
   ];
   dropSharedNoticeImages(list, (n) => (['d', 'e'].includes(n.id) ? n.image_url : ''));
   assert.deepEqual(list.map((n) => n.image_url), ['', '', 'https://b.kr/own.jpg', 'https://b.kr/verified.jpg', 'https://b.kr/verified.jpg']);
+});
+
+test('확인 목록에 있는 공지는 목록의 이미지만 — 일부러 비워 둔 것(9MB 원본)은 자동 선택으로 채우지 않는다', () => {
+  const popeyes = { brand: '파파이스', title: '레그 순살 치킨 1+1', source_url: 'https://www.popeyes.co.kr/event', end_date: null };
+  assert.equal(noticeImageFor(popeyes, 'https://popeyes.co.kr/data/file/event/huge.jpg', '2026-11-03'), '');
+  const listed = { brand: '배스킨라빈스', title: '파인트를 10년 전 가격으로 픽업', source_url: 'https://www.baskinrobbins.co.kr/m/play/event/list.php', end_date: '2026-11-03' };
+  assert.match(noticeImageFor(listed, 'https://b.kr/other.png', '2026-11-03'), /assets\/notices\/baskin-pint/);
+  assert.equal(noticeImageFor({ brand: '굽네치킨', title: '새 행사', source_url: 'https://g.kr/e' }, 'https://g.kr/new.png', '2026-11-03'), 'https://g.kr/new.png');
+  assert.ok(isNonPhoto({ src: 'https://p.kr/huge.jpg', w: 12000, h: 12000 }), '수천만 화소 원본은 후보에서 뺀다');
 });
