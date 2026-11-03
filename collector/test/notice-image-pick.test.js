@@ -105,3 +105,15 @@ test('상세 여러 곳에 같은 공유 이미지(og)·앱 다운로드 배너�
   const own = { isDetail: true, ogImage: 'https://m.kr/upload/2025/09/250902_corp_site_PC_1.jpg', images: [] };
   assert.equal(pickNoticeImage({ brand: '맥도날드', title: '해피 스낵', evidence: '시즌 한정 해피 스낵, 1000원부터!' }, [own], { own, single: true }), '');
 });
+
+test('같은 출처의 다른 행사 상세 페이지 이미지는 쓰지 않는다 — 11/03 피자헛 콜라 딜·맥도날드 앱 가입', () => {
+  const list = { isDetail: false, images: [] };
+  const own = { isDetail: true, images: [] };
+  // 다른 행사(클리커) 상세 페이지 안에 '슈프림 3종 콜라 1,000원' 안내가 함께 실려 있어도 그 페이지 이미지는 쓰지 않는다
+  const clicker = { isDetail: true, images: [img('clicker.png', card('슈프림 피자 3종 중 1판을 구매하면 코카-콜라 1.25L를 1,000원에'))] };
+  const cola = { brand: '피자헛', title: '슈프림 3종 구매 시 콜라 1,000원 딜', evidence: '슈프림 피자 3종 중 1판을 구매하면 정상가 2,500원인 코카-콜라 1.25L를 1,000원에 구매' };
+  assert.equal(pickNoticeImage(cola, [list, own, clicker], { own }), '');
+  // 공지를 읽은 그 상세 페이지에 있으면 쓴다
+  const own2 = { isDetail: true, images: [img('cola.png', card('슈프림 피자 3종 중 1판을 구매하면 코카-콜라 1.25L를 1,000원에'))] };
+  assert.equal(pickNoticeImage(cola, [list, own2, clicker], { own: own2 }), 'https://cdn.brand.kr/event/cola.png');
+});

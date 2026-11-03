@@ -1037,7 +1037,8 @@ const squareness = (i) => ((+i.w || 0) && (+i.h || 0) ? Math.abs(Math.log(i.w / 
 
 /**
  * 핫딜 공지의 공식 이미지 고르기 — 그 공지를 읽은 공식 출처의 페이지(목록·상세)에 실제로 있던 이미지만. 파일은 받지 않고 주소만 둔다.
- * 1) 이미지 대체텍스트가 공지 원문(근거 문구)·제목과 맞거나, 이미지를 감싼 카드 하나의 글에 근거 문구 앞부분이 있으면 그 이미지.
+ * 1) 공지를 읽은 그 페이지와 출처의 목록 페이지에서, 이미지 대체텍스트가 공지 원문(근거 문구)·제목과 맞거나
+ *    이미지를 감싼 카드 하나의 글에 근거 문구 앞부분이 있으면 그 이미지 (다른 행사의 상세 페이지 이미지는 보지 않음).
  *    같은 점수의 이미지가 다른 카드에도 있으면 어느 공지 것인지 애매하므로 고르지 않는다.
  * 2) 그 밖에는 '' — 화면이 같은 브랜드의 상품 사진, 그것도 없으면 로고로 대신한다. 다른 행사·예시 사진으로 채우지 않는다.
  *    (공유용 대표 이미지 og:image는 11/03 실제 수집에서 다른 행사 이미지가 붙어 쓰지 않는다)
@@ -1049,7 +1050,10 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
   const head = ev.slice(0, 14);
   const tt = squash(n.title || '');
   const imgs = new Map();
-  for (const p of pages) for (const i of (p && p.images) || []) if (i && i.src && !imgs.has(i.src) && !isNonPhoto(i, brand)) imgs.set(i.src, i);
+  // 후보: 공지를 읽은 그 페이지 + 출처의 목록 페이지만. 같은 출처의 다른 상세 페이지 이미지는 쓰지 않는다
+  // (11/03 실제: 피자헛 '콜라 1,000원 딜'에 클리커 행사 상세의 이미지, 맥도날드 '앱 신규가입'에 '제주 맥피즈' 상세의 이미지가 붙음)
+  const usable = pages.filter((p) => p && (p === own || !p.isDetail));
+  for (const p of usable) for (const i of p.images || []) if (i && i.src && !imgs.has(i.src) && !isNonPhoto(i, brand)) imgs.set(i.src, i);
   const score = (i) => {
     const alt = squash(i.alt || ''), near = squash(i.near || '');
     // 주변 글이 카드 하나 분량일 때만 (목록 전체 글이면 모든 공지와 겹친다)
