@@ -45,7 +45,7 @@ test('같은 점수의 이미지가 다른 카드에 있으면 애매하므로 �
   const twoCards = { images: [img('p1.jpg', card('주말 1+1 핫딜 10월')), img('p2.jpg', card('주말 1+1 핫딜 11월 예고'))] };
   assert.equal(pickNoticeImage({ brand: '피자헛', title: '주말 할인', evidence: '주말 1+1 핫딜' }, [twoCards], {}), '');
   assert.equal(pickNoticeImage({ brand: '피자헛', title: '주말 할인', evidence: '주말 1+1 핫딜 11월 예고' }, [twoCards], {}), 'https://cdn.brand.kr/event/p2.jpg', '한 카드만 맞으면 그 카드');
-  const sameCard = { images: [img('pc.jpg', { ...card('목요일 1+1 스페셜데이'), w: 1200, h: 400 }), img('mo.jpg', { ...card('목요일 1+1 스페셜데이'), w: 600, h: 500 })] };
+  const sameCard = { images: [img('pc.jpg', { ...card('목요일 1+1 스페셜데이'), alt: '목요일 스페셜데이', w: 1200, h: 400 }), img('mo.jpg', { ...card('목요일 1+1 스페셜데이'), alt: '목요일 스페셜데이', w: 600, h: 500 })] };
   assert.equal(pickNoticeImage({ brand: '도미노피자', title: '목요일 1+1', evidence: '목요일 1+1 스페셜데이' }, [sameCard], {}), 'https://cdn.brand.kr/event/mo.jpg');
 });
 
@@ -134,4 +134,16 @@ test('카드 글이 제목과 안 맞거나 금액이 다르면 그 공지 이�
   assert.equal(pickNoticeImage(cola, [clicker], {}), '');
   const mcd = { isDetail: false, images: [img('jeju.jpg', { ...card('제주 맥피즈 출시! 앱가입시 불고기버거 1,500원 · 해피 스낵'), alt: '제주 맥피즈' })] };
   assert.equal(pickNoticeImage({ brand: '맥도날드', title: '맥도날드 앱 가입 시 불고기버거 특가', evidence: '앱가입시 불고기버거 1,500원!' }, [mcd], {}), '', '카드 글에 문구가 섞여 있어도 금액·제목 낱말 기준을 둘 다 통과해야 — 여기선 대체텍스트·카드가 다른 행사');
+});
+
+test('한 줄에 카드 둘이 든 목록에서는 대체텍스트로 그 공지 이미지를 가린다 — 11/03 파파존스 아메리칸 콤보·아이브', () => {
+  const row = '파파 아메리칸 콤보 프로모션 2026.10.05~2026.11.08 아이브 포토카드 프로모션 2026.11.03~2026.12.20';
+  const list = { isDetail: false, images: [
+    img('ive.jpg', { ...card(row), alt: '7,000원 할인 + 아이브 포토카드 증정', w: 580, h: 190 }),
+    img('combo.jpg', { ...card(row), alt: '파파 아메리칸 콤보', w: 580, h: 190 }),
+  ] };
+  const combo = { brand: '파파존스', title: '파파 아메리칸 콤보 브라우니 증정', evidence: '파파 아메리칸 콤보 프로모션 2026.10.05~2026.11.08' };
+  assert.equal(pickNoticeImage(combo, [list], {}), 'https://cdn.brand.kr/event/combo.jpg');
+  const noAlt = { isDetail: false, images: list.images.map((i) => ({ ...i, alt: '' })) };
+  assert.equal(pickNoticeImage(combo, [noAlt], {}), '', '대체텍스트가 없으면 어느 쪽인지 몰라 비워 둔다');
 });

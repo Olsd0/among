@@ -24,7 +24,7 @@ const notices = [
     source: 'https://www.kfckorea.com/promotion/promotionList/detail/1130',
     image: 'https://www.kfckorea.com/nas/event/2026/10/22/TEJl47cerDLZ.png' },
   { brand: '파파존스', words: ['아메리칸', '콤보'], until: '2026-11-08',
-    sources: ['https://www.pji.co.kr/event/ongoing/9629'],
+    sources: ['https://www.pji.co.kr/event/ongoing/9629', 'https://www.pji.co.kr/event/ongoing'],
     source: 'https://www.pji.co.kr/event/ongoing/9629',
     image: 'https://imgcdn4.pji.co.kr/pc/img/event/261014_americancombo.jpg' },
   {"brand": "피자헛", "words": ["주말", "1+1"], "until": "2026-10-31", "sources": ["https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut"], "source": "https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut", "image": "https://akamai.pizzahut.co.kr/2020pizzahut-prod/public/event/c164ec37-60e8-430e-b80b-1ffac3113327.png", "detailImage": "https://akamai.pizzahut.co.kr/event/hellopizzahut_2610_event_weekend_down_pc_3_1.png"},

@@ -1,11 +1,11 @@
-import { noticeImage, noticePhoto } from './notice-images.js?v=20261031-3';
+import { noticeImage, noticePhoto } from './notice-images.js?v=20261103-1';
 
 /** 확인 목록에 있는 공지는 그 목록의 이미지만(비어 있으면 일부러 뺀 것: 예 9MB 원본), 없으면 수집 때 고른 공지 이미지 */
 export function noticeImageFor(n = {}, picked = '', today) {
   const v = noticePhoto(n, today);
   return v ? (v.image || '') : (picked || '');
 }
-import { productImage, couponImage } from './product-images.js?v=20261103-3';
+import { productImage, couponImage } from './product-images.js?v=20261103-4';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -1043,11 +1043,14 @@ const TITLE_GENERIC = /^(할인|이벤트|프로모션|행사|혜택|증정|특�
  * - 제목의 고유한 낱말(일반어·브랜드 이름 제외) 중 40% 이상이 카드 글·대체텍스트에 있어야 하고
  * - 카드에 금액·할인율이 적혀 있으면 그중 하나는 공지의 금액과 같아야 한다
  */
-function fitsNotice(n, i) {
+function titleTokens(n) {
   const brand = squash(n.brand || '');
-  const text = moneyKey(`${i.alt || ''} ${i.near || ''}`);
-  const tokens = [...new Set(String(n.title || '').normalize('NFKC').split(/[\s·,/!?()\[\]]+/).map(moneyKey)
+  return [...new Set(String(n.title || '').normalize('NFKC').split(/[\s·,/!?()\[\]]+/).map(moneyKey)
     .filter((t) => t.length >= 2 && !TITLE_GENERIC.test(t) && !(brand && (t === brand || brand.includes(t) || t.includes(brand)))))];
+}
+function fitsNotice(n, i) {
+  const text = moneyKey(`${i.alt || ''} ${i.near || ''}`);
+  const tokens = titleTokens(n);
   if (tokens.length && tokens.filter((t) => text.includes(t)).length < Math.ceil(tokens.length * 0.4)) return false;
   // 대체텍스트는 그 이미지 자체를 설명한다 — 내용이 있는데 제목 낱말이 하나도 없으면 다른 행사 이미지('제주 맥피즈')
   const alt = moneyKey(i.alt || '');
@@ -1097,7 +1100,17 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
   }
   if (bestS >= 2) {
     const cards = new Set(best.map((i) => squash(i.near || '') || squash(i.alt || '')));
-    if (cards.size === 1) return [...best].sort((a, b) => squareness(a) - squareness(b))[0].src;
+    if (cards.size === 1) {
+      if (best.length === 1) return best[0].src;
+      // 같은 묶음(카드 두 개가 한 줄에 든 목록 등) 안의 여러 이미지 — 대체텍스트로 그 공지 것을 가릴 수 있을 때만 고른다
+      // (11/03 파파존스 '아메리칸 콤보'에 같은 줄의 '아이브 포토카드' 이미지가 붙음)
+      const tokens = titleTokens(n);
+      const named = best.filter((i) => { const a = moneyKey(i.alt || ''); return a && tokens.some((t) => a.includes(t)); });
+      if (named.length === 1) return named[0].src;
+      const alts = new Set(best.map((i) => squash(i.alt || '')));
+      // 대체텍스트까지 같으면 같은 이미지의 PC·모바일 판 → 정사각형에 가까운 쪽
+      if (alts.size === 1 && [...alts][0]) return [...best].sort((a, b) => squareness(a) - squareness(b))[0].src;
+    }
   }
   // 공유 대표 이미지(og)는 쓰지 않는다. 상세 페이지에서 AI가 그 페이지의 행사가 아닌 공지를 함께 읽으면
   // og가 다른 행사 이미지가 된다 (11/03 실제: 파파존스 '파파스데이'에 불닭 통신사 이미지, 맥도날드 '앱 신규 가입'에 '제주 맥피즈' 배너).
