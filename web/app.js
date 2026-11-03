@@ -2,8 +2,8 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor,
-} from './engine.js?v=20261103-2';
-import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-2';
+} from './engine.js?v=20261103-3';
+import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-3';
 
 import { noticePhoto } from './notice-images.js?v=20261031-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';

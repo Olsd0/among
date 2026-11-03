@@ -169,6 +169,17 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
       pages.push({ url: link, error: e.message });
     }
   }
+  return dropCommonOg(pages);
+}
+
+/**
+ * 상세 페이지 여러 곳에 똑같이 붙은 공유 이미지(og:image)는 행사 이미지가 아니라 사이트 공통 그림이다 → 뗀다.
+ * (11/03 맥도날드: 프로모션 상세마다 og:image가 '앱 다운로드' 배너라 '해피 스낵' 공지에 잘못 붙음)
+ */
+export function dropCommonOg(pages = []) {
+  const count = new Map();
+  for (const p of pages) if (p && p.isDetail && p.ogImage) count.set(p.ogImage, (count.get(p.ogImage) || 0) + 1);
+  for (const p of pages) if (p && p.isDetail && p.ogImage && count.get(p.ogImage) > 1) p.ogImage = '';
   return pages;
 }
 

@@ -5,7 +5,7 @@ export function noticeImageFor(n = {}, picked = '', today) {
   const v = noticePhoto(n, today);
   return v ? (v.image || '') : (picked || '');
 }
-import { productImage, couponImage } from './product-images.js?v=20261103-2';
+import { productImage, couponImage } from './product-images.js?v=20261103-3';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -1005,7 +1005,7 @@ export function pickImage(item = {}, _page = {}, brand = '') {
 
 // 로고·아이콘·버튼·장식·사이트 공통 그림 (공지 이미지로 쓰지 않음)
 // 10/28 실제 수집에서 섞였던 것: 푸라닭 '메인하단_수상내역', KFC 'popup/intro'
-const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sns|facebook|instagram|insta_|youtube|twitter|kakao_?talk|blog|gnb|lnb|footer|header|qr|badge|favicon|sprite|bullet|loading|spinner|placeholder|blank|appdown|app_down|googleplay|google_play|appstore|app_store|share_default|og_default|default_og|no_?image|main_?banner|main_?visual|메인|popup|팝업|intro|award|수상/i;
+const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sns|facebook|instagram|insta_|youtube|twitter|kakao_?talk|blog|gnb|lnb|footer|header|qr|badge|favicon|sprite|bullet|loading|spinner|placeholder|blank|appdown|app_down|googleplay|google_play|appstore|app_store|share_default|og_default|default_og|no_?image|main_?banner|main_?visual|메인|popup|팝업|intro|award|수상|다운로드|바로가기|app\s*download|앱\s*설치|corp_site/i;
 /**
  * 공지 이미지로 쓸 수 없는 것: https가 아님, svg·gif, 로고·아이콘 이름, 너무 작음,
  * 가로로 긴 띠 배너·세로로 긴 상세 통이미지(카드에서 알아볼 수 없음), 대체텍스트가 브랜드 이름뿐(=로고)

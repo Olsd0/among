@@ -199,6 +199,22 @@ const BRAND_MENUS = [
   ['이디야', 'https://www.ediya.com/contents/drink.html', [
     ['오트 커피', ['오트커피'], 'https://www.ediya.com/files/menu/IMG_1790124499317.png'],
   ]],
+  // 11/03 오후: 아래 3곳은 GitHub 실행기(mode=images, only=menu=…)로 공식 메뉴 페이지의 상품명·사진을 대조해 등록
+  ['푸라닭', 'https://www.puradakchicken.com/menu/product.asp', [
+    ['고추마요 치킨', ['고추마요'], 'https://www.puradakchicken.com/upload/menu/[400-400]-%EA%B3%A0%EC%B6%94%EB%A7%88%EC%9A%94_%EB%BC%880.png'],
+    ['씬 후라이드 쿼터레그 (4조각)', ['쿼터레그'], 'https://www.puradakchicken.com/upload/menu/[400-400]%EC%94%AC%ED%9B%84%EB%9D%BC%EC%9D%B4%EB%93%9C_%EC%BF%BC%ED%84%B0%EB%A0%88%EA%B7%B8.png'],
+    ['마마치', [], 'https://www.puradakchicken.com/upload/menu/[400-400]_%EB%A7%88%EB%A7%88%EC%B9%98_%EB%BC%88.png'],
+    ['홍고추마요', [], 'https://www.puradakchicken.com/upload/menu/[400_400]%ED%99%8D%EA%B3%A0%EC%B6%94%EB%A7%88%EC%9A%94_%EB%BC%88.png'],
+  ]],
+  ['커피빈', 'https://www.coffeebeankorea.com/menu/list.asp', [
+    ['아이스 커피빈카노', ['커피빈카노', '아메리카노'], 'https://www.coffeebeankorea.com/data/menu/[%ED%99%88%ED%8E%98%EC%9D%B4%EC%A7%80]%EC%BB%A4%ED%94%BC%EB%B9%88%EC%B9%B4%EB%85%B83%EA%B8%B0_%EC%95%84%EC%9D%B4%EC%8A%A4%EC%95%84%EB%A9%94%EB%A6%AC%EC%B9%B4%EB%85%B8_1.jpg'],
+    ['아이스 커피빈라떼', ['커피빈라떼', '라떼'], 'https://www.coffeebeankorea.com/data/menu/[%ED%99%88%ED%8E%98%EC%9D%B4%EC%A7%80]%EC%BB%A4%ED%94%BC%EB%B9%88%EC%B9%B4%EB%85%B83%EA%B8%B0_%EC%95%84%EC%9D%B4%EC%8A%A4%EB%9D%BC%EB%96%BC_1.jpg'],
+  ]],
+  ['설빙', 'https://sulbing.com/menu/', [
+    ['인절미설빙', ['인절미'], 'https://sulbing.com/new/data/product/regular_01.png'],
+    ['애플망고치즈설빙', ['애플망고', '망고'], 'https://sulbing.com/new/data/product/product_small_jzobvkm.png'],
+    ['딥초코브라우니설빙', ['딥초코', '브라우니'], 'https://sulbing.com/new/data/product/product_small_afancmq.png'],
+  ]],
   ['스타벅스', 'https://www.starbucks.co.kr/menu/drink_list.do', [
     ['콜드 브루', ['콜드브루'], sbx('2025/06/[9200000000038]_20250626095744182')],
     ['자바 칩 프라푸치노', ['프라푸치노'], sbx('2025/06/[168016]_20250626113600873')],

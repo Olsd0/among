@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pickNoticeImage, dropSharedNoticeImages, isNonPhoto, noticeImageFor } from '../src/engine.js';
+import { dropCommonOg } from '../src/fetch.js';
 
 const img = (src, o = {}) => ({ src: `https://cdn.brand.kr/event/${src}`, alt: '', w: 600, h: 400, near: '', nearLen: 0, ...o });
 const card = (text) => ({ near: text.slice(0, 160), nearLen: text.length });
@@ -88,4 +89,19 @@ test('확인 목록에 있는 공지는 목록의 이미지만 — 일부러 비
   assert.match(noticeImageFor(listed, 'https://b.kr/other.png', '2026-11-03'), /assets\/notices\/baskin-pint/);
   assert.equal(noticeImageFor({ brand: '굽네치킨', title: '새 행사', source_url: 'https://g.kr/e' }, 'https://g.kr/new.png', '2026-11-03'), 'https://g.kr/new.png');
   assert.ok(isNonPhoto({ src: 'https://p.kr/huge.jpg', w: 12000, h: 12000 }), '수천만 화소 원본은 후보에서 뺀다');
+});
+
+test('상세 여러 곳에 같은 공유 이미지(og)·앱 다운로드 배너는 공지 이미지가 아니다 (11/03 맥도날드)', () => {
+  const pages = [
+    { isDetail: false, ogImage: '' },
+    { isDetail: true, ogImage: 'https://m.kr/upload/2025/09/250902_corp_site_PC_1.jpg' },
+    { isDetail: true, ogImage: 'https://m.kr/upload/2025/09/250902_corp_site_PC_1.jpg' },
+    { isDetail: true, ogImage: 'https://m.kr/upload/event/snack.jpg' },
+  ];
+  dropCommonOg(pages);
+  assert.deepEqual(pages.map((p) => p.ogImage), ['', '', '', 'https://m.kr/upload/event/snack.jpg']);
+  assert.ok(isNonPhoto({ src: 'https://m.kr/upload/a.jpg', alt: '지금 앱 다운로드 하고 혜택 누리기!', w: 800, h: 400 }));
+  assert.ok(isNonPhoto({ src: 'https://m.kr/upload/2025/09/250902_corp_site_PC_1.jpg', alt: '', w: 800, h: 400 }));
+  const own = { isDetail: true, ogImage: 'https://m.kr/upload/2025/09/250902_corp_site_PC_1.jpg', images: [] };
+  assert.equal(pickNoticeImage({ brand: '맥도날드', title: '해피 스낵', evidence: '시즌 한정 해피 스낵, 1000원부터!' }, [own], { own, single: true }), '');
 });
