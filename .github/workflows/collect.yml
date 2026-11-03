@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       mode:
-        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 / nutrition = 영양성분만 갱신 / site = 공개 화면 점검 (check·probe·e2e·nutrition·site는 AI 호출 없음)'
+        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 / nutrition = 영양성분만 갱신 / site = 공개 화면 점검 / images = 사진 점검(공지 이미지 대조, only에 menu=주소들 이면 메뉴 사진 목록) (check·probe·e2e·nutrition·site·images는 AI 호출 없음)'
         required: false
         default: collect
         type: choice
-        options: [collect, dry, check, probe, e2e, nutrition, site]
+        options: [collect, dry, check, probe, e2e, nutrition, site, images]
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
@@ -106,8 +106,16 @@ jobs:
           SITE_URL: https://olsd0.github.io/among/
         run: node src/site-check.js
 
+      - name: 사진 점검 (AI 호출 없음 · 시트에 안 씀 · 공지 이미지가 출처의 어느 카드 것인지 / 공식 메뉴 사진 목록)
+        if: inputs.mode == 'images'
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          AUDIT: ${{ inputs.only }}
+          BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
+        run: node src/image-audit.js
+
       - name: 수집
-        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition' && inputs.mode != 'site'
+        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition' && inputs.mode != 'site' && inputs.mode != 'images'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
