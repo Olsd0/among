@@ -4,7 +4,7 @@ import { noticeImage } from './notice-images.js';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, pickImage } from './engine.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, pickImage, pickNoticeImage, dropSharedNoticeImages } from './engine.js';
 import { couponId, contentHash, newsId, newsHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource } from './fetch.js';
@@ -103,6 +103,7 @@ export async function runCollector(o = {}) {
       try {
         if (stopReason) throw new Error(`건너뜀: ${stopReason}`);
         const pages = await collectSource(ctx, source, { outDir: env.SAVE_SHOTS === '1' ? join(outDir, 'shots') : undefined });
+        const srcNews = [];  // [소식, 읽은 페이지, 그 페이지의 소식이 하나뿐인가]
         for (const page of pages) {
           if (page.error) { report.errors.push(`${source.id} 상세: ${page.error}`); continue; }
           if (stopReason) throw new Error(`중단: ${stopReason}`);
@@ -129,14 +130,19 @@ export async function runCollector(o = {}) {
             all.push(c);
             sr.found++;
           }
-          for (const raw of ext.news || []) {
-            const n = normalizeNews(raw, nctx);
-            n.image_url = n.status !== 'rejected' ? noticeImage(n) : '';
+          const pageNews = (ext.news || []).map((raw) => normalizeNews(raw, nctx));
+          const live = pageNews.filter((n) => n.status !== 'rejected').length;
+          for (const n of pageNews) {
             n.id = newsId(n);
             n.checked_at = now.toISOString();
+            srcNews.push([n, page, live === 1]);
             allNews.push(n);
             sr.news = (sr.news || 0) + 1;
           }
+        }
+        // 공지 이미지: 확인 목록 → 이 출처의 공식 페이지(목록·상세)에서 그 공지와 맞는 이미지
+        for (const [n, page, single] of srcNews) {
+          n.image_url = n.status !== 'rejected' ? (noticeImage(n) || pickNoticeImage(n, pages, { own: page, single })) : '';
         }
         sr.ok = true;
       } catch (e) {
@@ -202,8 +208,8 @@ export async function runCollector(o = {}) {
     const rank = (n) => (n.status === 'published' ? 2 : n.status === 'pending' ? 1 : 0) + (n.confidence || 0) / 10;
     const newsById = new Map();
     for (const n of allNews) { const cur = newsById.get(n.id); if (!cur || rank(n) > rank(cur)) newsById.set(n.id, n); }
-    const news = mergeNews(linkNews([...newsById.values()], merged))
-      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? noticeImage(n) : '' }))
+    const news = dropSharedNoticeImages(mergeNews(linkNews([...newsById.values()], merged))
+      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? (noticeImage(n) || n.image_url || '') : '' })), noticeImage)
       .map((n) => ({ ...n, hash: newsHash(n) }));
     report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };
     report.with_image = merged.filter((c) => c.status === 'published' && c.image_url).length;
@@ -258,6 +264,8 @@ export async function runCollector(o = {}) {
       if (nLines.length) groups(nLines, 25).slice(0, 1).forEach((g, i) => console.log(`::notice title=소식 ${i + 1}::${g.map(block).join('%0A')}`));
       const imgLines = cs.filter((c) => c.image_url).map((c) => `${c.brand}|${c.menu}|${c.image_url}`.slice(0, 300));
       if (imgLines.length) console.log(`::notice title=사진 ${imgLines.length}건::${imgLines.slice(0, 25).map(block).join('%0A')}`);
+      const nImgLines = ns.filter((n) => n.status !== 'rejected' && n.image_url).map((n) => `${n.brand}|${n.title}|${n.image_url}`.slice(0, 300));
+      if (nImgLines.length) console.log(`::notice title=공지 사진 ${nImgLines.length}건::${nImgLines.slice(0, 25).map(block).join('%0A')}`);
     }
   }
   return report;

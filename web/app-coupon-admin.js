@@ -1,5 +1,5 @@
 import { AC_APPS, AC_AUDIENCES, AC_BENEFITS, AC_FACTS, AC_LINK_LABELS, AC_STATES, acNormalize, acKST, acLifecycle, acNeedsReview, acValidate } from './app-coupons.js?v=20261029-8';
-import { acEsc as esc } from './app-coupon-ui.js?v=20261029-8';
+import { acEsc as esc } from './app-coupon-ui.js?v=20261103-1';
 
 const root = document.querySelector('#appCouponManager');
 const API = window.AMONG_CONFIG?.apiUrl || '';

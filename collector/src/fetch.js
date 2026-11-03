@@ -75,17 +75,18 @@ export async function renderPage(ctx, url, opts = {}) {
         href: a.href,
         text: [a.innerText, a.getAttribute('title'), a.getAttribute('aria-label'), ...[...a.querySelectorAll('img[alt]')].map((i) => i.alt)].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
       })).filter((l) => l.href) : [];
-      // 쿠폰과 함께 온 사진 후보 (주소·대체텍스트·크기·주변 글만 — 이미지 파일은 받지도 저장하지도 않음)
+      // 공지 이미지 후보 (주소·대체텍스트·크기·주변 글만 — 이미지 파일은 받지도 저장하지도 않음)
+      // nearLen: 주변 글 전체 길이 — 카드 하나 분량인지(목록 전체가 아닌지) 판단용
       const nearText = (img) => {
         let p = img.parentElement;
         for (let k = 0; p && k < 5; k++, p = p.parentElement) {
           const t = (p.innerText || '').replace(/\s+/g, ' ').trim();
-          if (t.length >= 4) return t.slice(0, 160);
+          if (t.length >= 4) return [t.slice(0, 160), t.length];
         }
-        return '';
+        return ['', 0];
       };
       const images = [...el.querySelectorAll('img')].slice(0, 300)
-        .map((i) => ({ src: i.currentSrc || i.src || '', alt: (i.alt || i.title || '').trim().slice(0, 80), w: i.naturalWidth || 0, h: i.naturalHeight || 0, near: nearText(i) }))
+        .map((i) => { const [near, nearLen] = nearText(i); return { src: i.currentSrc || i.src || '', alt: (i.alt || i.title || '').trim().slice(0, 80), w: i.naturalWidth || 0, h: i.naturalHeight || 0, near, nearLen }; })
         .filter((x) => x.src && x.w >= 150 && x.h >= 100)
         .slice(0, 60);
       const og = document.querySelector('meta[property="og:image"], meta[name="og:image"], meta[property="og:image:url"]');

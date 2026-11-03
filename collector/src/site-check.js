@@ -37,7 +37,15 @@ try {
 
   const view = await page.evaluate(() => ({
     // 공지 카드는 <article> 안의 버튼에 이름이 있다 (10/29~). 이름이 없으면 보이는 글자로
-    hot: [...document.querySelectorAll('.hcard')].map((h) => `${h.classList.contains('has-ph') ? '사진' : '그림'}|${(h.dataset.hot || '').split(':')[0]}|${(h.getAttribute('aria-label') || h.querySelector('[aria-label]')?.getAttribute('aria-label') || h.innerText || '').replace(/\s+/g, ' ').replace(/^\d+번째 핫딜: /, '').slice(0, 80)}`),
+    // 사진 종류(공식 공지 이미지·관련 상품·대표 메뉴) | 사진 사이트 | 종류 | 이름 — 사진이 없거나 못 불러오면 '로고'
+    hot: [...document.querySelectorAll('.hcard')].map((h) => {
+      const img = h.querySelector('img.ph');
+      const label = h.querySelector('.notice-image-label')?.textContent || '상품 사진';
+      let site = '';
+      try { site = img ? new URL(img.currentSrc || img.src).hostname : ''; } catch { /* 없음 */ }
+      const pic = h.classList.contains('has-ph') && img ? `${label}${img.naturalWidth ? '' : '(안 불러옴)'}|${site}` : '로고|';
+      return `${pic}|${(h.dataset.hot || '').split(':')[0]}|${(h.getAttribute('aria-label') || h.querySelector('[aria-label]')?.getAttribute('aria-label') || h.innerText || '').replace(/\s+/g, ' ').replace(/^\d+번째 핫딜: /, '').slice(0, 70)}`;
+    }),
     cards: [...document.querySelectorAll('.hcard')].map((h) => h.offsetHeight).join(','),
     overflow: document.documentElement.scrollWidth > innerWidth,
     tickets: document.querySelectorAll('.ticket').length,

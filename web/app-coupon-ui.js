@@ -16,7 +16,6 @@ export function acCard(c) {
     <p class="ac-audience">${esc(acAudience(c))}</p>
     <p class="ac-deadline">사용 ${esc(acKST(c.use_end, true))}까지${Date.now() < Date.parse(c.use_start) ? ` · ${esc(acKST(c.use_start, true))} 시작` : ''}</p>
     ${status !== 'issuing' ? `<p class="ac-status">${AC_STATES[status]}</p>` : ''}
-    ${acNeedsReview(c) ? '<p class="ac-review">재확인 필요 · 공식 안내를 확인해 주세요</p>' : ''}
     <div class="ac-actions">${link(c)}<button type="button" data-ac-detail="${esc(c.id)}">조건 상세</button></div>
   </article>`;
 }

@@ -35,9 +35,13 @@ test('상품 사진: 같은 브랜드의 정확한 상품만, 크기·수량·�
 
 test('소식은 연관 쿠폰의 상품 사진을 빌려 쓰지 않는다', () => {
   const c = { id: 'burger', brand: '맥도날드', menu: '불고기버거', image_url: productImage({ brand: '맥도날드', menu: '불고기버거' }) };
-  const [h] = pickHeadlines([c], [{ id: 'news', brand: c.brand, title: '전 메뉴 할인', discount_label: '15천원', end_date: '2026-11-01', related_ids: [c.id], image_url: 'https://example.test/event.jpg' }], { today: '2026-10-28' });
-  assert.equal(h.image_url, '');
+  const n = { id: 'news', brand: c.brand, title: '전 메뉴 할인', discount_label: '15천원', end_date: '2026-11-01', related_ids: [c.id], image_url: '' };
+  const [h] = pickHeadlines([c], [n], { today: '2026-10-28' });
+  assert.equal(h.image_url, '', '연결 쿠폰의 상품 사진을 공지 이미지로 저장하지 않는다 (화면에서 \'관련 상품 이미지\'로 따로 표시)');
   assert.equal(h.label, '15000원');
+  // 수집기가 그 공지의 공식 페이지에서 고른 공지 이미지는 유지한다
+  const [own] = pickHeadlines([c], [{ ...n, image_url: 'https://example.test/event.jpg' }], { today: '2026-10-28' });
+  assert.equal(own.image_url, 'https://example.test/event.jpg');
 });
 
 test('웹 상품 사진 목록이 수집기 원본과 같다', () => {
@@ -87,4 +91,24 @@ test('전 메뉴·복수 메뉴 할인은 같은 브랜드의 공식 대표 사�
       assert.match(representative.originalImage, /^https:\/\//);
     }
   }
+});
+
+test('핫딜 대신 사진: 연결 쿠폰의 상품 사진 → 글에 나온 공식 메뉴 → 브랜드 대표 메뉴, 다른 브랜드 사진은 쓰지 않는다', async () => {
+  const { brandPhoto, brandMenuPhotos } = await import('../src/product-images.js');
+  for (const p of brandMenuPhotos()) {
+    assert.match(p.url, /^https:\/\//, p.name);
+    assert.match(p.source, /^https:\/\//, p.name);
+  }
+  const burger = { brand: '맥도날드', menu: '불고기 버거', item_type: '단품' };
+  assert.equal(brandPhoto('맥도날드', '해피 스낵 행사', [burger]).label, '관련 상품 이미지');
+  assert.equal(brandPhoto('맥도날드', '해피 스낵 행사', [burger]).url, productImage(burger));
+  const corn = brandPhoto('교촌치킨', '허니옥수수윙콤비 출시 기념 할인');
+  assert.equal(corn.name, '허니옥수수윙콤비', '더 긴 이름이 맞는 메뉴를 고른다');
+  assert.equal(corn.label, '관련 상품 이미지');
+  const rep = brandPhoto('피자헛', '주말 1+1 핫딜');
+  assert.equal(rep.label, '대표 메뉴 이미지');
+  assert.equal(rep.name, '수퍼슈프림');
+  assert.equal(brandPhoto('쉐이크쉑', 'T day 30%').label, '대표 메뉴 이미지');
+  assert.equal(brandPhoto('네이버페이', '카페 적립'), null, '음식 브랜드가 아니면 사진 없음 → 로고');
+  assert.equal(brandPhoto('모르는 브랜드', '수퍼슈프림'), null, '다른 브랜드의 메뉴 사진을 빌리지 않는다');
 });

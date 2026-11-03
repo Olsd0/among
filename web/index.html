@@ -130,10 +130,8 @@
   .rail::-webkit-scrollbar { display: none; }
   .hcard { position: relative; flex: 0 0 78%; max-width: 300px; height: 300px; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; scroll-snap-align: start; background: var(--surface); color: var(--text); border: 1px solid var(--line); text-align: left; isolation: isolate; }
   .hcard:active { transform: scale(.985); }
-  .hot-visual { position: relative; display: block; flex: none; height: 172px; overflow: hidden; background: var(--hbg, var(--t-vio)); }
+  .hot-visual { position: relative; display: block; flex: none; height: 172px; overflow: hidden; background: var(--surface-2); }
   .hcard .hot-visual .ph { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 10px; background: #fff; }
-  .hcard .art { position: absolute; left: 50%; top: 50%; width: 104px; height: 104px; transform: translate(-50%, -50%); filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .10)); }
-  .hcard.has-ph .art { display: none; }
   .hot-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 13px; }
   .hcard .top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .hcard .br { font-size: 12.5px; font-weight: 700; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -234,10 +232,9 @@
   .price .what { color: var(--text-2); font-weight: 600; font-size: 13.5px; }
   .badges { display: flex; flex-wrap: wrap; gap: 4px; }
   .badge { font-size: 11px; font-weight: 700; line-height: 1.5; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
-  .badge.b-aud, .badge.b-stale { background: var(--warn-soft); color: var(--warn); }
+  .badge.b-aud { background: var(--warn-soft); color: var(--warn); }
   .badge.b-prog { background: var(--info-soft); color: var(--info); }
   .badge.b-mine { background: var(--primary-soft); color: var(--primary); }
-  .badge.b-new { background: var(--good-soft); color: var(--good); }
   .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 4px; min-width: 0; }
   .chip { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .chip svg { width: 14px; height: 14px; }
@@ -425,7 +422,7 @@
 </style>
 <link rel="stylesheet" href="app-coupons.css?v=20261029-8">
 <link rel="stylesheet" href="launch.css?v=20261102-1">
-<link rel="stylesheet" href="hot-notices.css?v=20261102-1">
+<link rel="stylesheet" href="hot-notices.css?v=20261103-1">
 <!-- deploy-meta -->
 <link rel="canonical" href="https://olsd0.github.io/among/">
 <meta property="og:url" content="https://olsd0.github.io/among/">
@@ -597,7 +594,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261102-1"></script>
+<script type="module" src="app.js?v=20261103-1"></script>
 <script type="module" src="sponsor.js?v=20261031-1"></script>
 </body>
 </html>

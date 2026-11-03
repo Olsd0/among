@@ -3,7 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
-import { productImage } from '../src/product-images.js';
+import { productImage, brandPhoto } from '../src/product-images.js';
 import { noticeImage } from '../src/notice-images.js';
 import { officialBrandLogo } from '../../web/brand-logos.js';
 import { serveDir } from './helpers.js';
@@ -150,7 +150,9 @@ test('제휴 혜택과 공지만 있는 브랜드도 공식 로고를 쓰고, �
   await failed.scrollIntoViewIfNeeded();
   await failed.locator('img.logo').waitFor({ state: 'detached' });
   assert.equal(await failed.locator('.brand-avatar').innerText(), '도');
-  assert.ok(!requests.some((url) => /gong-cha|popeyes\.co\.kr|dominos\.co\.kr/.test(url)), '확인된 로고는 외부 브랜드 서버에 요청하지 않는다');
+  // 핫딜의 공식 상품 사진(관련 상품·대표 메뉴)은 별개 — 로고만 확인한다
+  const productUrls = ['공차', '도미노피자', '파파이스'].map((b) => brandPhoto(b, '')?.url).filter(Boolean);
+  assert.ok(!requests.some((url) => /gong-cha|popeyes\.co\.kr|dominos\.co\.kr/.test(url) && !productUrls.includes(url)), '확인된 로고는 외부 브랜드 서버에 요청하지 않는다');
   assert.ok(!requests.some((url) => url.includes('favicons?domain=tworld') || url.includes('tworld.co.kr/favicon')), '통신사 아이콘을 브랜드 로고로 요청하지 않는다');
 });
 
@@ -174,7 +176,7 @@ test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원�
   assert.equal(await page.locator('#newsBody img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'contain');
 });
 
-test('일부 출처가 오래됐으면 경고와 카드 표시를 보이고 최신 핫딜만 추천한다', { timeout: 30000 }, async (t) => {
+test('일부 출처가 오래됐으면 위쪽 경고만 보이고(카드 문구 없음) 최신 핫딜만 추천한다', { timeout: 30000 }, async (t) => {
   const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('fresh'), coupon('old', ago(72))],
     news: [news('fresh', ago(1)), news('old', ago(72))] };
   const { context, page } = await setup(data);
@@ -182,8 +184,8 @@ test('일부 출처가 오래됐으면 경고와 카드 표시를 보이고 최�
   await page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
   await page.locator('#list .card').first().waitFor();
   assert.match(await page.locator('#errNote').innerText(), /일부 혜택/);
-  assert.match(await page.locator('#card-old').innerText(), /출처 재확인 필요/);
-  assert.doesNotMatch(await page.locator('#card-fresh').innerText(), /출처 재확인 필요/);
+  // 카드에는 상태 문구를 붙이지 않는다 (확인 시각은 펼친 상세의 출처 줄)
+  for (const id of ['#card-old', '#card-fresh']) assert.doesNotMatch(await page.locator(id).innerText(), /재확인 필요|지난 방문 후 새로|새로 생김/);
   assert.match(await page.locator('#hotRail').innerText(), /테스트 행사 fresh/);
   assert.doesNotMatch(await page.locator('#hotRail').innerText(), /테스트 행사 old/);
 
@@ -203,7 +205,7 @@ test('연결 실패 시 저장본임을 알리고, 저장본이 없으면 다시
   await first.page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
   await first.page.locator('#card-cached').waitFor();
   await first.page.getByText(/연결이 불안정해/).waitFor();
-  assert.match(await first.page.locator('#card-cached').innerText(), /출처 재확인 필요/);
+  assert.doesNotMatch(await first.page.locator('#card-cached').innerText(), /재확인 필요/);
 
   const second = await setup(data, { failCoupons: 1 });
   t.after(() => second.context.close());
@@ -272,7 +274,7 @@ test('120개 혜택의 첫 표시와 검색이 모바일 화면에서 동작한�
 });
 
 
-test('실제 상품 사진만 표시하고 API와 저장본의 배너·다른 상품 사진은 요청하지 않는다', { timeout: 30000 }, async (t) => {
+test('쿠폰은 확인된 상품 사진만, 공지는 수집기가 고른 공식 이미지를 쓰고 못 불러오면 연결 쿠폰의 상품 사진으로 바꾼다', { timeout: 30000 }, async (t) => {
   const known = { ...coupon('known'), brand: '맥도날드', menu: '불고기버거', image_url: 'https://example.test/banner.jpg' };
   const photoUrl = productImage(known);
   const unknown = { ...coupon('unknown'), menu: '전 메뉴', image_url: photoUrl };
@@ -289,13 +291,19 @@ test('실제 상품 사진만 표시하고 API와 저장본의 배너·다른 �
   assert.equal(await photo.getAttribute('src'), photoUrl);
   assert.equal(await photo.evaluate((el) => getComputedStyle(el).objectFit), 'contain');
   assert.equal(await page.locator('#card-unknown .ph').count(), 0);
-  assert.equal(await page.locator('#hotRail [data-hot="news:banner"] .ph').count(), 0);
-  assert.equal(await page.locator('#hotRail [data-hot="news:banner"] .lbl').count(), 0, '사진 없는 공지도 아래 금액 표시를 생략한다');
-  await page.locator('#hotRail [data-hot="news:banner"]').click();
+  // 공지: 공식 이미지(news-banner)를 먼저 시도 → 이미지가 아니라 실패 → 연결된 쿠폰의 상품 사진
+  const hot = page.locator('#hotRail [data-hot="news:banner"]');
+  await page.waitForFunction((src) => document.querySelector('[data-hot="news:banner"] img.ph')?.getAttribute('src') === src && document.querySelector('[data-hot="news:banner"] img.ph').naturalWidth > 0, photoUrl);
+  assert.equal(await hot.locator('.notice-image-label').innerText(), '관련 상품 이미지');
+  assert.equal(await hot.evaluate((el) => el.classList.contains('has-ph')), true);
+  assert.equal(await hot.locator('.lbl').count(), 0, '공지 카드는 아래 금액 표시를 생략한다');
+  await hot.locator('.hot-open').click();
   await page.locator('#newsSheet').waitFor();
-  assert.equal(await page.locator('#newsBody .ph').count(), 0);
-  assert.equal(await page.locator('#newsBody .lbl').innerText(), '15000원');
-  assert.ok(!requests.some((url) => url.includes('banner.jpg')), '저장본의 행사 배너도 요청하지 않는다');
+  await page.waitForFunction((src) => document.querySelector('#newsBody img.ph')?.getAttribute('src') === src, photoUrl);
+  assert.equal(await page.locator('#newsBody .notice-original').isHidden(), true, '상품 사진은 공지 원본 링크로 안내하지 않는다');
+  assert.match(await page.locator('#newsBody .news-note').innerText(), /공식 메뉴의 상품 이미지/);
+  assert.ok(requests.includes('https://example.test/news-banner.jpg'), '공지 이미지는 수집기가 고른 공식 주소를 먼저 쓴다');
+  assert.ok(!requests.some((url) => url === 'https://example.test/banner.jpg'), '쿠폰의 API 배너는 요청하지 않는다');
 });
 
 test('명일방주 제휴 메뉴와 쉐이크쉑 전 메뉴 쿠폰에 공식 포스터·버거 모음을 보여준다', { timeout: 30000 }, async t => {
@@ -401,9 +409,9 @@ test('핫딜 목록은 썸네일만 받고 상세를 열면 큰 공지 원본을
   assert.equal(await page.locator('.notice-original').getAttribute('href'), full);
 });
 
-test('사진 없는 공지는 공식 브랜드 로고만 보여주며 원문 링크는 상세를 열지 않는다', { timeout: 30000 }, async t => {
+test('공지 이미지가 없고 상품 사진도 못 불러오면 공식 브랜드 로고만 보여주며 원문 링크는 상세를 열지 않는다', { timeout: 30000 }, async t => {
   const now = '2026-10-29T03:00:00.000Z';
-  const n = { id: 'source-preview', brand: 'KFC', title: '공식 앱 한정 행사 안내', category: '햄버거', summary: '매장에서 공식 앱으로 사용 조건을 확인하세요. <img src=x onerror=alert(1)>', discount_label: '30%', start_date: '2026-10-28', end_date: '2026-10-31', checked_at: now, source_url: 'https://example.test/event', image_url: 'https://example.test/unverified-banner.jpg' };
+  const n = { id: 'source-preview', brand: 'KFC', title: '공식 앱 한정 행사 안내', category: '햄버거', summary: '매장에서 공식 앱으로 사용 조건을 확인하세요. <img src=x onerror=alert(1)>', discount_label: '30%', start_date: '2026-10-28', end_date: '2026-10-31', checked_at: now, source_url: 'https://example.test/event' };
   const requests = [];
   const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] }, { requests });
   t.after(() => context.close());
@@ -411,6 +419,9 @@ test('사진 없는 공지는 공식 브랜드 로고만 보여주며 원문 링
   await page.goto(`${site.base}/index.html`);
   const card = page.locator('[data-hot="news:source-preview"]');
   await card.waitFor();
+  // KFC 대표 메뉴 사진을 먼저 시도 (시험 환경에서는 외부 사진이 막혀 실패) → 로고
+  assert.ok(requests.some((url) => url.startsWith('https://kfcapi.inicis.com/')));
+  await page.waitForFunction(() => document.querySelector('[data-hot="news:source-preview"]')?.classList.contains('noph'));
   assert.equal((await card.locator('.notice-preview').innerText()).trim(), '브랜드 로고');
   assert.doesNotMatch(await card.locator('.hot-visual').innerText(), /매장에서|img src|공지 요약/);
   assert.match(await card.locator('.notice-brand-logo').getAttribute('src'), /assets\/brands\/kfc-/);
@@ -426,8 +437,8 @@ test('사진 없는 공지는 공식 브랜드 로고만 보여주며 원문 링
   await popup.close();
   await card.getByRole('button').click();
   assert.equal(await page.locator('.notice-source-link').getAttribute('href'), n.source_url);
+  await page.waitForFunction(() => document.querySelector('.news-hero')?.classList.contains('noph'));
   assert.equal(await page.locator('.news-hero .notice-preview').isVisible(), true);
-  assert.equal(requests.some(url => url.includes('unverified-banner')), false);
   await page.locator('#newsSheet').getByRole('button', { name: '닫기', exact: true }).click();
   for (const width of [320, 390, 820]) {
     await page.setViewportSize({ width, height: 844 });
@@ -439,7 +450,7 @@ test('사진 없는 공지는 공식 브랜드 로고만 보여주며 원문 링
   await card.screenshot({ path: '/tmp/among-hot-notice-source.png' });
 });
 
-test('공식 이미지 로딩 실패 시 브랜드 로고로 복원하고 깨진 이미지 링크를 숨긴다', { timeout: 30000 }, async t => {
+test('공식 이미지와 상품 사진을 모두 못 불러오면 브랜드 로고로 복원하고 깨진 이미지 링크를 숨긴다', { timeout: 30000 }, async t => {
   const now = '2026-10-29T03:00:00.000Z';
   const n = { id: 'failed-photo', brand: '피자헛', category: '피자', title: '피자헛 주말 1+1 핫딜', summary: '주말 한정 행사 조건을 공식 원문에서 확인하세요.', checked_at: now, start_date: '2026-10-01', end_date: '2026-10-31', source_url: 'https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut' };
   const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] });
@@ -457,6 +468,40 @@ test('공식 이미지 로딩 실패 시 브랜드 로고로 복원하고 깨진
   assert.equal(await page.locator('.notice-original').isHidden(), true);
   assert.equal(await page.locator('.news-hero .notice-preview').isVisible(), true);
   assert.equal(await page.locator('.notice-source-link').getAttribute('href'), n.source_url);
+});
+
+test('공식 공지 이미지를 못 불러오면 같은 브랜드의 대표 메뉴 사진으로 바꾸고 표시 문구도 바꾼다', { timeout: 30000 }, async t => {
+  const now = '2026-10-29T03:00:00.000Z';
+  const n = { id: 'fallback', brand: '피자헛', category: '피자', title: '피자헛 주말 1+1 핫딜', summary: '주말 한정 행사', checked_at: now, start_date: '2026-10-01', end_date: '2026-10-31', source_url: 'https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut' };
+  const product = brandPhoto('피자헛', `${n.title} ${n.summary}`).url;
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [n] }, { photoUrls: [product] });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const card = page.locator('[data-hot="news:fallback"]');
+  await page.waitForFunction((src) => document.querySelector('[data-hot="news:fallback"] img.ph')?.getAttribute('src') === src && document.querySelector('[data-hot="news:fallback"] img.ph').naturalWidth > 0, product);
+  assert.equal(await card.locator('.notice-image-label').innerText(), '대표 메뉴 이미지');
+  assert.equal(await card.locator('.notice-preview').isVisible(), false);
+  assert.equal(await card.evaluate((el) => el.classList.contains('noph')), false);
+});
+
+test('행사 이미지가 없는 쿠폰 핫딜은 일러스트 대신 같은 브랜드의 관련 상품 사진, 그것도 없으면 로고', { timeout: 30000 }, async t => {
+  const now = new Date().toISOString();
+  const supreme = { ...coupon('supreme', now), brand: '피자헛', category: '피자', menu: '수퍼슈프림 L', discount_type: 'percent', coupon_price: null, regular_price: null, discount_rate: 40, end_date: new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10) };
+  const plain = { ...coupon('plain', now), discount_type: 'free_item', coupon_price: null, regular_price: null, discount_rate: null, menu: '테스트 버거 1+1', end_date: new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10) };
+  const product = brandPhoto('피자헛', supreme.menu).url;
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [supreme, plain], news: [] }, { photoUrls: [product] });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`);
+  const hot = page.locator('[data-hot="coupon:supreme"]');
+  await page.waitForFunction((src) => document.querySelector('[data-hot="coupon:supreme"] img.ph')?.getAttribute('src') === src, product);
+  assert.equal(await hot.locator('.notice-image-label').innerText(), '관련 상품 이미지');
+  assert.equal(await page.locator('#hotRail .art').count(), 0, '핫딜에 우리 일러스트를 쓰지 않는다');
+  const other = page.locator('[data-hot="coupon:plain"]');
+  await other.waitFor();
+  assert.equal(await other.locator('img.ph').count(), 0);
+  assert.equal(await other.evaluate((el) => el.classList.contains('noph')), true);
+  assert.equal(await other.locator('.notice-preview').isVisible(), true);
 });
 
 test('설빙 적립 공지가 사진·조건과 함께 노출되고 종료 다음 날에는 사라진다', { timeout: 30000 }, async (t) => {

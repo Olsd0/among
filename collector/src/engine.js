@@ -1,5 +1,5 @@
 import { noticeImage } from './notice-images.js?v=20261031-3';
-import { productImage, couponImage } from './product-images.js?v=20261031-4';
+import { productImage, couponImage } from './product-images.js?v=20261103-1';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -995,6 +995,87 @@ export function pickImage(item = {}, _page = {}, brand = '') {
   return productImage({ ...item, brand: item.brand || brand });
 }
 
+// 로고·아이콘·버튼·장식·사이트 공통 그림 (공지 이미지로 쓰지 않음)
+// 10/28 실제 수집에서 섞였던 것: 푸라닭 '메인하단_수상내역', KFC 'popup/intro'
+const NON_PHOTO = /logo|로고|icon|아이콘|ico[_-]|btn|button|버튼|arrow|sns|facebook|instagram|insta_|youtube|twitter|kakao_?talk|blog|gnb|lnb|footer|header|qr|badge|favicon|sprite|bullet|loading|spinner|placeholder|blank|appdown|app_down|googleplay|google_play|appstore|app_store|share_default|og_default|default_og|no_?image|main_?banner|main_?visual|메인|popup|팝업|intro|award|수상/i;
+/**
+ * 공지 이미지로 쓸 수 없는 것: https가 아님, svg·gif, 로고·아이콘 이름, 너무 작음,
+ * 가로로 긴 띠 배너·세로로 긴 상세 통이미지(카드에서 알아볼 수 없음), 대체텍스트가 브랜드 이름뿐(=로고)
+ */
+export function isNonPhoto(img = {}, brand = '') {
+  const src = String(img.src || '');
+  if (!/^https:\/\//i.test(src) || /\.(svg|gif)(\?|#|$)/i.test(src)) return true;
+  let path = src;
+  try { path = decodeURIComponent(new URL(src).pathname); } catch { /* 그대로 */ }
+  if (NON_PHOTO.test(path) || NON_PHOTO.test(img.alt || '')) return true;
+  const w = +img.w || 0, h = +img.h || 0;
+  if (w && h) {
+    if (w < 200 || h < 120) return true;
+    if (w / h > 4 || h / w > 2.5) return true;
+  }
+  if (brand && img.alt && squash(img.alt) === squash(brand)) return true;
+  return false;
+}
+
+const dice = (a, b) => {
+  const x = bigrams(a), y = bigrams(b);
+  if (!x.size || !y.size) return 0;
+  let hit = 0;
+  for (const g of x) if (y.has(g)) hit++;
+  return (2 * hit) / (x.size + y.size);
+};
+const squareness = (i) => ((+i.w || 0) && (+i.h || 0) ? Math.abs(Math.log(i.w / i.h)) : 9);
+
+/**
+ * 핫딜 공지의 공식 이미지 고르기 — 그 공지를 읽은 공식 출처의 페이지(목록·상세)에 실제로 있던 이미지만. 파일은 받지 않고 주소만 둔다.
+ * 1) 이미지 대체텍스트가 공지 원문(근거 문구)·제목과 맞거나, 이미지를 감싼 카드 하나의 글에 근거 문구 앞부분이 있으면 그 이미지.
+ *    같은 점수의 이미지가 다른 카드에도 있으면 어느 공지 것인지 애매하므로 고르지 않는다.
+ * 2) 공지 하나만 실린 상세 페이지면 그 페이지의 공유용 대표 이미지(og:image — 목록과 같은 사이트 기본 이미지는 수집 때 이미 뺌)
+ * 3) 그 밖에는 '' — 화면이 같은 브랜드의 상품 사진, 그것도 없으면 로고로 대신한다. 다른 행사·예시 사진으로 채우지 않는다.
+ * pages: [{ images: [{src, alt, w, h, near, nearLen}], ogImage, isDetail }], own: 공지를 읽은 페이지, single: 그 페이지의 공지가 하나뿐
+ */
+export function pickNoticeImage(n = {}, pages = [], { own = null, single = false } = {}) {
+  const brand = n.brand || '';
+  const ev = squash(n.evidence || '');
+  const head = ev.slice(0, 14);
+  const tt = squash(n.title || '');
+  const imgs = new Map();
+  for (const p of pages) for (const i of (p && p.images) || []) if (i && i.src && !imgs.has(i.src) && !isNonPhoto(i, brand)) imgs.set(i.src, i);
+  const score = (i) => {
+    const alt = squash(i.alt || ''), near = squash(i.near || '');
+    // 주변 글이 카드 하나 분량일 때만 (목록 전체 글이면 모든 공지와 겹친다)
+    const card = i.nearLen ? i.nearLen <= 240 : (i.near || '').length < 160;
+    if (alt.length >= 6 && ev && (ev.includes(alt) || (head.length >= 6 && alt.includes(head)))) return 3;
+    if (alt.length >= 4 && tt.length >= 4 && (alt.includes(tt) || (alt.length >= 6 && tt.includes(alt)))) return 3;
+    if (alt.length >= 8 && ev.length >= 8 && dice(alt, ev.slice(0, alt.length + 10)) >= 0.7) return 2;
+    if (card && head.length >= 6 && near.includes(head)) return 2;
+    return 0;
+  };
+  let best = [], bestS = 0;
+  for (const i of imgs.values()) {
+    const s = score(i);
+    if (s > bestS) { best = [i]; bestS = s; } else if (s && s === bestS) best.push(i);
+  }
+  if (bestS >= 2) {
+    const cards = new Set(best.map((i) => squash(i.near || '') || squash(i.alt || '')));
+    if (cards.size === 1) return [...best].sort((a, b) => squareness(a) - squareness(b))[0].src;
+  }
+  if (single && own && own.isDetail && own.ogImage && !isNonPhoto({ src: own.ogImage, alt: '' }, brand)) return own.ogImage;
+  return '';
+}
+
+/** 서로 다른 공지 여러 개에 붙은 같은 이미지는 공지 고유 이미지가 아니다(사이트 공통 배너 등) → 뗀다. 확인 목록 이미지는 그대로 */
+export function dropSharedNoticeImages(list = [], verified = () => '') {
+  const by = new Map();
+  for (const n of list) {
+    if (n.status === 'rejected' || !n.image_url || verified(n)) continue;
+    if (!by.has(n.image_url)) by.set(n.image_url, []);
+    by.get(n.image_url).push(n);
+  }
+  for (const group of by.values()) if (group.length > 1) group.forEach((n) => { n.image_url = ''; });
+  return list;
+}
+
 const WEEKDAYS = '일월화수목금토';
 /** '매주 화요일 도미노스데이', '목요일 Special Day'처럼 요일마다 돌아오는 행사면 요일 번호(일=0), 아니면 null */
 export function weeklyDay(text) {
@@ -1120,7 +1201,8 @@ export function linkNews(newsList, coupons) {
     const overlap = (c) => !(n.end_date && c.start_date && c.start_date > n.end_date) && !(n.start_date && c.end_date && c.end_date < n.start_date);
     const sameWho = (c) => c.brand === n.brand || (n.programs || []).some((p) => (c.programs || []).includes(p) && PROGRAM_LABEL[p] === n.brand);
     const rel = coupons.filter((c) => c.status === 'published' && urlHit(c) && sameWho(c) && overlap(c)).slice(0, 6);
-    return { ...n, related_ids: rel.map((c) => c.id), image_url: noticeImage(n) };
+    // 확인 목록의 공지 이미지 → 수집 때 같은 공식 페이지에서 고른 공지 이미지 (같은 페이지의 다른 상품 사진은 빌리지 않음)
+    return { ...n, related_ids: rel.map((c) => c.id), image_url: noticeImage(n) || n.image_url || '' };
   });
 }
 
@@ -1213,7 +1295,7 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
       kind: 'news', id: n.id, brand: n.brand, category: n.category || rel[0]?.category || '', title: n.title, summary: n.summary,
       // 같은 페이지의 연결 쿠폰은 다른 행사일 수 있으므로 빈 소식 라벨을 쿠폰 혜택으로 채우지 않는다.
       label: formatMoneyLabel(n.discount_label), start_date: n.start_date || null, end_date: n.end_date || null,
-      image_url: noticeImage(n, today), programs: n.programs || [], related_ids: rel.map((c) => c.id),
+      image_url: noticeImage(n, today) || n.image_url || '', programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
       tier: headlineTier(facts, best), usable: mineOrOpen(n),
     });
