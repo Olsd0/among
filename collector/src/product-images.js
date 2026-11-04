@@ -115,7 +115,7 @@ function menuPhoto(item) {
   const menu = key(item.menu);
   if (!menu) return null;
   if (item.item_type !== '세트') {
-    const same = list.find((m) => m.names.includes(menu));
+    const same = list.find((m) => m.names.includes(menu) || (m.couponNames || []).includes(menu));
     if (same) return { url: same.url, source: same.source, name: same.name, kind: 'product', label: '', detailUrl: same.url, checked: same.checked };
   }
   const inside = list.filter((m) => key(m.name).length >= 4 && menu.includes(key(m.name)));
@@ -167,6 +167,8 @@ const BRAND_MENUS = [
     // 11/04 공식 사이드·음료 메뉴(mode=images, menu=…/menu/side)에서 상품명·사진 대조 — 쿠폰 메뉴와 이름이 같은 것만
     ['코카-콜라 1.25L', [], ph('PBE01305'), 'https://www.pizzahut.co.kr/menu/side'],
     ['치즈 폭탄 파스타', [], ph('PSD01724'), 'https://www.pizzahut.co.kr/menu/side'],
+    // 치즈페스타 쿠폰의 '더블 디핑소스' = 공식 메뉴 '더블 디핑(갈릭+스리라차)' (11/04 대표 확인). 쿠폰 메뉴 대조에만 쓰는 이름
+    ['더블 디핑(갈릭+스리라차)', [], ph('SSD00128'), 'https://www.pizzahut.co.kr/menu/side', ['더블 디핑소스']],
   ]],
   ['KFC', 'https://www.kfckorea.com/menu/chicken', [
     ['핫크리스피통다리 3조각', ['핫크리스피'], kfc('DL_2177538_20260731163110725')],
@@ -251,8 +253,9 @@ const BRAND_MENUS = [
 ];
 /** 점검용: 등록된 브랜드 메뉴 사진 전체 [{brand, name, url, source}] */
 export const brandMenuPhotos = () => BRAND_MENUS.flatMap(([brand, source, items]) => items.map(([name, , url, page]) => ({ brand, name, url: new URL(url).href, source: page || source })));
-const menus = new Map(BRAND_MENUS.map(([brand, source, items]) => [key(brand), items.map(([name, aliases, url, page]) =>
-  Object.freeze({ name, names: [name, ...aliases].map(key).filter((x) => x.length >= 2), url: new URL(url).href, source: new URL(page || source).href, checked: '2026-11-03' }))]));
+// couponNames: 쿠폰 메뉴 이름 대조에만 쓰는 다른 이름 (핫딜 글 속 이름 찾기에는 쓰지 않음)
+const menus = new Map(BRAND_MENUS.map(([brand, source, items]) => [key(brand), items.map(([name, aliases, url, page, couponNames = []]) =>
+  Object.freeze({ name, names: [name, ...aliases].map(key).filter((x) => x.length >= 2), couponNames: couponNames.map(key), url: new URL(url).href, source: new URL(page || source).href, checked: '2026-11-03' }))]));
 // 쿠폰 메뉴 대조용: 브랜드 메뉴 사진 + 정확한 상품 사진 목록(맥도날드·파리바게뜨 등)을 한데 모은 것
 let merged = null;
 function menuIndex() {

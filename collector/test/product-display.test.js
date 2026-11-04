@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { productImage, productPhoto } from '../src/product-images.js';
-import { couponImage, couponPhoto } from '../src/product-images.js';
+import { couponImage, couponPhoto, brandPhoto } from '../src/product-images.js';
 import { formatMoneyLabel, benefitLabel, pickHeadlines } from '../src/engine.js';
 
 test('금액 라벨: 천·만·쉼표를 전체 숫자로 바꾸고 할인율과 1+1은 유지한다', () => {
@@ -138,7 +138,11 @@ test('쿠폰 사진: 공식 메뉴의 같은 상품 → 메뉴에 든 상품(관
   assert.equal(at('파파존스', '크러스트 4종 중 택 1 + 코카-콜라 500ml', '세트', 'https://www.pji.co.kr/event/ongoing/9629').kind, 'campaign');
   assert.equal(at('파파존스', '파파 아메리칸 콤보 세트', '세트', 'https://www.pji.co.kr/event/ongoing').kind, 'campaign');
   // 공식 사진을 확인하지 못한 상품·브랜드는 다른 상품 사진으로 채우지 않는다
-  for (const [brand, menu] of [['피자헛', '더블 디핑소스'], ['배스킨라빈스', '싱글레귤러'], ['롯데리아', '전 메뉴'], ['BBQ', '황금올리브치킨 닭다리 4조각'], ['미스터피자', '퀘감포 세트'], ['파파존스', '크루아상 크러스트']]) {
+  // '더블 디핑소스'는 공식 메뉴 '더블 디핑(갈릭+스리라차)'와 같은 상품 (쿠폰 대조에만 쓰는 이름 — 핫딜 글 찾기에는 안 씀)
+  assert.equal(at('피자헛', '더블 디핑소스', '기타').kind, 'product');
+  assert.equal(at('피자헛', '더블 디핑소스', '기타').name, '더블 디핑(갈릭+스리라차)');
+  assert.notEqual(brandPhoto('피자헛', '치즈페스타 더블 디핑소스 500원', []).name, '더블 디핑(갈릭+스리라차)');
+  for (const [brand, menu] of [['배스킨라빈스', '싱글레귤러'], ['롯데리아', '전 메뉴'], ['BBQ', '황금올리브치킨 닭다리 4조각'], ['미스터피자', '퀘감포 세트'], ['파파존스', '크루아상 크러스트']]) {
     assert.equal(at(brand, menu), null, `${brand} ${menu}`);
   }
 });
