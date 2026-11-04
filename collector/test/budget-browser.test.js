@@ -25,6 +25,8 @@ const COUPONS = [
   c('p5000', { regular_price: 6000, coupon_price: 5000, discount_rate: 17, end_date: plus(2) }),
   c('p5001', { coupon_price: 5001 }),
   c('p9800', { brand: '가상카페', category: '카페', menu: '가상 라떼 2잔 세트', item_type: '세트', coupon_price: 9800, channels: ['픽업'], audience: '신규회원', app_only: true }),
+  c('p8000', { brand: '가상카페', category: '카페', menu: '가상 케이크 세트', item_type: '세트', coupon_price: 8000 }),
+  c('p15000', { brand: '가상피자', category: '피자', menu: '가상 피자 미디엄', coupon_price: 15000 }),
   c('p19000', { brand: '가상피자', category: '피자', menu: '가상 피자 라지', coupon_price: 19000 }),
   c('amount', { discount_type: 'amount', discount_value: 3000, min_order: 15000 }),
   c('percent', { discount_type: 'percent', discount_value: 30, discount_rate: 30, programs: ['KT'], audience: '멤버십' }),
@@ -79,7 +81,7 @@ test('예산 버튼: 하나만 선택되고 누르면 바로 적용되며, 가�
   assert.equal(all.length, COUPONS.length, '제한 없음: 가격 없는 혜택도 그대로');
   const before = { ...calls };
 
-  await page.getByRole('button', { name: '5000원 이하' }).click();
+  await page.getByRole('button', { name: '5000원 이하', exact: true }).click();
   assert.deepEqual((await ids(page)).sort(), ['bogo', 'p4900', 'p5000']);
   assert.equal(await page.locator('#budgetOpts [aria-pressed="true"]').count(), 1);
   assert.equal(await pressed(page), '5000원 이하');
@@ -87,14 +89,19 @@ test('예산 버튼: 하나만 선택되고 누르면 바로 적용되며, 가�
   assert.match(await page.locator('#summary').innerText(), /^5000원 이하 · 3개 · 브랜드 2곳/);
   assert.equal(await page.locator('#filterBtn').getAttribute('data-on'), 'true');
 
-  await page.getByRole('button', { name: '10000원 이하' }).click();
-  assert.deepEqual((await ids(page)).sort(), ['bogo', 'p4900', 'p5000', 'p5001', 'p9800']);
-  await page.getByRole('button', { name: '20000원 이하' }).click();
-  assert.deepEqual((await ids(page)).sort(), ['bogo', 'p19000', 'p4900', 'p5000', 'p5001', 'p9800']);
+  await page.getByRole('button', { name: '8000원 이하', exact: true }).click();
+  assert.deepEqual((await ids(page)).sort(), ['bogo', 'p4900', 'p5000', 'p5001', 'p8000']);
+  await page.getByRole('button', { name: '10000원 이하', exact: true }).click();
+  assert.deepEqual((await ids(page)).sort(), ['bogo', 'p4900', 'p5000', 'p5001', 'p8000', 'p9800']);
+  await page.getByRole('button', { name: '15000원 이하', exact: true }).click();
+  assert.deepEqual((await ids(page)).sort(), ['bogo', 'p15000', 'p4900', 'p5000', 'p5001', 'p8000', 'p9800'], '15000원 경계값 포함, 19000원 제외');
+  // 20000원 선택지는 없다
+  assert.deepEqual(await page.locator('#budgetOpts button').allInnerTexts(), ['제한 없음', '5000원 이하', '8000원 이하', '10000원 이하', '15000원 이하']);
+  assert.deepEqual(await page.locator('#filterSheet [data-key="maxPrice"] button').allTextContents(), ['제한 없음', '5000원 이하', '8000원 이하', '10000원 이하', '15000원 이하']);
   // 개수 표시와 실제 카드 수가 같다
   assert.match(await page.locator('#summary').innerText(), new RegExp(`· ${(await ids(page)).length}개 ·`));
 
-  await page.getByRole('button', { name: '제한 없음' }).click();
+  await page.getByRole('button', { name: '제한 없음', exact: true }).click();
   assert.equal((await ids(page)).length, COUPONS.length);
   assert.equal(await page.locator('#budgetNote').isHidden(), true);
   assert.equal(await page.locator('#filterBtn').getAttribute('data-on'), 'false');
@@ -103,7 +110,7 @@ test('예산 버튼: 하나만 선택되고 누르면 바로 적용되며, 가�
   assert.equal(calls.other, before.other);
   assert.equal(calls.refresh, undefined);
   // 선택 상태는 색만이 아니라 테두리·✓ 표시로도 구분된다
-  await page.getByRole('button', { name: '5000원 이하' }).click();
+  await page.getByRole('button', { name: '5000원 이하', exact: true }).click();
   const look = await page.locator('#budgetOpts [aria-pressed="true"]').evaluate((el) => ({ mark: getComputedStyle(el, '::before').content, border: getComputedStyle(el).borderColor }));
   assert.equal(look.mark, '"✓"');
   assert.notEqual(look.border, await page.locator('#budgetOpts [aria-pressed="false"]').first().evaluate((el) => getComputedStyle(el).borderColor));
@@ -112,7 +119,7 @@ test('예산 버튼: 하나만 선택되고 누르면 바로 적용되며, 가�
 test('상단 예산과 상세 필터는 같은 상태: 적용하면 함께 바뀌고 닫기·취소·바깥 누르기는 바꾸지 않는다', { timeout: 30000 }, async (t) => {
   const { context, page } = await setup();
   t.after(() => context.close());
-  await page.getByRole('button', { name: '5000원 이하' }).click();
+  await page.getByRole('button', { name: '5000원 이하', exact: true }).click();
   await page.click('#filterBtn');
   assert.equal(await sheetPressed(page), '5000원 이하');
   // 시트에서 10000원을 고르고 적용 → 상단·목록 함께
@@ -120,18 +127,18 @@ test('상단 예산과 상세 필터는 같은 상태: 적용하면 함께 바�
   assert.equal(await pressed(page), '5000원 이하', '적용 전에는 실제 필터가 그대로');
   await page.click('#filterSheet .btn.primary');
   assert.equal(await pressed(page), '10000원 이하');
-  assert.equal((await ids(page)).length, 5);
+  assert.equal((await ids(page)).length, 6);
   // 닫기(✕), Esc, 바깥 누르기는 고르던 값을 버린다
   for (const close of ['x', 'esc', 'backdrop']) {
     await page.click('#filterBtn');
-    await page.click('#filterSheet [data-key="maxPrice"] [data-v="20000"]');
+    await page.click('#filterSheet [data-key="maxPrice"] [data-v="15000"]');
     await page.click('#filterSheet [data-key="itemType"] [data-v="세트"]');
     if (close === 'x') await page.locator('#filterSheet').getByRole('button', { name: '닫기' }).click();
     if (close === 'esc') await page.keyboard.press('Escape');
     if (close === 'backdrop') await page.mouse.click(5, 5);
     assert.equal(await page.locator('#filterSheet').evaluate((d) => d.open), false, close);
     assert.equal(await pressed(page), '10000원 이하', close);
-    assert.equal((await ids(page)).length, 5, close);
+    assert.equal((await ids(page)).length, 6, close);
     await page.click('#filterBtn');
     assert.equal(await sheetPressed(page), '10000원 이하', `${close}: 다시 열면 실제 값`);
     await page.keyboard.press('Escape');
@@ -149,7 +156,7 @@ test('예산을 바꾸거나 예산만 해제해도 카테고리·검색어·정
   await page.click('#filterSheet [data-key="itemType"] [data-v="세트"]');
   await page.click('#filterSheet .btn.primary');
   assert.deepEqual(await ids(page), ['p4900']);
-  await page.getByRole('button', { name: '5000원 이하' }).click();
+  await page.getByRole('button', { name: '5000원 이하', exact: true }).click();
   assert.equal(await page.inputValue('#sortSel'), 'deadline', '예산을 골라도 정렬은 바뀌지 않는다');
   assert.match(await page.locator('#summary').innerText(), /^5000원 이하 · 세트 · 1개/);
   assert.equal(await page.locator('#listTitle').innerText(), '햄버거 혜택');
@@ -157,7 +164,7 @@ test('예산을 바꾸거나 예산만 해제해도 카테고리·검색어·정
   // 결과 없음 → '예산만 해제'는 maxPrice만 지운다
   await page.click('#searchBtn');
   await page.fill('#q', '불고기 버거');
-  await page.getByRole('button', { name: '10000원 이하' }).click();
+  await page.getByRole('button', { name: '10000원 이하', exact: true }).click();
   await page.fill('#q', '라떼');
   await page.getByText('선택한 조건에 맞는 혜택이 없어요.').waitFor();
   await page.getByRole('button', { name: '예산만 해제' }).click();
@@ -173,12 +180,12 @@ test('예산을 바꾸거나 예산만 해제해도 카테고리·검색어·정
   assert.match(await page.locator('#list').innerText(), /라떼.*없어요/);
 });
 
-test('저장된 예산은 다시 열어도 유지되고, 알 수 없는 값은 제한 없음으로 시작한다', { timeout: 30000 }, async (t) => {
+test('저장된 예산은 다시 열어도 유지되고, 없어진 값(예전 20000원)은 제한 없음으로 시작한다', { timeout: 30000 }, async (t) => {
   const first = await setup({ prefs: { v: 5, category: '전체', kind: '', sort: 'best', filters: { itemType: '', channel: '', everyoneOnly: false, maxPrice: '10000' }, quick: {} } });
   t.after(() => first.context.close());
   assert.equal(await pressed(first.page), '10000원 이하');
-  assert.equal((await ids(first.page)).length, 5);
-  const second = await setup({ prefs: { v: 5, category: '전체', kind: '', sort: 'best', filters: { itemType: '', channel: '', everyoneOnly: false, maxPrice: '7000' }, quick: {} } });
+  assert.equal((await ids(first.page)).length, 6);
+  const second = await setup({ prefs: { v: 5, category: '전체', kind: '', sort: 'best', filters: { itemType: '', channel: '', everyoneOnly: false, maxPrice: '20000' }, quick: {} } });
   t.after(() => second.context.close());
   assert.equal(await pressed(second.page), '제한 없음');
   assert.equal((await ids(second.page)).length, COUPONS.length);
@@ -189,13 +196,13 @@ test('핫딜 공지는 예산과 상관없이 그대로이고, 카드에는 가�
   t.after(() => context.close());
   const hot = await page.locator('#hotRail [data-hot]').count();
   assert.ok(hot >= 1);
-  await page.getByRole('button', { name: '5000원 이하' }).click();
+  await page.getByRole('button', { name: '5000원 이하', exact: true }).click();
   assert.equal(await page.locator('#hotRail [data-hot]').count(), hot, '예산은 혜택 목록만 좁힌다');
   // 공지 카드: 이미지·제목·확인된 기간만 (할인 숫자 표시 없음)
   const notice = page.locator('[data-hot="news:hot1"]');
   assert.equal(await notice.locator('.lbl').count(), 0);
   assert.match(await notice.locator('.period').innerText(), /까지$/);
-  await page.getByRole('button', { name: '제한 없음' }).click();
+  await page.getByRole('button', { name: '제한 없음', exact: true }).click();
 
   const card = page.locator('#card-p4900');
   assert.equal(await card.locator('.price b').innerText(), '4900원', '금액은 쉼표·축약 없이');
@@ -248,7 +255,7 @@ test('작은 화면(320~430px)과 넓은 화면에서 예산 줄은 줄 안에�
   for (const [width, scheme] of [[320, 'light'], [390, 'dark'], [430, 'light'], [1280, 'dark']]) {
     const { context, page } = await setup({ viewport: { width, height: 800 }, colorScheme: scheme });
     t.after(() => context.close());
-    await page.getByRole('button', { name: '20000원 이하' }).click();
+    await page.getByRole('button', { name: '15000원 이하', exact: true }).click();
     const m = await page.evaluate(() => {
       const row = document.querySelector('#budgetOpts'); const on = row.querySelector('[aria-pressed="true"]');
       const r = row.getBoundingClientRect(); const b = on.getBoundingClientRect();

@@ -72,7 +72,7 @@ const prefs0 = store.get('among_prefs', {});
 const prefs = prefs0.v === 5 ? prefs0 : { ...prefs0, category: '전체', kind: '', quick: { ...(prefs0.quick || {}), programsOnly: false, endingSoon: false } };
 const storedBrands = store.get('among_following', []);
 // 예산(쿠폰 적용가 기준): 목록 위 버튼과 필터 시트가 같은 state.filters.maxPrice를 쓴다.
-const BUDGETS = [['', '제한 없음'], ['5000', '5000원 이하'], ['10000', '10000원 이하'], ['20000', '20000원 이하']];
+const BUDGETS = [['', '제한 없음'], ['5000', '5000원 이하'], ['8000', '8000원 이하'], ['10000', '10000원 이하'], ['15000', '15000원 이하']];
 const budgetValue = (v) => { const s = String(v ?? ''); return BUDGETS.some(([k]) => k === s) ? s : ''; };
 const budgetLabel = (v) => (BUDGETS.find(([k]) => k === budgetValue(v)) || BUDGETS[0])[1];
 const state = {
