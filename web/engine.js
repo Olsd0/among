@@ -7,7 +7,7 @@ export function noticeImageFor(n = {}, picked = '', today) {
   // 확인 목록에서 다른 공지의 이미지로 올라 있는 주소는 이 공지 것이 아니다
   return picked && !isListedNoticeImage(picked) ? picked : '';
 }
-import { productImage, couponImage } from './product-images.js?v=20261103-6';
+import { productImage, couponImage } from './product-images.js?v=20261104-1';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------

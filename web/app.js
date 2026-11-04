@@ -2,8 +2,8 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
-} from './engine.js?v=20261104-1';
-import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-6';
+} from './engine.js?v=20261104-2';
+import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-1';
 
 import { noticePhoto } from './notice-images.js?v=20261103-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
@@ -687,7 +687,7 @@ function card(c, today) {
     <div class="tk"><div class="ticket">
       <div class="stub ${st.tone}${img ? ' has-ph' : ''}${photo?.kind === 'campaign' ? ' campaign-photo' : ''}" aria-hidden="true">
         ${img ? `<img class="ph" src="${esc(img)}" alt="" width="80" height="62" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
-        ${photo?.label ? `<span class="coupon-image-label">${photo.kind === 'campaign' ? '공식 행사' : '대표 메뉴'}</span>` : ''}
+        ${photo?.label ? `<span class="coupon-image-label">${{ campaign: '공식 행사', related: '관련 상품', representative: '대표 메뉴' }[photo.kind] || ''}</span>` : ''}
         <span class="cat-art">${ART[c.category] || ''}</span>
         <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}${quiet ? ' quiet' : ''}"${bigStyle}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>

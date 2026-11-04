@@ -40,8 +40,10 @@ const campaigns = [
   ['반올림피자', /^(제휴메뉴|.*명일방주.*)$/, '반올림피자 명일방주 콜라보', 'https://order.banolimpizza.com/event/detail/163814c2-cc1e-4051-b35c-91ba2906ea36'],
   ['배스킨라빈스', /^젤라또피케파우치$/, '젤라또 피케 파우치 사전예약', 'https://www.baskinrobbins.co.kr/play/event/view.php?seq=636&category=ALL'],
   ['배스킨라빈스', /^파인트$/, '파인트를 10년 전 가격으로 픽업', 'https://www.baskinrobbins.co.kr/play/event/view.php?seq=637&category=ALL'],
-  ['피자헛', /클리커/, '피자헛 클리커', 'https://www.pizzahut.co.kr/cs/event/829'],
-  ['파파존스', /^파파아메리칸콤보$/, '파파 아메리칸 콤보', 'https://www.pji.co.kr/event/ongoing/9629'],
+  // 클리커 증정 행사(829)의 대상 피자 2종 쿠폰도 같은 행사 포스터
+  ['피자헛', /클리커|^안창스테이크슈프림$|^콰트로치즈슈프림$/, '피자헛 클리커', 'https://www.pizzahut.co.kr/cs/event/829'],
+  // 아메리칸 콤보(크러스트 4종 중 택1 + 콜라) — 메뉴에 행사 이름이 있으면 행사 목록 주소로 모은 쿠폰도 같은 포스터
+  ['파파존스', /^파파아메리칸콤보(세트)?$|^크러스트4종중택1/, '파파 아메리칸 콤보', ['https://www.pji.co.kr/event/ongoing/9629', 'https://www.pji.co.kr/event/ongoing']],
   ['KFC', /^닭껍질튀김/, '닭껍질튀김', 'https://www.kfckorea.com/promotion/promotionList/detail/1129'],
 ];
 const sourceKey = (value) => {
@@ -97,24 +99,52 @@ for (const [brand, menu] of [['맥도날드', '불고기 버거'], ['파리바�
   representatives.set(key(brand), productPhoto({ brand, menu }));
 }
 
+// 특정 상품이 아니라 여러 메뉴·메뉴 묶음에 거는 할인 ('전 메뉴', '모든 클래식 라지', '라지 사이즈 이상 피자', 'A 또는 B', '외 7종', '포장')
 const broadMenu = (menu) => /^(?:전|전체|모든)(?:메뉴|상품|제품|피자|버거)/.test(menu)
-  || /^(?:피자|치킨|버거|햄버거|커피|음료|디저트|다수메뉴|여러메뉴)$/.test(menu)
-  || /\d+종|다수|여러|(?<!\d),(?!\d)|·/.test(menu);
+  || /^(?:피자|치킨|버거|햄버거|커피|음료|디저트|다수메뉴|여러메뉴|포장|배달|방문포장)$/.test(menu)
+  || /\d+종|다수|여러|(?<!\d),(?!\d)|·|또는|중택|전메뉴|전상품|^모든|사이즈이상|(?:프리미엄|클래식)(?:라지|피자)/.test(menu);
 
-/** 쿠폰 표시용: 정확한 상품 → 같은 행사 포스터 → 전 메뉴/복수 메뉴의 브랜드 대표 사진. */
+/**
+ * 공식 메뉴 페이지에서 확인한 같은 브랜드 상품 중 쿠폰 메뉴와 맞는 것.
+ * - 이름(또는 공식 다른 이름)이 쿠폰 메뉴와 똑같으면 그 상품 사진 (세트 쿠폰에는 단품 사진을 정확한 사진처럼 쓰지 않음)
+ * - 메뉴에 공식 상품명 하나가 통째로 들어 있으면(예: '허니윙콤비 + 막걸리' 세트) '관련 상품 이미지'로 구분해 표시
+ * 여러 상품명이 함께 맞으면 어느 것인지 모르므로 쓰지 않는다.
+ */
+function menuPhoto(item) {
+  const list = menuIndex().get(key(item.brand)) || [];
+  const menu = key(item.menu);
+  if (!menu) return null;
+  if (item.item_type !== '세트') {
+    const same = list.find((m) => m.names.includes(menu));
+    if (same) return { url: same.url, source: same.source, name: same.name, kind: 'product', label: '', detailUrl: same.url, checked: same.checked };
+  }
+  const inside = list.filter((m) => key(m.name).length >= 4 && menu.includes(key(m.name)));
+  if (inside.length !== 1) return null;
+  const m = inside[0];
+  return { url: m.url, source: m.source, name: m.name, kind: 'related', label: '관련 상품 이미지', detailUrl: m.url, checked: m.checked };
+}
+
+/**
+ * 쿠폰 표시용: 정확한 상품 → 같은 행사 포스터 → 공식 메뉴의 같은 상품(또는 메뉴에 들어 있는 상품)
+ * → 전 메뉴·복수 메뉴는 브랜드 대표 메뉴. 맞는 사진이 없으면 null (다른 상품 사진으로 채우지 않음).
+ */
 export function couponPhoto(item = {}, today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)) {
   const exact = productPhoto(item);
   if (exact) return { ...exact, kind: 'product', label: '', detailUrl: exact.url };
   const menu = key(item.menu);
   const sources = String(item.source_url || '').split(/\s+/).map(sourceKey).filter(Boolean);
   for (const [brand, menus, title, source] of campaigns) {
-    if (key(item.brand) !== key(brand) || !menus.test(menu) || !sources.includes(sourceKey(source))) continue;
-    const photo = noticePhoto({ brand, title, source_url: source, end_date: item.end_date }, today);
+    const list = Array.isArray(source) ? source : [source];
+    if (key(item.brand) !== key(brand) || !menus.test(menu) || !list.some((u) => sources.includes(sourceKey(u)))) continue;
+    const photo = noticePhoto({ brand, title, source_url: list[0], end_date: item.end_date }, today);
     if (photo?.image) return { url: photo.image, detailUrl: photo.detailImage || photo.image, source: photo.source,
       name: title, kind: 'campaign', label: '공식 행사 이미지', checked: photo.verifiedAt };
   }
-  const photo = item.item_type !== '세트' && broadMenu(menu) ? representatives.get(key(item.brand)) : null;
-  return photo ? { ...photo, detailUrl: photo.url, kind: 'representative', label: '대표 메뉴 이미지' } : null;
+  if (broadMenu(menu)) {
+    const rep = representatives.get(key(item.brand)) || (menus.get(key(item.brand)) || [])[0];
+    return rep ? { url: rep.url, source: rep.source, name: rep.name, checked: rep.checked, detailUrl: rep.url, kind: 'representative', label: '대표 메뉴 이미지' } : null;
+  }
+  return menuPhoto(item);
 }
 export const couponImage = (item, today) => couponPhoto(item, today)?.url || '';
 
@@ -134,6 +164,9 @@ const BRAND_MENUS = [
     ['콰트로 치즈 슈프림', ['콰트로'], ph('RPPZ2284')],
     ['한근/반근 치즈 콤비네이션', ['치즈 콤비네이션', '반근', '한근', '치즈페스타'], ph('RPPZ2244')],
     ['클래식 페페로니', ['페페로니'], ph('RPPZ1889')],
+    // 11/04 공식 사이드·음료 메뉴(mode=images, menu=…/menu/side)에서 상품명·사진 대조 — 쿠폰 메뉴와 이름이 같은 것만
+    ['코카-콜라 1.25L', [], ph('PBE01305'), 'https://www.pizzahut.co.kr/menu/side'],
+    ['치즈 폭탄 파스타', [], ph('PSD01724'), 'https://www.pizzahut.co.kr/menu/side'],
   ]],
   ['KFC', 'https://www.kfckorea.com/menu/chicken', [
     ['핫크리스피통다리 3조각', ['핫크리스피'], kfc('DL_2177538_20260731163110725')],
@@ -220,6 +253,18 @@ const BRAND_MENUS = [
 export const brandMenuPhotos = () => BRAND_MENUS.flatMap(([brand, source, items]) => items.map(([name, , url, page]) => ({ brand, name, url: new URL(url).href, source: page || source })));
 const menus = new Map(BRAND_MENUS.map(([brand, source, items]) => [key(brand), items.map(([name, aliases, url, page]) =>
   Object.freeze({ name, names: [name, ...aliases].map(key).filter((x) => x.length >= 2), url: new URL(url).href, source: new URL(page || source).href, checked: '2026-11-03' }))]));
+// 쿠폰 메뉴 대조용: 브랜드 메뉴 사진 + 정확한 상품 사진 목록(맥도날드·파리바게뜨 등)을 한데 모은 것
+let merged = null;
+function menuIndex() {
+  if (merged) return merged;
+  merged = new Map([...menus].map(([b, list]) => [b, [...list]]));
+  for (const [brand, names, image, source] of entries) {
+    const b = key(brand);
+    if (!merged.has(b)) merged.set(b, []);
+    if (!merged.get(b).some((m) => m.url === new URL(image).href)) merged.get(b).push(Object.freeze({ name: names[0], names: names.map(key), url: new URL(image).href, source: new URL(source).href, checked: '2026-10-28' }));
+  }
+  return merged;
+}
 
 /**
  * 핫딜·공지에 공식 행사 이미지가 없을 때 같은 브랜드의 관련 상품 사진.

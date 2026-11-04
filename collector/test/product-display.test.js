@@ -107,3 +107,38 @@ test('핫딜 대신 사진: 연결 쿠폰의 상품 사진 → 글에 나온 공
   assert.equal(brandPhoto('네이버페이', '카페 적립'), null, '음식 브랜드가 아니면 사진 없음 → 로고');
   assert.equal(brandPhoto('모르는 브랜드', '수퍼슈프림'), null, '다른 브랜드의 메뉴 사진을 빌리지 않는다');
 });
+
+test('쿠폰 사진: 공식 메뉴의 같은 상품 → 메뉴에 든 상품(관련) → 전 메뉴는 대표 메뉴, 모르는 상품은 비워 둔다', () => {
+  const at = (brand, menu, item_type = '단품', source_url = '') => couponPhoto({ brand, menu, item_type, source_url, end_date: '2026-11-08' }, '2026-11-04');
+  // 이름이 같은 공식 메뉴 사진은 그 상품 사진 (라벨 없음)
+  for (const [brand, menu] of [['피자헛', '수퍼슈프림'], ['피자헛', '코카-콜라 1.25L'], ['피자헛', '치즈 폭탄 파스타'], ['KFC', '징거'], ['파파존스', '불닭 까르보 치킨']]) {
+    const p = at(brand, menu);
+    assert.equal(p?.kind, 'product', `${brand} ${menu}`);
+    assert.equal(p.label, '');
+    assert.match(p.url, /^https:\/\//);
+  }
+  // 세트에는 단품 사진을 정확한 사진처럼 쓰지 않는다 → 메뉴에 그 상품이 통째로 들어 있으면 '관련 상품 이미지'
+  const set = at('교촌치킨', '허니옥수수윙콤비 + 은하수 깊은밤 8도 (650ml)', '세트');
+  assert.equal(set.kind, 'related');
+  assert.equal(set.label, '관련 상품 이미지');
+  assert.equal(set.name, '허니옥수수윙콤비');
+  assert.equal(at('교촌치킨', '허니윙콤비 + 은하수 푸른밤 6도 (650ml)', '세트').name, '허니윙콤비');
+  assert.equal(at('맥도날드', '치킨 모짜렐라 스낵랩', '세트').kind, 'related');
+  // 상품이 둘 이상 맞으면 어느 것인지 모르므로 비워 둔다
+  assert.equal(at('교촌치킨', '허니윙콤비 + 레드윙콤비', '세트'), null);
+  // 전 메뉴·묶음 할인은 그 브랜드의 대표 메뉴 (라벨로 구분)
+  for (const [brand, menu] of [['KFC', '전 메뉴'], ['KFC', '핫크리스피통다리 외 7종'], ['피자헛', '포장'], ['파파존스', '라지 사이즈 이상 모든 피자'], ['미스터피자', '모든 클래식 라지'], ['폴바셋', '룽고(S) 또는 카페라떼(S)'], ['던킨', '전 메뉴']]) {
+    const p = at(brand, menu);
+    assert.equal(p?.kind, 'representative', `${brand} ${menu}`);
+    assert.equal(p.label, '대표 메뉴 이미지');
+  }
+  // 같은 행사 상세 주소가 맞을 때만 행사 포스터
+  assert.equal(at('피자헛', '안창 스테이크 슈프림', '세트', 'https://www.pizzahut.co.kr/cs/event/829').kind, 'campaign');
+  assert.equal(at('피자헛', '안창 스테이크 슈프림', '단품', 'https://www.pizzahut.co.kr/cs/event/extra/newsupreme').kind, 'product');
+  assert.equal(at('파파존스', '크러스트 4종 중 택 1 + 코카-콜라 500ml', '세트', 'https://www.pji.co.kr/event/ongoing/9629').kind, 'campaign');
+  assert.equal(at('파파존스', '파파 아메리칸 콤보 세트', '세트', 'https://www.pji.co.kr/event/ongoing').kind, 'campaign');
+  // 공식 사진을 확인하지 못한 상품·브랜드는 다른 상품 사진으로 채우지 않는다
+  for (const [brand, menu] of [['피자헛', '더블 디핑소스'], ['배스킨라빈스', '싱글레귤러'], ['롯데리아', '전 메뉴'], ['BBQ', '황금올리브치킨 닭다리 4조각'], ['미스터피자', '퀘감포 세트'], ['파파존스', '크루아상 크러스트']]) {
+    assert.equal(at(brand, menu), null, `${brand} ${menu}`);
+  }
+});
