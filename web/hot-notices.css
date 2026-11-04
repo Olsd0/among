@@ -45,3 +45,14 @@
 /* 공지 카드 아래 줄: 확인된 행사 기간 + 상세 보기 */
 .hot-notice .hot-meta { align-items: center; }
 .hcard .kind { margin-left: auto; }
+
+/* 두 가지 상품·세트: 각 상품의 공식 사진을 나란히 (함께 나온 사진이 없을 때) */
+.ph-parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; width: 100%; }
+.stub .ph-parts img.ph { width: 100%; height: 62px; border-radius: 8px; }
+.stub .ph-parts.n3 img.ph, .stub .ph-parts.n4 img.ph { height: 30px; }
+.hot-visual .ph-parts { height: 100%; gap: 2px; background: #fff; }
+.hcard .hot-visual .ph-parts img.ph { padding: 8px; }
+.coupon-artwork.parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.coupon-artwork.parts img { max-height: 160px; }
+.coupon-artwork.parts small { display: block; margin-top: 4px; text-align: center; font-size: 12px; color: var(--text-2); }
+.coupon-artwork.parts figcaption { grid-column: 1 / -1; }

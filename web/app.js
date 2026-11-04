@@ -2,10 +2,10 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
-} from './engine.js?v=20261104-3';
-import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-2';
+} from './engine.js?v=20261104-4';
+import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
-import { noticePhoto } from './notice-images.js?v=20261103-3';
+import { noticePhoto } from './notice-images.js?v=20261104-1';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
@@ -465,11 +465,12 @@ function noticeVisual(n, detail = false) {
 }
 function couponVisual(c, title = '') {
   const p = c ? couponPhoto(c) : null;
-  if (p) { const v = asVisual(p); if (v) return { ...v, alt: `${c.brand} ${p.name}${p.label ? ` ${p.label}` : ''}`, label: p.label || '' }; }
+  if (p) { const v = asVisual(p); if (v) return { ...v, parts: p.kind === 'parts' ? p.parts : null, alt: `${c.brand} ${p.name}${p.label ? ` ${p.label}` : ''}`, label: p.label || '' }; }
   return asVisual(brandPhoto(c?.brand || '', c?.menu || title, []));
 }
 function visualImg(v, i) {
   if (!v) return '';
+  if (v.parts) return `${partsImgs(v.parts, !!i)}${v.label ? `<span class="notice-image-label">${esc(v.label)}</span>` : ''}`;
   const fb = v.fallback ? ` data-fb="${esc(v.fallback.src)}" data-fb-label="${esc(v.fallback.label)}" data-fb-alt="${esc(v.fallback.alt)}"` : '';
   return `<img class="ph" src="${esc(v.src)}" alt="${esc(v.alt)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer"${fb}>${v.label ? `<span class="notice-image-label">${esc(v.label)}</span>` : ''}`;
 }
@@ -548,6 +549,12 @@ function dueChip(c, today) {
 
 const upTo = (c) => /^최대/.test(c.program_note || '');
 const isOnePlusOne = (c) => /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''}`);
+// 쿠폰 사진 종류 표시 (정확한 상품 사진은 표시 없음)
+const PHOTO_LABEL = { campaign: '공식 행사', related: '관련 상품', representative: '대표 메뉴', parts: '구성 상품' };
+/** 두 가지 상품·세트: 함께 나온 사진이 없을 때 각 상품의 공식 사진을 나란히 */
+function partsImgs(parts, lazy) {
+  return `<span class="ph-parts n${parts.length}">${parts.map((p) => `<img class="ph" src="${esc(safeImg(p.url))}" alt="${lazy ? '' : esc(p.name)}" loading="${lazy ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer">`).join('')}</span>`;
+}
 /** 티켓 왼쪽(절취선 앞) 큰 글자 */
 function stubParts(c) {
   const up = upTo(c);
@@ -651,7 +658,8 @@ function detailHtml(c, today) {
   const steps = howTo(c);
   const saved = state.saved.has(c.id);
   return `
-    ${photo && photo.kind !== 'product' ? `<figure class="coupon-artwork"><img src="${esc(photo.url)}" alt="${esc(`${c.brand} ${photo.name} ${photo.label}`)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${esc(photo.label)} · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>${photo.kind === 'campaign' ? ` · <a href="${esc(photo.detailUrl)}" target="_blank" rel="noopener noreferrer">포스터 원본 ↗</a>` : ''}</figcaption></figure>` : ''}
+    ${photo?.kind === 'parts' ? `<figure class="coupon-artwork parts">${photo.parts.map((p) => `<span><img src="${esc(safeImg(p.url))}" alt="${esc(`${c.brand} ${p.name}`)}" loading="lazy" referrerpolicy="no-referrer"><small>${esc(p.name)}</small></span>`).join('')}<figcaption>구성 상품 이미지 (각 상품의 공식 메뉴 사진) · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 메뉴 ↗</a></figcaption></figure>` : ''}
+    ${photo && photo.kind !== 'product' && photo.kind !== 'parts' ? `<figure class="coupon-artwork"><img src="${esc(photo.url)}" alt="${esc(`${c.brand} ${photo.name} ${photo.label}`)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${esc(photo.label)} · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>${photo.kind === 'campaign' ? ` · <a href="${esc(photo.detailUrl)}" target="_blank" rel="noopener noreferrer">포스터 원본 ↗</a>` : ''}</figcaption></figure>` : ''}
     ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
     <section><h4>꼭 확인할 조건</h4><dl>
       ${String(c.menu || '').length > 16 ? `<dt>메뉴</dt><dd>${esc(c.menu)}</dd>` : ''}
@@ -686,8 +694,8 @@ function card(c, today) {
   <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
     <div class="tk"><div class="ticket">
       <div class="stub ${st.tone}${img ? ' has-ph' : ''}${photo?.kind === 'campaign' ? ' campaign-photo' : ''}" aria-hidden="true">
-        ${img ? `<img class="ph" src="${esc(img)}" alt="" width="80" height="62" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
-        ${photo?.label ? `<span class="coupon-image-label">${{ campaign: '공식 행사', related: '관련 상품', representative: '대표 메뉴' }[photo.kind] || ''}</span>` : ''}
+        ${img ? (photo.kind === 'parts' ? partsImgs(photo.parts, true) : `<img class="ph" src="${esc(img)}" alt="" width="80" height="62" loading="lazy" decoding="async" referrerpolicy="no-referrer">`) : ''}
+        ${photo?.label ? `<span class="coupon-image-label">${PHOTO_LABEL[photo.kind] || ''}</span>` : ''}
         <span class="cat-art">${ART[c.category] || ''}</span>
         <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}${quiet ? ' quiet' : ''}"${bigStyle}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>

@@ -124,10 +124,11 @@ test('쿠폰 사진: 공식 메뉴의 같은 상품 → 메뉴에 든 상품(관
   assert.equal(set.name, '허니옥수수윙콤비');
   assert.equal(at('교촌치킨', '허니윙콤비 + 은하수 푸른밤 6도 (650ml)', '세트').name, '허니윙콤비');
   assert.equal(at('맥도날드', '치킨 모짜렐라 스낵랩', '세트').kind, 'related');
-  // 상품이 둘 이상 맞으면 어느 것인지 모르므로 비워 둔다
-  assert.equal(at('교촌치킨', '허니윙콤비 + 레드윙콤비', '세트'), null);
+  // 'A + B'로 나뉘면 각 상품 사진, 나뉘지 않은 이름에 상품명이 둘 이상 들어 있으면 어느 것인지 모르므로 비워 둔다
+  assert.deepEqual(at('교촌치킨', '허니윙콤비 + 레드윙콤비', '세트').parts.map((p) => p.name), ['허니윙콤비', '레드윙콤비']);
+  assert.equal(at('교촌치킨', '허니윙콤비레드윙콤비 반반', '세트'), null);
   // 전 메뉴·묶음 할인은 그 브랜드의 대표 메뉴 (라벨로 구분)
-  for (const [brand, menu] of [['KFC', '전 메뉴'], ['KFC', '핫크리스피통다리 외 7종'], ['피자헛', '포장'], ['파파존스', '라지 사이즈 이상 모든 피자'], ['미스터피자', '모든 클래식 라지'], ['폴바셋', '룽고(S) 또는 카페라떼(S)'], ['던킨', '전 메뉴']]) {
+  for (const [brand, menu] of [['KFC', '전 메뉴'], ['KFC', '핫크리스피통다리 외 7종'], ['피자헛', '포장'], ['파파존스', '라지 사이즈 이상 모든 피자'], ['미스터피자', '모든 클래식 라지'], ['폴바셋', '전 상품'], ['던킨', '전 메뉴']]) {
     const p = at(brand, menu);
     assert.equal(p?.kind, 'representative', `${brand} ${menu}`);
     assert.equal(p.label, '대표 메뉴 이미지');
@@ -145,4 +146,35 @@ test('쿠폰 사진: 공식 메뉴의 같은 상품 → 메뉴에 든 상품(관
   for (const [brand, menu] of [['배스킨라빈스', '싱글레귤러'], ['롯데리아', '전 메뉴'], ['BBQ', '황금올리브치킨 닭다리 4조각'], ['미스터피자', '퀘감포 세트'], ['파파존스', '크루아상 크러스트']]) {
     assert.equal(at(brand, menu), null, `${brand} ${menu}`);
   }
+});
+
+test('두 가지 상품·세트: 함께 나온 공식 행사 사진 → 없으면 구성 상품 각각의 공식 사진 (하나라도 모르면 쓰지 않음)', () => {
+  const at = (brand, menu, item_type, source_url = '', end_date = '2026-11-20') => couponPhoto({ brand, menu, item_type, source_url, end_date }, '2026-11-04');
+  // 함께 나온 사진(행사 포스터)이 있으면 그것
+  for (const [brand, menu, src] of [
+    ['교촌치킨', '허니윙콤비 + 은하수 푸른밤 6도 (650ml)', 'https://m.kyochon.com/event/event_view?event_seq=640&event_kind=1'],
+    ['미스터피자', '퀘감포 세트', 'https://www.mrpizza.co.kr/bbs/board.php?bo_table=event&wr_id=22 https://www.mrpizza.co.kr/bbs/board.php?bo_table=event'],
+    ['미스터피자', '피치세트', 'https://www.mrpizza.co.kr/bbs/board.php?bo_table=event&wr_id=17'],
+    ['피자헛', 'VIP PICK 세트', 'https://www.pizzahut.co.kr/cs/event'],
+  ]) assert.equal(at(brand, menu, '세트', src)?.kind, 'campaign', menu);
+  // 다른 행사 주소면 포스터를 빌리지 않는다
+  assert.notEqual(at('미스터피자', '퀘감포 세트', '세트', 'https://www.mrpizza.co.kr/bbs/board.php?bo_table=event&wr_id=17')?.kind, 'campaign');
+  // 없으면 각 상품 사진 (크기 표시는 이름 대조에서 뺌)
+  const two = at('폴바셋', '룽고(S) 또는 카페라떼(S)', '단품');
+  assert.equal(two.kind, 'parts');
+  assert.equal(two.label, '구성 상품 이미지');
+  assert.deepEqual(two.parts.map((p) => p.name), ['룽고', '카페라떼']);
+  assert.ok(two.parts.every((p) => /^https:\/\/www\.baristapaulbassett\.co\.kr\//.test(p.url)));
+  assert.deepEqual(at('폴바셋', '룽고, 카페라떼, 락토프리 카페라떼, 카페 오트 중 택 1', '단품').parts.map((p) => p.name), ['룽고', '카페라떼', '락토프리 카페 라떼', '카페 오트']);
+  // 구성 중 하나라도 공식 사진을 모르면 각각 보여 주지 않는다
+  assert.notEqual(at('폴바셋', '룽고 또는 바닐라 라떼', '단품')?.kind, 'parts');
+  assert.notEqual(at('피자헛', '프리미엄 피자 + L 사이즈 피자', '세트')?.kind, 'parts');
+});
+
+test('미스터피자 목록 주소로 모은 공지도 그 행사의 썸네일 (다른 행사 썸네일을 쓰지 않음)', async () => {
+  const { noticePhoto } = await import('../src/notice-images.js');
+  const list = 'https://www.mrpizza.co.kr/bbs/board.php?bo_table=event';
+  assert.match(noticePhoto({ brand: '미스터피자', title: '미피데이 방문포장 할인', source_url: list }, '2026-11-04').image, /7YWdOIsc/);
+  assert.match(noticePhoto({ brand: '미스터피자', title: '퀘감포 세트 특가', source_url: list }, '2026-11-04').image, /5Rn2Eghz/);
+  assert.match(noticePhoto({ brand: '미스터피자', title: '피치세트 특가', source_url: list }, '2026-11-04').image, /LjbJy7d3/);
 });

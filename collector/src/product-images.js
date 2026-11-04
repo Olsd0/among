@@ -1,4 +1,4 @@
-import { noticePhoto } from './notice-images.js?v=20261103-3';
+import { noticePhoto } from './notice-images.js?v=20261104-1';
 
 // 공식 메뉴 페이지에서 상품과 사진을 직접 확인한 목록.
 // 추가할 때 브랜드, 상품명, 크기/수량, 사진, 출처를 함께 확인하고 npm run sync-web을 실행한다.
@@ -45,6 +45,12 @@ const campaigns = [
   // 아메리칸 콤보(크러스트 4종 중 택1 + 콜라) — 메뉴에 행사 이름이 있으면 행사 목록 주소로 모은 쿠폰도 같은 포스터
   ['파파존스', /^파파아메리칸콤보(세트)?$|^크러스트4종중택1/, '파파 아메리칸 콤보', ['https://www.pji.co.kr/event/ongoing/9629', 'https://www.pji.co.kr/event/ongoing']],
   ['KFC', /^닭껍질튀김/, '닭껍질튀김', 'https://www.kfckorea.com/promotion/promotionList/detail/1129'],
+  // 11/04: 두 가지 상품·세트는 둘이 한꺼번에 나온 공식 행사 사진을 먼저 (같은 행사 상세 주소·메뉴 이름을 함께 대조)
+  ['교촌치킨', /윙콤비\+은하수/, '윙콤비 은하수', 'https://m.kyochon.com/event/event_view?event_seq=640&event_kind=1'],
+  ['미스터피자', /^퀘감포세트$/, '퀘감포 세트', 'https://www.mrpizza.co.kr/bbs/board.php?bo_table=event&wr_id=22'],
+  ['미스터피자', /^피치세트$/, '피치세트', 'https://www.mrpizza.co.kr/bbs/board.php?bo_table=event&wr_id=17'],
+  ['미스터피자', /^(수퍼데이|프라이데이)프리미엄피자$/, '미피데이', ['https://www.mrpizza.co.kr/bbs/board.php?bo_table=event&wr_id=21', 'https://www.mrpizza.co.kr/bbs/board.php?bo_table=event']],
+  ['피자헛', /^vippick세트$/, 'VIP PICK', 'https://www.pizzahut.co.kr/cs/event'],
 ];
 const sourceKey = (value) => {
   try {
@@ -125,7 +131,23 @@ function menuPhoto(item) {
 }
 
 /**
- * 쿠폰 표시용: 정확한 상품 → 같은 행사 포스터 → 공식 메뉴의 같은 상품(또는 메뉴에 들어 있는 상품)
+ * 두 가지 상품·세트('A + B', 'A 또는 B', 'A, B, C 중 택 1'): 둘이 함께 나온 사진이 없을 때 각 상품의 공식 사진.
+ * 모든 구성 상품의 사진을 확인한 경우에만 (하나라도 모르면 쓰지 않음). 크기 표시 '(S)'·'(650ml)'는 이름 대조에서 뺀다.
+ */
+function partPhotos(item) {
+  const raw = String(item.menu || '').replace(/\s*중\s*택\s*\d*\s*$/, '');
+  const parts = raw.split(/\s*(?:\+|또는|,|&|\/)\s*/)
+    .map((p) => p.replace(/\((?:[smlr]|ice|hot|\d+(?:\.\d+)?\s*(?:ml|l))\)/gi, '').trim()).filter(Boolean);
+  if (parts.length < 2 || parts.length > 4) return null;
+  const list = menuIndex().get(key(item.brand)) || [];
+  const found = parts.map((p) => list.find((m) => m.names.includes(key(p)) || (m.couponNames || []).includes(key(p))));
+  if (found.some((m) => !m) || new Set(found.map((m) => m.url)).size !== found.length) return null;
+  return { kind: 'parts', label: '구성 상품 이미지', parts: found.map((m) => ({ url: m.url, source: m.source, name: m.name })),
+    url: found[0].url, source: found[0].source, name: found.map((m) => m.name).join(' · '), detailUrl: found[0].url, checked: found[0].checked };
+}
+
+/**
+ * 쿠폰 표시용: 정확한 상품 → 같은 행사 포스터(세트는 함께 나온 사진) → 구성 상품 각각 → 공식 메뉴의 같은 상품(또는 메뉴에 들어 있는 상품)
  * → 전 메뉴·복수 메뉴는 브랜드 대표 메뉴. 맞는 사진이 없으면 null (다른 상품 사진으로 채우지 않음).
  */
 export function couponPhoto(item = {}, today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)) {
@@ -140,6 +162,8 @@ export function couponPhoto(item = {}, today = new Date(Date.now() + 9 * 3600e3)
     if (photo?.image) return { url: photo.image, detailUrl: photo.detailImage || photo.image, source: photo.source,
       name: title, kind: 'campaign', label: '공식 행사 이미지', checked: photo.verifiedAt };
   }
+  const parts = partPhotos(item);
+  if (parts) return parts;
   if (broadMenu(menu)) {
     const rep = representatives.get(key(item.brand)) || (menus.get(key(item.brand)) || [])[0];
     return rep ? { url: rep.url, source: rep.source, name: rep.name, checked: rep.checked, detailUrl: rep.url, kind: 'representative', label: '대표 메뉴 이미지' } : null;
@@ -245,6 +269,13 @@ const BRAND_MENUS = [
     ['인절미설빙', ['인절미'], 'https://sulbing.com/new/data/product/regular_01.png'],
     ['애플망고치즈설빙', ['애플망고', '망고'], 'https://sulbing.com/new/data/product/product_small_jzobvkm.png'],
     ['딥초코브라우니설빙', ['딥초코', '브라우니'], 'https://sulbing.com/new/data/product/product_small_afancmq.png'],
+  ]],
+  // 11/04: 'A 또는 B'·'A, B 중 택 1' 쿠폰의 각 상품 사진 (공식 메뉴 목록 mode=images로 상품명·사진 대조)
+  ['폴바셋', 'https://www.baristapaulbassett.co.kr/menu/List.pb', [
+    ['카페라떼', ['카페 라떼'], 'https://www.baristapaulbassett.co.kr/upload/product/A/thumbnail_1_201903211053056601.jpg'],
+    ['룽고', [], 'https://www.baristapaulbassett.co.kr/upload/product/A/thumbnail_1_201903211031182001.jpg'],
+    ['락토프리 카페 라떼', ['락토프리 카페라떼'], 'https://www.baristapaulbassett.co.kr/upload/product/A/thumbnail_1_202307050539534840.jpg'],
+    ['카페 오트', [], 'https://www.baristapaulbassett.co.kr/upload/product/A/thumbnail_1_202307050538355410.jpg'],
   ]],
   ['스타벅스', 'https://www.starbucks.co.kr/menu/drink_list.do', [
     ['콜드 브루', ['콜드브루'], sbx('2025/06/[9200000000038]_20250626095744182')],
