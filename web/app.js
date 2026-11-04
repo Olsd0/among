@@ -1,8 +1,8 @@
 // AMONG 화면 스크립트 (index.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor,
-} from './engine.js?v=20261103-10';
+  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
+} from './engine.js?v=20261104-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261103-6';
 
 import { noticePhoto } from './notice-images.js?v=20261103-3';
@@ -45,6 +45,8 @@ const ICON = {
   store: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-4h4v4"/></svg>',
   cal: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
   chev: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+  down: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+  ext: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16 16 8M10 8h6v6"/></svg>',
   heart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
   share: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>',
   flag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4h11l-1.5 4L16 12H5"/></svg>',
@@ -69,6 +71,10 @@ const prefs0 = store.get('among_prefs', {});
 // v5 홈: 카테고리 탭 대신 아이콘. 예전 설정의 기본 탭(햄버거)·빠른 칩(통신사·곧 끝나는)은 아이콘으로 옮겨져 처음 한 번 초기화
 const prefs = prefs0.v === 5 ? prefs0 : { ...prefs0, category: '전체', kind: '', quick: { ...(prefs0.quick || {}), programsOnly: false, endingSoon: false } };
 const storedBrands = store.get('among_following', []);
+// 예산(쿠폰 적용가 기준): 목록 위 버튼과 필터 시트가 같은 state.filters.maxPrice를 쓴다.
+const BUDGETS = [['', '제한 없음'], ['5000', '5000원 이하'], ['10000', '10000원 이하'], ['20000', '20000원 이하']];
+const budgetValue = (v) => { const s = String(v ?? ''); return BUDGETS.some(([k]) => k === s) ? s : ''; };
+const budgetLabel = (v) => (BUDGETS.find(([k]) => k === budgetValue(v)) || BUDGETS[0])[1];
 const state = {
   view: 'all', brand: '', brandQuery: '',
   following: new Set(Array.isArray(storedBrands) ? storedBrands.filter((x) => typeof x === 'string' && x.length < 80) : []),
@@ -93,6 +99,8 @@ const state = {
   nutrition: null,          // { items, updated_at } — 처음 상세를 열 때 불러옴
   nutritionLoading: null,
 };
+// 저장된 예산이 목록에 없는 값(예: 예전 버전·직접 고친 값)이면 '제한 없음'으로 시작한다.
+state.filters.maxPrice = budgetValue(state.filters.maxPrice);
 // '새로 생긴 혜택' 기준 = 지난 방문 시각 (이 기기에만 저장, 30분 안에 다시 열면 같은 방문으로 봄)
 const visit = (() => {
   const v = store.get('among_visit', null);
@@ -118,6 +126,8 @@ const scrollBehavior = () => matchMedia('(prefers-reduced-motion: reduce)').matc
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const has = (v) => v !== null && v !== undefined && v !== '';
 const won = (n) => (!has(n) || Number.isNaN(+n) ? '' : Number(n).toLocaleString('ko-KR'));
+// 금액은 5900원·15000원처럼 축약·쉼표 없이 (영양성분 숫자는 won 그대로)
+const money = (n) => moneyDigits(n);
 // 공식 링크는 https 주소만 (주소가 여러 개 붙어 있으면 첫 번째). 이상한 주소(javascript: 등)는 버림
 const safeUrl = (u) => { try { const x = new URL(String(u || '').trim().split(/\s+/)[0]); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -463,6 +473,15 @@ function visualImg(v, i) {
   const fb = v.fallback ? ` data-fb="${esc(v.fallback.src)}" data-fb-label="${esc(v.fallback.label)}" data-fb-alt="${esc(v.fallback.alt)}"` : '';
   return `<img class="ph" src="${esc(v.src)}" alt="${esc(v.alt)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer"${fb}>${v.label ? `<span class="notice-image-label">${esc(v.label)}</span>` : ''}`;
 }
+/** 공지의 확인된 행사 기간 한 줄 (끝나는 날이 가까우면 D-n을 함께) */
+function noticePeriod(n, today = todayKST()) {
+  const d = daysLeft(n.end_date, today);
+  if (n.start_date && n.start_date > today) return { text: `${md(n.start_date)} 시작`, due: false };
+  if (d === 0) return { text: '오늘 마감', due: true };
+  if (d !== null && d <= 3) return { text: `D-${d} · ${md(n.end_date)}까지`, due: true };
+  if (d !== null) return { text: `${md(n.end_date)}까지`, due: false };
+  return { text: '', due: false };
+}
 function hotCard(h, i) {
   const why = h.reason === 'NEW' ? '새 혜택' : h.reason || '';
   const whyCls = /마감|D-/.test(why) ? '' : h.reason === 'NEW' ? ' n' : ' d';
@@ -475,10 +494,14 @@ function hotCard(h, i) {
     const n = state.news.find(n => n.id === h.id) || h;
     const v = noticeVisual(n);
     const source = noticeSource(n);
+    // 공지 카드: 공지 이미지 · 제목 · 확인된 행사 기간만. 할인 숫자·1+1·혜택 배지는 붙이지 않는다.
+    // 마감 정보는 아래 기간 줄에 한 번만 (위 배지는 새 혜택·요일 한정·시작 예정만)
+    const badge = /^(오늘 마감|D-\d+|\d+\/\d+까지|\d+\/\d+ 시작)$/.test(h.reason || '') ? '' : why;
+    const p = noticePeriod(n);
     return `<article class="hcard hot-notice${v ? ' has-ph' : ' noph'}" data-hot="news:${esc(h.id)}">
-      <button class="hot-open" type="button" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} · 공지 상세 보기`)}">
+      <button class="hot-open" type="button" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title}${p.text ? ` · ${p.text}` : ''} · 공지 상세 보기`)}">
         <span class="hot-visual">${noticePreview(n)}${visualImg(v, i)}</span>
-        <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span><span class="tt">${esc(title)}</span><span class="hot-meta"><span class="kind">공지 자세히 보기</span></span></span>
+        <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${badge ? `<span class="why${whyCls}">${esc(badge)}</span>` : ''}</span><span class="tt">${esc(title)}</span><span class="hot-meta">${p.text ? `<span class="period${p.due ? ' due' : ''}">${ICON.cal}${esc(p.text)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
       </button>
       ${source ? `<a class="hot-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(h.brand)} 공식 공지 원문 보기 (새 탭)"><span class="source-host">${esc(host(source))}</span><span>공식 원문 ↗</span></a>` : '<span class="hot-source source-unavailable">원문 주소 확인 중</span>'}
     </article>`;
@@ -487,7 +510,7 @@ function hotCard(h, i) {
   return `<button class="hcard${v ? ' has-ph' : ' noph'}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
     <span class="hot-visual">${noticePreview(h)}${visualImg(v ? { ...v, alt: v.alt || title } : null, i)}</span>
     <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span>
-    <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl tone-${tone}" style="${size}">${esc(lbl)}</span>` : ''}<span class="kind">자세히 ›</span></span></span>
+    <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl tone-${tone}" style="${size}">${esc(lbl)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
   </button>`;
 }
 function renderHot() {
@@ -535,35 +558,50 @@ function stubParts(c) {
   if (has(c.coupon_price)) return { tone: 'plain', big: moneyDigits(+c.coupon_price), unit: '원', sub: '특가' };
   return { tone: 'plain', big: '혜택', sub: '앱에서 확인' };
 }
-/** 티켓 오른쪽 가격 줄 */
+/**
+ * 티켓 오른쪽 가격 줄: 적용가가 있으면 가격이 가운데(정상가는 확인된 경우만 흐리게),
+ * 없으면 혜택 종류를 분명하게 ("3000원 할인", "주문 금액 20% 할인", "결제 후 5% 적립").
+ */
 function priceLine(c) {
-  if (has(c.coupon_price) && c.discount_type !== 'free_item') return `${c.regular_price && c.discount_type !== 'point_back' ? `<s>${won(c.regular_price)}원</s>` : ''}<b>${won(c.coupon_price)}원</b>`;
+  const price = budgetPrice(c);
+  if (price !== null && c.discount_type !== 'free_item') {
+    const reg = Number(c.regular_price);
+    return `<b>${money(price)}원</b>${Number.isFinite(reg) && reg > price && c.discount_type !== 'point_back' ? `<s>${money(reg)}원</s>` : ''}`;
+  }
   const up = upTo(c) ? '최대 ' : '';
+  // 1+1·증정: 확인된 구성 가격이 있으면 그 가격을 내고 받는 혜택으로 (개당 가격으로 나누지 않음)
+  if (c.discount_type === 'free_item') return `${price !== null ? `<b>${money(price)}원</b>` : ''}<span class="what">${price !== null ? '결제 시 ' : ''}${isOnePlusOne(c) ? '하나 더 (1+1)' : '함께 증정'}</span>`;
   if (c.discount_type === 'percent' && c.discount_rate) return `<span class="what">주문 금액 ${up}${esc(c.discount_rate)}% 할인</span>`;
-  if (c.discount_type === 'amount' && c.discount_value) return `<span class="what">${up}${moneyDigits(c.discount_value)}원 할인</span>`;
-  if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${esc(c.discount_rate)}%` : `${moneyDigits(c.discount_value)}원`} 적립</span>`;
-  if (c.discount_type === 'free_item') return `<span class="what">${isOnePlusOne(c) ? '하나 사면 하나 더' : '함께 증정'}</span>`;
-  return '<span class="what">공식 앱에서 확인</span>';
+  if (c.discount_type === 'amount' && c.discount_value) return `<span class="what">${up}${money(c.discount_value)}원 할인</span>`;
+  if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${esc(c.discount_rate)}%` : `${money(c.discount_value)}원`} 적립</span>`;
+  return '<span class="what">공식 페이지에서 혜택 확인</span>';
 }
 
 const AUD = { 신규회원: '앱 신규가입 혜택', 멤버십: '멤버십 회원', 개인: '받은 사람만 (개인 쿠폰)' };
 const progLabel = (p) => PROGRAM_LABEL[p] || p;
 
-function badges(c) {
+/**
+ * 접힌 카드에서도 보이는 핵심 조건 한 줄: 내 혜택/필요한 멤버십·결제수단 → 대상(신규가입·회원) → 앱 전용 → 주문 방법 → 최소 주문.
+ * 긴 유의사항·제외 매장은 펼친 상세에 둔다. 확인 시각·'새로 생긴' 같은 상태 문구는 붙이지 않는다.
+ */
+function conditionLine(c) {
   const mine = profileObj() ? myPrograms(c, profileObj()) : [];
   const progs = c.programs || [];
   const out = [];
-  if (mine.length) out.push(`<span class="badge b-mine">내 ${esc(mine.map((p) => (TELECOMS.includes(p) ? p : progLabel(p))).join('·'))} 혜택</span>`);
-  else if (progs.length) out.push(`<span class="badge b-prog">${esc(progs.length > 2 ? '통신사 멤버십' : progs.map(progLabel).join(' · '))}</span>`);
-  if (c.audience === '신규회원' || c.audience === '개인' || (c.audience === '멤버십' && !progs.length)) out.push(`<span class="badge b-aud">${esc(AUD[c.audience])}</span>`);
-  if (c.app_only) out.push('<span class="badge b-app">앱 전용</span>');
-  // 확인 시각은 펼친 상세의 출처 줄에, 새로 생긴 혜택은 '새로 생긴' 필터로 본다 (카드에는 상태 문구를 붙이지 않음)
+  if (mine.length) out.push(`<span class="c-mine">내 ${esc(mine.map((p) => (TELECOMS.includes(p) ? p : progLabel(p))).join('·'))} 혜택</span>`);
+  else if (progs.length) out.push(`<span class="c-prog">${esc(progs.length > 2 ? '통신사 멤버십' : progs.map(progLabel).join(' · '))}</span>`);
+  if (c.audience === '신규회원' || c.audience === '개인' || (c.audience === '멤버십' && !progs.length)) out.push(`<span class="c-aud">${esc(AUD[c.audience])}</span>`);
+  if (c.app_only) out.push('<span>앱 전용</span>');
+  // 주문 방법이 하나뿐일 때만 제한 조건으로 (여러 개면 브랜드 옆에 작게)
+  const ch = c.channels || [];
+  if (ch.length === 1) out.push(`<span>${esc(ch[0])} 전용</span>`);
+  if (Number(c.min_order) > 0) out.push(`<span>${money(c.min_order)}원 이상 주문</span>`);
   return out.join('');
 }
 
 function ctaLabel(c) {
   const hit = LINK_LABELS.find(([re]) => re.test(safeUrl(c.official_link)));
-  return hit ? `${hit[1]} 확인` : '공식 페이지';
+  return hit ? `${hit[1]}에서 확인` : '공식 페이지에서 확인';
 }
 
 /** 쓰는 법: 페이지에 적힌 방법이 있으면 그것, 없으면 조건으로 안내 문장을 만든다 */
@@ -603,7 +641,7 @@ function nutritionBlock(c) {
 function detailHtml(c, today) {
   const photo = couponPhoto(c, today);
   const progs = c.programs || [];
-  const cond = [c.min_order ? `${won(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${moneyDigits(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
+  const cond = [c.min_order ? `${money(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${moneyDigits(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
   const period = c.end_date
     ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${daysLeft(c.end_date, today) === 0 ? '오늘 끝나요' : daysLeft(c.end_date, today) + '일 남음'})`
     : '종료일 정보 없음 · 공식 페이지에서 확인해요';
@@ -616,7 +654,7 @@ function detailHtml(c, today) {
     ${photo && photo.kind !== 'product' ? `<figure class="coupon-artwork"><img src="${esc(photo.url)}" alt="${esc(`${c.brand} ${photo.name} ${photo.label}`)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${esc(photo.label)} · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>${photo.kind === 'campaign' ? ` · <a href="${esc(photo.detailUrl)}" target="_blank" rel="noopener noreferrer">포스터 원본 ↗</a>` : ''}</figcaption></figure>` : ''}
     ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
     <section><h4>꼭 확인할 조건</h4><dl>
-      ${String(c.menu || '').length > 22 ? `<dt>메뉴</dt><dd>${esc(c.menu)}</dd>` : ''}
+      ${String(c.menu || '').length > 16 ? `<dt>메뉴</dt><dd>${esc(c.menu)}</dd>` : ''}
       <dt>필요</dt><dd>${esc(need)}</dd>
       <dt>기간</dt><dd>${esc(period)}</dd>
       ${cond ? `<dt>조건</dt><dd>${esc(cond)}</dd>` : ''}
@@ -634,30 +672,33 @@ function detailHtml(c, today) {
 function card(c, today) {
   const open = state.open.has(c.id);
   const link = safeUrl(c.official_link) || safeUrl(c.source_url);
-  const ch = (c.channels || []).length ? c.channels.join(' · ') : '';
-  const b = badges(c);
+  const conds = conditionLine(c);
   const st = stubParts(c);
   const photo = couponPhoto(c, today);
   const img = photo?.url || '';
   // 표시할 글자와 단위를 분리해 HTML을 제거하는 정규식 없이 길이를 계산한다.
   const bigLen = st.big.length + (st.unit || '').length;
+  // 적용가가 있는 상품은 오른쪽 가격이 중심 → 왼쪽 할인율은 한 단계 작게 (같은 강도로 겹쳐 강조하지 않음)
+  const quiet = st.unit === '%' && budgetPrice(c) !== null && c.discount_type !== 'free_item';
+  const bigStyle = st.unit === '원' || quiet ? '' : bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : '';
+  // 정보 순서: 브랜드·메뉴 → 가격(혜택) → 쓸 수 있는 조건 → 기간 → 공식 페이지. 펼치기는 '상세 보기' 버튼(카드 빈 곳을 눌러도 열림)
   return `
   <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
     <div class="tk"><div class="ticket">
       <div class="stub ${st.tone}${img ? ' has-ph' : ''}${photo?.kind === 'campaign' ? ' campaign-photo' : ''}" aria-hidden="true">
-        ${img ? `<img class="ph" src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+        ${img ? `<img class="ph" src="${esc(img)}" alt="" width="80" height="62" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
         ${photo?.label ? `<span class="coupon-image-label">${photo.kind === 'campaign' ? '공식 행사' : '대표 메뉴'}</span>` : ''}
         <span class="cat-art">${ART[c.category] || ''}</span>
-        <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}"${st.unit === '원' ? '' : bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : ''}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
+        <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}${quiet ? ' quiet' : ''}"${bigStyle}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>
-      <div class="body" role="button" tabindex="0" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">
-        <div class="who"><span class="bn"><button class="brand-link" data-brand-open="${esc(c.brand)}" aria-label="${esc(c.brand)} 브랜드 보기">${esc(c.brand)}</button>${ch ? `<span class="chn"> · ${esc(ch)}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</div>
-        ${b ? `<div class="badges">${b}</div>` : ''}
+      <div class="body">
+        <div class="who"><span class="bn"><button class="brand-link" data-brand-open="${esc(c.brand)}" aria-label="${esc(c.brand)} 브랜드 보기">${esc(c.brand)}</button>${(c.channels || []).length > 1 ? `<span class="chn"> · ${esc(c.channels.join(' · '))}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}<button type="button" class="more" data-toggle="${esc(c.id)}" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">${open ? '상세 닫기' : '상세 보기'}${ICON.down}</button></div>
         <h3 class="menu"><span class="sr">${esc(c.brand)} </span>${esc(c.menu)}</h3>
         <div class="price">${priceLine(c)}</div>
+        ${conds ? `<p class="conds">${conds}</p>` : ''}
         <div class="foot">
           ${dueChip(c, today)}
-          ${link ? `<a class="cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">${esc(ctaLabel(c))}${ICON.chev}</a>` : ''}
+          ${link ? `<a class="cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">${esc(ctaLabel(c))}<span class="sr"> (새 탭)</span>${ICON.ext}</a>` : ''}
         </div>
       </div>
     </div></div>
@@ -726,8 +767,37 @@ function renderFreshness() {
   }
   else if (!state.loading && verificationStatus(state.meta.last_checked_at) !== 'fresh') message = '최근 확인 시각이 오래됐거나 확인되지 않아요. 결제 전 공식 페이지를 확인해 주세요.';
   else if (!state.loading && [...state.coupons, ...state.news].some((x) => verificationStatus(x.checked_at) !== 'fresh')) message = '일부 혜택의 출처를 최근에 확인하지 못했어요. 결제 전 공식 페이지를 살펴봐 주세요.';
-  $('#errNote').textContent = message;
+  const retry = state.loadFailed && (state.coupons.length || state.news.length) && !state.loading;
+  setHTML($('#errNote'), message ? `${esc(message)}${retry ? ' <button type="button" class="note-retry" data-retry>다시 시도</button>' : ''}` : '');
   $('#errNote').hidden = !message;
+}
+
+/** 예산 버튼: 실제 필터(state.filters.maxPrice)를 그대로 보여 준다. 고른 버튼이 줄 밖에 있으면 줄 안에서만 넘겨 보이게 */
+let shownBudget = null;
+function renderBudget() {
+  const v = budgetValue(state.filters.maxPrice);
+  document.querySelectorAll('#budgetOpts [data-budget]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.budget === v)));
+  $('#budgetNote').hidden = !v;
+  if (shownBudget === v) return;
+  shownBudget = v;
+  const row = $('#budgetOpts');
+  const on = row.querySelector('[aria-pressed="true"]');
+  if (!on || row.scrollWidth <= row.clientWidth) return;
+  if (on.offsetLeft < row.scrollLeft || on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = Math.max(0, on.offsetLeft - 28);
+  row.classList.toggle('scrolled', row.scrollLeft > 2);
+}
+/** 목록 가까이의 짧은 조건 요약: '햄버거 · 5000원 이하 · 세트'. 제목에 이미 보이는 카테고리는 반복하지 않는다 */
+function conditionSummary() {
+  const f = state.filters;
+  const titleShowsGrid = !state.q && !state.brand && state.view !== 'following';
+  return [
+    titleShowsGrid || state.category === '전체' ? '' : state.category,
+    titleShowsGrid || !state.kind ? '' : KIND_LABEL[state.kind],
+    f.maxPrice ? budgetLabel(f.maxPrice) : '',
+    f.itemType || '',
+    f.channel || '',
+    f.everyoneOnly ? '조건 없는 쿠폰만' : '',
+  ].filter(Boolean);
 }
 
 function render() {
@@ -740,10 +810,10 @@ function render() {
   $('#demoNote').hidden = onlineView || !DEMO;
   $('#syncNote').hidden = onlineView || !state.syncing;
   if (onlineView) {
-    for (const el of [$('.intro'), $('#appCoupons'), $('#brandPanel'), $('#hot'), $('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar'), $('#errNote')]) el.hidden = true;
+    for (const el of [$('.intro'), $('#appCoupons'), $('#brandPanel'), $('#hot'), $('#grid'), $('.list-h'), $('#budget'), $('#budgetNote'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar'), $('#errNote')]) el.hidden = true;
     return;
   }
-  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = false;
+  for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = false;
   const today = todayKST();
   renderFreshness();
   renderMeBar();
@@ -756,9 +826,10 @@ function render() {
   $('.intro').classList.toggle('sr', state.view === 'brands' || state.view === 'following');
   appCouponUI.update(state.appCoupons, { loading: state.loading, failed: state.loadFailed });
   if (appView) {
-    for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar')]) el.hidden = true;
+    for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('#budgetNote'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar')]) el.hidden = true;
     return;
   }
+  renderBudget();
   $('#sortSel').value = state.sort;
   const f = state.filters;
   $('#filterBtn').dataset.on = String(!!(f.itemType || f.channel || f.everyoneOnly || f.maxPrice));
@@ -777,20 +848,25 @@ function render() {
   else if (state.brand) $('#listTitle').textContent = `${state.brand} 혜택`;
   else if (state.view === 'following') $('#listTitle').textContent = '구독 브랜드 혜택';
   const directory = state.view === 'brands' && !state.brand;
-  for (const el of [$('#grid'), $('.list-h'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
+  for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
+  if ($('#budget').hidden) $('#budgetNote').hidden = true;
   const shown = sortCoupons(visible(), state.sort, today, profileObj());
   const brands = new Set(shown.map((c) => c.brand)).size;
   const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;
+  const conds = conditionSummary();
   $('#summary').textContent = shown.length
-    ? `${shown.length}개 · 브랜드 ${brands}곳${profileObj() ? ` · 쓸 수 있는 ${usable}개` : ''}`
-    : '';
+    ? `${conds.length ? `${conds.join(' · ')} · ` : ''}${shown.length}개 · 브랜드 ${brands}곳${profileObj() ? ` · 쓸 수 있는 ${usable}개` : ''}`
+    : conds.length ? `${conds.join(' · ')} · 0개` : '';
 
   if (!shown.length) {
     const inCat = state.coupons.some((c) => state.category === '전체' || c.category === state.category);
     const anyQuick = Object.values(state.quick).some(Boolean);
     const popular = Object.entries(state.coupons.reduce((m, c) => { m[c.brand] = (m[c.brand] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([b]) => b);
+    // 불러오기 실패(데이터 없음)와 '조건에 맞는 결과 없음'을 구분한다. 결과가 없다고 예산을 넘는 혜택을 섞지 않는다.
     setHTML(list, state.loadFailed && !state.coupons.length
-      ? '<div class="empty"><b>혜택을 불러오지 못했어요</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 불러오기</button></div>'
+      ? '<div class="empty" role="alert"><b>혜택을 불러오지 못했어요.</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 시도</button></div>'
+      : state.filters.maxPrice
+      ? `<div class="empty"><b>선택한 조건에 맞는 혜택이 없어요.</b><button class="chip-btn" data-clear-budget>예산만 해제</button></div>`
       : state.q
       ? `<div class="empty"><b>‘${esc(state.q)}’에 맞는 혜택이 없어요</b>브랜드 이름이나 메뉴 이름으로 찾아보세요.${popular.length ? `<div class="suggest">${popular.map((b) => `<button class="chip-btn" data-suggest="${esc(b)}">${esc(b)}</button>`).join('')}</div>` : ''}</div>`
       : inCat
@@ -958,6 +1034,22 @@ newsSheet.addEventListener('click', async (e) => {
   if (out) { const n = state.news.find((x) => x.id === out.dataset.newsSrc); track('click', { value: `news:${out.dataset.newsSrc}`, brand: n?.brand }); }
 });
 $('#sortSel').addEventListener('change', (e) => { state.sort = e.target.value; savePrefs(); render(); });
+/**
+ * 예산 바꾸기: maxPrice 하나만 바꾼다. 카테고리·검색어·정렬·다른 필터·내 조건·구독·찜은 그대로.
+ * 이미 받은 혜택으로만 다시 그린다 (API·수집 호출 없음).
+ */
+function setBudget(v, from) {
+  const next = budgetValue(v);
+  if (state.filters.maxPrice === next) return;
+  state.filters = { ...state.filters, maxPrice: next };
+  savePrefs(); render();
+  track('filter', { value: `budget:${next || 'none'}:${from}` });
+}
+$('#budgetOpts').addEventListener('click', (e) => { const b = e.target.closest('[data-budget]'); if (b) setBudget(b.dataset.budget, 'top'); });
+$('#budgetOpts').addEventListener('scroll', (e) => e.currentTarget.classList.toggle('scrolled', e.currentTarget.scrollLeft > 2), { passive: true });
+// 저장본을 보여 주는 중 연결이 실패했을 때: 혜택 목록만 다시 받는다 (공식 출처 수집인 '새로 확인'과 별개)
+$('#errNote').addEventListener('click', (e) => { if (e.target.closest('[data-retry]')) retryLoad(); });
+function retryLoad() { state.loading = true; state.loadFailed = false; render(); loadCoupons(); }
 $('#quick').addEventListener('click', (e) => {
   const b = e.target.closest('[data-quick]'); if (!b) return;
   const k = b.dataset.quick;
@@ -967,7 +1059,7 @@ $('#quick').addEventListener('click', (e) => {
 });
 
 $('#list').addEventListener('click', async (e) => {
-  if (e.target.closest('[data-retry]')) { state.loading = true; state.loadFailed = false; render(); loadCoupons(); return; }
+  if (e.target.closest('[data-retry]')) { retryLoad(); return; }
   const sug = e.target.closest('[data-suggest]');
   if (sug) { $('#q').value = sug.dataset.suggest; state.q = sug.dataset.suggest; render(); return; }
   const brand = e.target.closest('[data-brand-open]');
@@ -981,16 +1073,16 @@ $('#list').addEventListener('click', async (e) => {
   const sh = e.target.closest('[data-share]');
   if (sh) { shareCoupon(sh.dataset.share); return; }
   if (e.target.closest('[data-clear-quick]')) { Object.keys(state.quick).forEach((k) => { state.quick[k] = false; }); state.kind = ''; savePrefs(); render(); return; }
+  if (e.target.closest('[data-clear-budget]')) { setBudget('', 'empty'); $('#list').focus({ preventScroll: true }); return; }
+  const tg = e.target.closest('[data-toggle]');
+  if (tg) { toggleCard(tg.closest('.card')); return; }
+  // 카드의 빈 곳(링크·버튼 밖)을 눌러도 상세가 열린다. 키보드는 '상세 보기' 버튼으로.
   const main = e.target.closest('.body');
-  if (main) toggleCard(main);
+  if (main && !e.target.closest('a, button')) toggleCard(main.closest('.card'));
 });
-$('#list').addEventListener('keydown', (e) => {
-  const main = e.target.closest('.body');
-  if (main && !e.target.closest('a, button, input, select, textarea') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCard(main); }
-});
-function toggleCard(main) {
+function toggleCard(cardEl) {
   renderedHTML.delete($('#list')); // 아래에서 상세 DOM을 직접 바꾸므로 다음 전체 렌더는 상태를 다시 반영한다.
-  const id = main.closest('.card').dataset.id;
+  const id = cardEl.dataset.id;
   const dt = document.getElementById('dt-' + id);
   const open = dt.hidden;
   const c = state.coupons.find((x) => x.id === id);
@@ -1006,7 +1098,8 @@ function toggleCard(main) {
     });
   } else state.open.delete(id);
   dt.hidden = !open;
-  main.setAttribute('aria-expanded', String(open));
+  const btn = cardEl.querySelector('[data-toggle]');
+  if (btn) { btn.setAttribute('aria-expanded', String(open)); btn.innerHTML = `${open ? '상세 닫기' : '상세 보기'}${ICON.down}`; }
 }
 
 function toggleSave(id, btn) {
@@ -1023,7 +1116,7 @@ function toggleSave(id, btn) {
 async function shareCoupon(id) {
   const c = state.coupons.find((x) => x.id === id); if (!c) return;
   const url = `${location.origin}${location.pathname}?c=${encodeURIComponent(id)}`;
-  const what = has(c.coupon_price) ? `${won(c.coupon_price)}원` : c.discount_rate ? `${c.discount_rate}% 할인` : c.discount_value ? `${moneyDigits(c.discount_value)}원 ${c.discount_type === 'point_back' ? '적립' : '할인'}` : '혜택';
+  const what = has(c.coupon_price) ? `${money(c.coupon_price)}원` : c.discount_rate ? `${c.discount_rate}% 할인` : c.discount_value ? `${moneyDigits(c.discount_value)}원 ${c.discount_type === 'point_back' ? '적립' : '할인'}` : '혜택';
   const text = `${c.brand} ${c.menu} ${what}${c.end_date ? ` (~${md(c.end_date)})` : ''}`;
   track('share', { coupon_id: id, brand: c.brand });
   try {
@@ -1142,7 +1235,7 @@ function openReport(id) {
   const c = state.coupons.find((x) => x.id === id); if (!c) return;
   reportId = id;
   $('#reportForm').reset();
-  $('#reportTarget').textContent = `${c.brand} · ${c.menu}${has(c.coupon_price) ? ` · ${won(c.coupon_price)}원` : ''}`;
+  $('#reportTarget').textContent = `${c.brand} · ${c.menu}${has(c.coupon_price) ? ` · ${money(c.coupon_price)}원` : ''}`;
   rSheet.showModal();
 }
 $('#reportCancel').addEventListener('click', () => rSheet.close('cancel'));

@@ -110,6 +110,7 @@
   .notice.demo { background: var(--warn-soft); color: var(--warn); }
   .notice.sync { background: var(--info-soft); color: var(--info); }
   .notice.err { background: var(--sale-soft); color: var(--sale); }
+  .notice .note-retry { flex: none; margin-left: auto; min-height: 28px; padding: 0 4px; font-size: 13px; font-weight: 750; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
   .me { margin: 14px 0 0; padding: 12px 10px 12px 14px; border-radius: 14px; background: var(--surface-2); color: var(--text-2); display: flex; gap: 8px; align-items: center; font-size: 13.5px; line-height: 1.45; }
   .me b { color: var(--text); font-weight: 700; }
   .me .grow { flex: 1; min-width: 0; }
@@ -124,21 +125,24 @@
   .sec-h .sp { flex: 1; }
   .sec-h .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-  /* 오늘의 핫딜: 같은 높이의 카드 (사진·그림 172px + 글 + 하단 줄) */
+  /* 오늘의 핫딜: 같은 높이의 카드 (사진 160px + 글 + 하단 줄). 쿠폰·공지 모두 제목이 같은 위치에서 시작한다 */
   .hot { background: var(--bg); margin-top: 8px; padding-bottom: 14px; }
   .rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 16px 4px; scroll-padding: 0 16px; scrollbar-width: none; align-items: stretch; }
   .rail::-webkit-scrollbar { display: none; }
   .hcard { position: relative; flex: 0 0 78%; max-width: 300px; height: 300px; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; scroll-snap-align: start; background: var(--surface); color: var(--text); border: 1px solid var(--line); text-align: left; isolation: isolate; }
   .hcard:active { transform: scale(.985); }
-  .hot-visual { position: relative; display: block; flex: none; height: 172px; overflow: hidden; background: var(--surface-2); }
+  .hot-visual { position: relative; display: block; flex: none; height: 160px; overflow: hidden; background: var(--surface-2); }
   .hcard .hot-visual .ph { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 10px; background: #fff; }
-  .hot-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 13px; }
-  .hcard .top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .hot-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 10px; }
+  .hcard .top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 21px; }
   .hcard .br { font-size: 12.5px; font-weight: 700; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hcard .why { flex: none; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: var(--sale-soft); color: var(--sale); }
   .hcard .why.n { background: var(--good-soft); color: var(--good); }
   .hcard .why.d { background: var(--info-soft); color: var(--info); }
-  .hcard .tt { font-size: 15.5px; font-weight: 700; line-height: 1.35; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .hcard .tt { font-size: 15px; font-weight: 700; line-height: 1.3; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .hcard .period { display: inline-flex; align-items: center; gap: 4px; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .hcard .period.due { color: var(--sale); font-weight: 750; }
+  .hcard .period svg { width: 14px; height: 14px; }
   .hcard .hot-meta { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
   .hcard .lbl { font-size: 21px; font-weight: 850; letter-spacing: -.03em; line-height: 1.1; color: var(--sale); font-variant-numeric: tabular-nums; }
   .hcard .lbl.tone-pt { color: var(--good); }
@@ -168,6 +172,17 @@
   .list-h h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.03em; }
   .list-h .clear { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 999px; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong) inset; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
   .list-h .clear::after { content: "✕"; font-size: 10px; color: var(--muted); }
+  /* 예산: 목록 위 한 줄(고정하지 않음). 좁은 화면에서는 이 줄 안에서만 가로로 넘긴다. 선택은 색 + 테두리 + ✓ */
+  .budget { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px 0 0 16px; }
+  .budget-label { flex: none; font-size: 14px; font-weight: 700; color: var(--text-2); }
+  .budget-opts { flex: 1; min-width: 0; display: flex; gap: 6px; margin: -4px 0; padding: 4px 16px 4px 4px; overflow-x: auto; scrollbar-width: none; scroll-padding: 0 16px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent); }
+  .budget-opts::-webkit-scrollbar { display: none; }
+  /* 왼쪽으로 넘긴 상태면 왼쪽도 흐리게 해 앞에 버튼이 더 있음을 보여 준다 */
+  .budget-opts.scrolled { -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 16px), transparent); }
+  .budget .budget-btn { height: 38px; padding: 0 14px; font-size: 14px; }
+  .budget-btn[aria-pressed="true"]::before, #filterSheet .chip-btn[aria-pressed="true"]::before { content: "✓"; font-weight: 800; }
+  .budget-note { margin: 6px 16px 0; font-size: 12.5px; color: var(--muted); }
   .tools { position: sticky; top: var(--hh); z-index: 15; display: flex; align-items: center; gap: 6px; padding: 10px 16px; background: var(--canvas); }
   .chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); padding-right: 16px; }
   .chips::-webkit-scrollbar { display: none; }
@@ -228,20 +243,28 @@
   .menu { margin: 0; font-size: 16px; font-weight: 750; letter-spacing: -.025em; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
   .price s { color: var(--muted); }
-  .price b { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .price .what { color: var(--text-2); font-weight: 600; font-size: 13.5px; }
-  .badges { display: flex; flex-wrap: wrap; gap: 4px; }
-  .badge { font-size: 11px; font-weight: 700; line-height: 1.5; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
-  .badge.b-aud { background: var(--warn-soft); color: var(--warn); }
-  .badge.b-prog { background: var(--info-soft); color: var(--info); }
-  .badge.b-mine { background: var(--primary-soft); color: var(--primary); }
+  .price b { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -.02em; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .price .what { color: var(--text-2); font-weight: 650; font-size: 14px; }
+  .price b + .what { font-size: 13px; font-weight: 600; }
+  /* 쓸 수 있는지를 바꾸는 핵심 조건 한 줄 (신규가입·멤버십·결제수단·앱·주문 방법·최소 주문) */
+  .conds { margin: 0; display: flex; flex-wrap: wrap; row-gap: 1px; font-size: 13px; line-height: 1.45; font-weight: 600; color: var(--text-2); }
+  .conds span + span::before { content: "·"; margin: 0 5px; color: var(--muted); font-weight: 400; }
+  .conds .c-aud { color: var(--warn); }
+  .conds .c-prog { color: var(--info); }
+  .conds .c-mine { color: var(--primary); }
+  .who .more { flex: none; margin: -8px -6px -8px auto; display: inline-flex; align-items: center; gap: 1px; height: 36px; padding: 0 6px; border-radius: 8px; font-size: 12.5px; font-weight: 650; color: var(--muted); white-space: nowrap; }
+  .who .more:hover { color: var(--text); background: var(--surface-2); }
+  .who .more svg { width: 14px; height: 14px; transition: transform .15s; }
+  .who .more[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .stub .big.quiet { font-size: 20px; }
+  .stub .big.quiet small { font-size: 12px; }
   .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 4px; min-width: 0; }
   .chip { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .chip svg { width: 14px; height: 14px; }
   .chip.due { color: var(--sale); font-weight: 750; }
   .chip.today { padding: 0 8px; border-radius: 7px; background: var(--sale-soft); color: var(--sale); font-weight: 800; }
   .chip.soon { color: var(--info); }
-  .cta { margin-left: auto; flex: none; max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; height: 34px; padding: 0 8px 0 12px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); font-size: 13px; font-weight: 750; text-decoration: none; white-space: nowrap; }
+  .cta { margin-left: auto; flex: none; max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; gap: 1px; height: 34px; padding: 0 7px 0 10px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); font-size: 13px; font-weight: 750; text-decoration: none; white-space: nowrap; }
   .cta:hover { background: color-mix(in srgb, var(--primary-soft) 70%, var(--primary) 12%); }
   .cta:active { transform: translateY(1px); }
   .card > .detail { margin-top: 6px; padding: 16px; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 1px var(--line) inset; }
@@ -275,6 +298,7 @@
   .empty { text-align: center; color: var(--muted); padding: 40px 20px; border-radius: 16px; background: var(--bg); font-size: 14px; line-height: 1.6; }
   .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
   .empty button { margin-top: 14px; }
+  .empty b + button { margin-top: 6px; }
   .suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 14px; }
   .suggest .chip-btn { margin: 0; height: 34px; }
   .skel { display: grid; grid-template-columns: 92px minmax(0, 1fr); height: 128px; border-radius: 16px; overflow: hidden; background: var(--surface); }
@@ -394,6 +418,8 @@
     .lead-block { margin-top: 16px; padding: 24px; }
     .tools { margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
     .list-h { padding-left: 4px; padding-right: 4px; }
+    .budget { padding-left: 4px; }
+    .budget-note { margin-left: 4px; }
     .list-meta { padding-left: 6px; padding-right: 4px; }
     main { padding-left: 0; padding-right: 0; }
     #list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
@@ -422,7 +448,7 @@
 </style>
 <link rel="stylesheet" href="app-coupons.css?v=20261029-8">
 <link rel="stylesheet" href="launch.css?v=20261102-1">
-<link rel="stylesheet" href="hot-notices.css?v=20261103-1">
+<link rel="stylesheet" href="hot-notices.css?v=20261104-1">
 <!-- deploy-meta -->
 <link rel="canonical" href="https://olsd0.github.io/among/">
 <meta property="og:url" content="https://olsd0.github.io/among/">
@@ -491,6 +517,13 @@
 
   <div class="list-wrap">
   <div class="list-h"><h2 id="listTitle">전체 혜택</h2><button class="clear" id="clearGrid" hidden>전체 보기</button></div>
+  <div class="budget" id="budget" role="group" aria-labelledby="budgetLabel">
+    <span class="budget-label" id="budgetLabel">예산</span>
+    <div class="budget-opts" id="budgetOpts">
+      <button type="button" class="chip-btn budget-btn" data-budget="" aria-pressed="true">제한 없음</button><button type="button" class="chip-btn budget-btn" data-budget="5000" aria-pressed="false">5000원 이하</button><button type="button" class="chip-btn budget-btn" data-budget="10000" aria-pressed="false">10000원 이하</button><button type="button" class="chip-btn budget-btn" data-budget="20000" aria-pressed="false">20000원 이하</button>
+    </div>
+  </div>
+  <p class="budget-note" id="budgetNote" hidden>가격이 확인된 혜택만 보여드려요.</p>
   <div class="tools" role="toolbar" aria-label="정렬과 필터">
     <label class="sr" for="sortSel">정렬</label>
     <select class="sort" id="sortSel">
@@ -560,8 +593,8 @@
 <dialog id="filterSheet" aria-labelledby="fTitle">
   <form method="dialog" class="sheet" id="filterForm">
     <h2 id="fTitle">필터</h2><button type="button" class="sheet-x" data-sheet-close aria-label="닫기">✕</button>
-    <div class="group"><span>예산 (쿠폰가 기준)</span><div class="seg" data-key="maxPrice">
-      <button type="button" class="chip-btn" data-v="">전체</button><button type="button" class="chip-btn" data-v="5000">5천원 이하</button><button type="button" class="chip-btn" data-v="10000">1만원 이하</button><button type="button" class="chip-btn" data-v="20000">2만원 이하</button>
+    <div class="group"><span id="fBudgetLabel">예산 (쿠폰 적용가 기준 · 배달비 별도)</span><div class="seg" data-key="maxPrice" role="group" aria-labelledby="fBudgetLabel">
+      <button type="button" class="chip-btn" data-v="">제한 없음</button><button type="button" class="chip-btn" data-v="5000">5000원 이하</button><button type="button" class="chip-btn" data-v="10000">10000원 이하</button><button type="button" class="chip-btn" data-v="20000">20000원 이하</button>
     </div></div>
     <div class="group"><span>구성</span><div class="seg" data-key="itemType">
       <button type="button" class="chip-btn" data-v="">전체</button><button type="button" class="chip-btn" data-v="세트">세트</button><button type="button" class="chip-btn" data-v="단품">단품</button>
@@ -594,7 +627,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261103-10"></script>
+<script type="module" src="app.js?v=20261104-1"></script>
 <script type="module" src="sponsor.js?v=20261031-1"></script>
 </body>
 </html>

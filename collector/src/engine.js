@@ -887,6 +887,21 @@ export function matchesKind(c, kind, today = todayKST()) {
 }
 
 /**
+ * 예산 필터의 기준 가격: 엔진이 확인·계산한 쿠폰 적용가(coupon_price)만 쓴다.
+ * - 1+1·증정은 그 혜택을 받으려고 사야 하는 구성 전체의 가격(개당 환산 아님)
+ * - 정액·정률 할인액, 적립액, 최소 주문금액, 제목 속 숫자는 상품 가격으로 쓰지 않는다
+ * - 결제 후 적립은 즉시 할인이 아니므로 적용가가 없다
+ * - null·빈 값·숫자가 아닌 값·0 이하는 '가격 모름'(0원으로 바꾸지 않음)
+ */
+export function budgetPrice(c = {}) {
+  if (c.discount_type === 'point_back') return null;
+  const v = c.coupon_price;
+  if (v === null || v === undefined || typeof v === 'boolean') return null;
+  const n = typeof v === 'number' ? v : /^\s*\d+(?:\.\d+)?\s*$/.test(String(v)) ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
  * 화면 필터. f: { category, kind, itemType, channel, everyoneOnly, q, mine, programsOnly, maxPrice, fresh, endingSoon, ids }
  * ctx: { today, profile, since(지난 방문 시각) }
  */
@@ -899,7 +914,12 @@ export function matchesFilters(c, f = {}, ctx = {}) {
   if (f.everyoneOnly && !isOpenToEveryone(c)) return false;
   if (f.mine && !usableBy(c, ctx.profile || {})) return false;
   if (f.programsOnly && !(c.programs || []).length) return false;
-  if (f.maxPrice && !(c.coupon_price !== null && c.coupon_price !== undefined && c.coupon_price !== '' && +c.coupon_price <= +f.maxPrice)) return false;
+  if (f.maxPrice) {
+    // 예산: 확인된 쿠폰 적용가(구성 전체 가격)만. 가격을 모르는 혜택은 예산 결과에 넣지 않는다.
+    const max = Number(f.maxPrice);
+    const price = budgetPrice(c);
+    if (Number.isFinite(max) && max > 0 && (price === null || price > max)) return false;
+  }
   if (f.fresh && !isFresh(c, today, ctx.since)) return false;
   if (f.endingSoon) { const d = daysLeft(c.end_date, today); if (d === null || d > 3) return false; }
   if (f.ids && !f.ids.has(c.id)) return false;

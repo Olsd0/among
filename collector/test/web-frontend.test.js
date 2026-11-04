@@ -197,7 +197,7 @@ test('일부 출처가 오래됐으면 위쪽 경고만 보이고(카드 문구 
   const [popup] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('Enter')]);
   await popup.waitForLoadState('domcontentloaded');
   assert.equal(new URL(popup.url()).hostname, 'example.test');
-  assert.equal(await page.locator('#card-fresh .body').getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.locator('#card-fresh .more').getAttribute('aria-expanded'), 'false');
 });
 
 test('연결 실패 시 저장본임을 알리고, 저장본이 없으면 다시 불러올 수 있다', { timeout: 30000 }, async (t) => {
@@ -212,7 +212,7 @@ test('연결 실패 시 저장본임을 알리고, 저장본이 없으면 다시
   const second = await setup(data, { failCoupons: 1 });
   t.after(() => second.context.close());
   await second.page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
-  await second.page.getByRole('button', { name: '다시 불러오기' }).click();
+  await second.page.getByRole('button', { name: '다시 시도' }).click();
   await second.page.locator('#card-available').waitFor();
   // 날짜에 따라 수동 공지의 최신성 경고가 남을 수 있다. 통신 실패 상태는 해제돼야 한다.
   assert.doesNotMatch(await second.page.locator('#errNote').innerText(), /연결이 불안정|불러오지 못|저장된 혜택/);
@@ -386,13 +386,22 @@ test('펼친 카드는 같은 전체 목록으로 돌아와도 닫히고 키보�
   t.after(() => context.close());
   await page.goto(`${site.base}/index.html`);
   const body = page.locator('#card-a .body');
-  await body.click();
+  const more = page.locator('#card-a .more');
+  // 카드의 빈 곳(메뉴 이름)을 눌러도 열린다
+  await page.locator('#card-a .menu').click();
   assert.equal(await page.locator('#dt-a').isVisible(), true);
+  assert.equal(await more.getAttribute('aria-expanded'), 'true');
+  assert.equal(await more.innerText(), '상세 닫기');
   await page.locator('[data-view="all"]').click();
   assert.equal(await page.locator('#dt-a').isHidden(), true);
-  assert.equal(await body.getAttribute('aria-expanded'), 'false');
-  await body.press('Enter');
+  assert.equal(await more.getAttribute('aria-expanded'), 'false');
+  // 키보드: 카드 자체가 아니라 실제 버튼('상세 보기')으로 연다 (안쪽 링크·버튼과 겹치지 않게)
+  assert.equal(await body.getAttribute('role'), null);
+  await more.focus();
+  await page.keyboard.press('Enter');
   assert.equal(await page.locator('#dt-a').isVisible(), true);
+  await page.keyboard.press('Space');
+  assert.equal(await page.locator('#dt-a').isHidden(), true);
 });
 
 test('핫딜 목록은 썸네일만 받고 상세를 열면 큰 공지 원본을 불러온다', { timeout: 30000 }, async (t) => {
@@ -576,7 +585,7 @@ test('내 조건 버튼은 고른 조건을 보여 주고, 시트의 닫기(✕)
   await page.click('#meSheet [data-v="KT"]');
   await page.click('#meSheet .btn.primary');
   assert.equal(await page.locator('#meLabel').innerText(), 'KT');
-  assert.match(await page.locator('#card-kt .badges').innerText(), /내 KT 혜택/);
+  assert.match(await page.locator('#card-kt .conds').innerText(), /내 KT 혜택/);
   // 목록을 내려도 정렬·필터 줄은 머리글 바로 아래에 남는다
   await page.evaluate(() => scrollTo(0, document.body.scrollHeight / 2));
   const gap = await page.evaluate(() => document.querySelector('.tools').getBoundingClientRect().top - document.querySelector('header.top').getBoundingClientRect().bottom);
