@@ -185,7 +185,7 @@ root.addEventListener('click', e => {
     } else if (t.matches('[data-lead-use]')) {
       const f = $('#odPickForm');
       resetPickForm();
-      f.elements.lead.value = l.key; f.elements.title.value = odLeadName(l.title); f.elements.price.value = l.priceHint ?? '';
+      f.elements.lead.value = l.key; f.elements.title.value = odLeadName(l.title).replace(/[\s/·|,-]+$/, ''); f.elements.price.value = l.priceHint ?? ''; // 루리웹 '상품 / 가격 / 세일' 꼴의 남은 구분자는 뺀다
       f.elements.memo.value = `${OD_LEAD_SOURCES[l.source]?.name || l.source} 핫딜 ${kst(l.postedAt || l.foundAt)}`;
       $('#odPickSubmit').textContent = '카드 등록 (후보에서)';
       f.scrollIntoView({ block: 'start' }); f.elements.url.focus();

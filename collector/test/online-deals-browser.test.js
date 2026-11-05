@@ -543,6 +543,8 @@ test('자동 후보 → 카드: 관리 화면에서 후보를 골라 간편 링�
   await shrimp.getByRole('button', { name: '이 후보로 카드 만들기', exact: true }).click();
   const form = box.locator('#odPickForm');
   assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 새우깡 90g 10개');
+  const before = await form.locator('[name="title"]').inputValue();
+  assert.ok(before && !/[/]\s*$/.test(before));
   assert.equal(await form.locator('[name="price"]').inputValue(), '9370');
   assert.match(await form.locator('[name="memo"]').inputValue(), /^루리웹 핫딜 /);
   assert.equal(await page.evaluate(() => document.activeElement?.name), 'url', '간편 링크 칸으로 이동');
