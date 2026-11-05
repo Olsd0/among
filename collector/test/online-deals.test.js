@@ -1,50 +1,46 @@
+// 온라인 특가 화면 모듈 (web/online-deals.js) — 서버 응답 재검사와 카드 문구
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { normalizeOnlineDeals, onlineDealCard } from '../../web/online-deals.js';
 
-const source = readFileSync(new URL('../../web/online-deals.js', import.meta.url), 'utf8');
-const { onlineDealUrl, normalizeOnlineDeal, normalizeOnlineDeals, onlineDealCard, ONLINE_DEALS_MAX_AGE } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
-const now = Date.parse('2026-10-29T12:00:00+09:00');
-const item = (changes = {}) => ({ id: 'test-only', title: '테스트 식품', unit: '200g × 2개', price: 3000, conditions: ['와우회원 가격', '배송비 별도 확인'], checkedAt: '2026-10-29T11:00:00+09:00', expiresAt: '2026-10-29T23:59:59+09:00', url: 'https://www.coupang.com/vp/products/123', sourceUrl: 'https://www.coupang.com/vp/products/123', affiliate: false, ...changes });
-
-test('links require exact HTTPS Coupang hosts and contain no credentials or personal coupon data', () => {
-  assert.equal(onlineDealUrl('https://www.coupang.com/np/goldbox'), 'https://www.coupang.com/np/goldbox');
-  const valid = 'https://link.coupang.com/a/example?subId=among';
-  assert.equal(onlineDealUrl(valid), valid);
-  assert.equal(onlineDealUrl(valid, true), '');
-  for (const url of ['javascript:alert(1)', 'http://www.coupang.com/', 'https://coupang.com.attacker.test/', 'https://user:pass@www.coupang.com/', 'https://www.coupang.com:8443/', 'https://www.coupang.com/?%74oken=secret', 'https://www.coupang.com/?coupon_code=abc', 'https://www.coupang.com\\@attacker.test/']) assert.equal(onlineDealUrl(url), '', url);
+const now = Date.parse('2026-11-05T12:00:00+09:00');
+const iso = t => new Date(t).toISOString();
+const item = (changes = {}) => ({
+  id: 'od_test0000001', supplier: 'coupang', store: '쿠팡', title: '테스트 식품', option: '200g × 2개', seller: '테스트 판매자',
+  price: 3000, membership: '', conditions: ['테스트 조건'], shipping: 'unknown', shippingFee: null, shippingThreshold: null,
+  category: 'food', url: 'https://link.coupang.com/a/test', imageUrl: '', affiliate: true, pick: '',
+  checkedAt: iso(now - 3600e3), endsAt: '', visibleUntil: iso(now + 5 * 3600e3), ...changes,
 });
 
-test('publishing requires exact price, unit, conditions, source and recent timestamp', () => {
-  const valid = normalizeOnlineDeal(item(), now);
-  assert.equal(valid.price, 3000); assert.equal(valid.unit, '200g × 2개');
-  for (const over of [{ price: '3000' }, { price: -1 }, { price: 0 }, { price: 3.1 }, { unit: '' }, { conditions: [] }, { sourceUrl: '' }, { checkedAt: '2026-10-29T13:00:00+09:00' }, { checkedAt: '2026-10-29' }, { expiresAt: '미확인' }]) assert.equal(normalizeOnlineDeal(item(over), now), null, JSON.stringify(over));
-  assert.equal(normalizeOnlineDeal(item({ conditions: ['조건', ''] }), now), null);
-  assert.equal(normalizeOnlineDeal(item({ conditions: ['조건'.repeat(200)] }), now), null);
-});
-
-test('prices expire at their stated expiry or after 24 hours, whichever comes first', () => {
-  assert.equal(normalizeOnlineDeal(item({ expiresAt: '2026-10-29T12:00:00+09:00' }), now), null);
-  assert.equal(normalizeOnlineDeal(item({ checkedAt: '2026-10-28T12:00:00+09:00' }), now), null);
-  assert.equal(normalizeOnlineDeal(item({ expiresAt: '2026-11-01T00:00:00+09:00' }), now).validUntil, Date.parse(item().checkedAt) + ONLINE_DEALS_MAX_AGE);
-  assert.equal(normalizeOnlineDeal(item({ checkedAt: '2026-10-28T12:00:01+09:00' }), now).price, 3000);
-});
-
-test('safe cards escape facts, do not invent discount rates, and disclose affiliate destinations', () => {
-  const card = onlineDealCard(normalizeOnlineDeal(item({ title: '<script>bad</script>', conditions: ['<img onerror=bad()>'], imageUrl: 'https://attacker.test/pixel.png' }), now));
-  assert.match(card, /3000원/); assert.doesNotMatch(card, /3,000|할인율|<script>|<img onerror|attacker/);
-  assert.match(card, /&lt;script&gt;bad/); assert.doesNotMatch(card, /제휴광고|sponsored/);
-  const affiliate = normalizeOnlineDeal(item({ url: 'https://link.coupang.com/a/example' }), now);
-  assert.equal(affiliate.affiliate, true); assert.match(onlineDealCard(affiliate), /제휴광고/); assert.match(onlineDealCard(affiliate), /rel="sponsored noopener noreferrer"/);
-  assert.equal(normalizeOnlineDeal(item({ url: 'https://www.coupang.com/vp/products/123?lptag=AF123' }), now).affiliate, true);
-  const affiliateSource = normalizeOnlineDeal(item({ sourceUrl: 'https://www.coupang.com/vp/products/123?lpTag=AF123' }), now);
-  assert.equal(affiliateSource.affiliate, true);
-  assert.equal((onlineDealCard(affiliateSource).match(/rel="sponsored noopener noreferrer"/g) || []).length, 2);
-});
-
-test('list is bounded, deduplicated and rejects malformed feeds', () => {
-  const rows = [item(), item(), ...Array.from({ length: 20 }, (_, i) => item({ id: `test-${i}` }))];
-  assert.equal(normalizeOnlineDeals({ items: rows }, now).length, 10);
-  assert.equal(normalizeOnlineDeals({ items: [item({ price: null })] }, now).length, 0);
+test('응답 재검사: 형식·기한·링크가 맞지 않으면 빼고, 중복을 없애고, 잘못된 응답은 오류', () => {
+  assert.equal(normalizeOnlineDeals({ items: [item()] }, now).length, 1);
+  const bad = [{ price: '3000' }, { price: 0 }, { url: 'https://evil.test/' }, { url: 'http://www.coupang.com/' }, { visibleUntil: iso(now) },
+    { visibleUntil: iso(now + 30 * 3600e3) }, { checkedAt: '2026-11-05' }, { conditions: [''] }, { conditions: ['x'.repeat(301)] }, { id: 'x' }, { supplier: 'mystery' }, { endsAt: iso(now - 1) }];
+  for (const over of bad) assert.equal(normalizeOnlineDeals({ items: [item(over)] }, now).length, 0, JSON.stringify(over));
+  const many = [item(), item(), ...Array.from({ length: 80 }, (_, i) => item({ id: `od_test${String(i).padStart(7, '0')}` }))];
+  assert.equal(normalizeOnlineDeals({ items: many }, now).length, 60);
   assert.throws(() => normalizeOnlineDeals({ error: true }, now));
+  assert.throws(() => normalizeOnlineDeals(null, now));
+});
+
+test('카드: 사실만 표시 (확인 당시 가격·배송비·조건·판매자), 최저가·할인율·쉼표 없음, 이스케이프', () => {
+  const [it] = normalizeOnlineDeals({ items: [item({ title: '<script>bad</script>', conditions: ['<img onerror=bad()>'], membership: '와우회원', pick: '골드박스', endsAt: iso(now + 3600e3) })] }, now);
+  const card = onlineDealCard(it);
+  assert.match(card, /확인 당시<\/span> 3000원/);
+  assert.match(card, /배송비 확인 필요/);
+  assert.doesNotMatch(card, /무료배송|최저가|할인율|3,000|<script>|<img onerror/);
+  assert.match(card, /&lt;script&gt;bad/);
+  assert.match(card, /<li>와우회원 가격<\/li>/);
+  assert.match(card, /판매자 테스트 판매자/);
+  assert.match(card, /골드박스/);
+  assert.match(card, /행사 종료/);
+  assert.match(card, /제휴광고/);
+  assert.match(card, /rel="sponsored noopener noreferrer"/);
+  assert.match(card, /쿠팡에서 가격 확인/);
+  assert.doesNotMatch(card, /<img/, '사진 이용 범위 확인 전에는 사진 없음');
+  const [free] = normalizeOnlineDeals({ items: [item({ shipping: 'free', affiliate: false, url: 'https://www.coupang.com/vp/products/1' })] }, now);
+  assert.match(onlineDealCard(free), /무료배송/);
+  assert.doesNotMatch(onlineDealCard(free), /제휴광고|sponsored/);
+  const [conditional] = normalizeOnlineDeals({ items: [item({ shipping: 'conditional', shippingThreshold: 19800 })] }, now);
+  assert.match(onlineDealCard(conditional), /19800원 이상 구매 시 무료배송/);
 });

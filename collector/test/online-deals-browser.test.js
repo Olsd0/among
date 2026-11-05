@@ -23,16 +23,16 @@ function coupon(id, changes = {}) {
     ...changes,
   };
 }
+// 공개 API(online_deals) 응답 형식. 테스트 전용 값이며 실제 상품이 아니다.
 function deal(changes = {}) {
   return {
-    id: 'browser-fixture', title: '테스트 전용 생수', unit: '2L · 6개', price: 3000,
-    conditions: ['테스트 와우회원 조건', '배송비는 쿠팡에서 확인'],
-    checkedAt, expiresAt: '2026-10-30T03:00:00.000Z',
-    url: 'https://www.coupang.com/vp/products/123',
-    sourceUrl: 'https://www.coupang.com/vp/products/123', affiliate: false,
-    imageUrl: '', category: 'food', ...changes,
+    id: 'od_browser0001', supplier: 'coupang', store: '쿠팡', title: '테스트 전용 생수', option: '2L · 6개', seller: '테스트 판매자',
+    price: 3000, membership: '', conditions: ['테스트 와우회원 조건'], shipping: 'unknown', shippingFee: null, shippingThreshold: null,
+    category: 'food', url: 'https://www.coupang.com/vp/products/123', imageUrl: '', affiliate: false, pick: '',
+    checkedAt, endsAt: '', visibleUntil: new Date(AC_NOW + 3 * 3600e3).toISOString(), ...changes,
   };
 }
+const OPTIONAL = /\/online-deals(?:-core)?\.(?:js|css|json)(?:\?|$)|action=online_deals/;
 
 async function setup(t, options = {}) {
   const data = {
@@ -59,11 +59,6 @@ async function setup(t, options = {}) {
         onlineDeals: { enabled: options.enabled !== false, dataUrl: './online-deals.json' },
       })};` });
     }
-    if (url.origin === site.base && url.pathname.endsWith('/online-deals.json')) {
-      feedCalls++;
-      if (feedCalls <= (options.failFeed || 0)) return route.fulfill({ status: 503, body: 'unavailable' });
-      return route.fulfill({ json: { updatedAt: checkedAt, items: options.items || [] } });
-    }
     if (options.delayModule && url.origin === site.base && url.pathname.endsWith('/online-deals.js')) {
       await new Promise(resolve => { releaseModule = resolve; moduleSeen(); });
       return route.continue();
@@ -71,6 +66,11 @@ async function setup(t, options = {}) {
     if (url.origin === site.base) return route.continue();
     if (url.hostname === 'script.google.com') {
       const action = request.method() === 'POST' ? JSON.parse(request.postData() || '{}').action : url.searchParams.get('action');
+      if (action === 'online_deals') {
+        feedCalls++;
+        if (feedCalls <= (options.failFeed || 0)) return route.fulfill({ status: 503, body: 'unavailable' });
+        return route.fulfill({ json: { ok: true, state: options.state || 'preparing', items: options.items || [] }, headers: { 'access-control-allow-origin': '*' } });
+      }
       if (options.delayCoupons && action === 'coupons') await new Promise(resolve => { releaseCoupons = resolve; couponsSeen(); });
       const json = action === 'coupons' ? data : action === 'app_coupons'
         ? { ok: true, app_coupons: data.app_coupons, app_coupon_refs: [] }
@@ -105,7 +105,7 @@ test('online trial loads only on entry and returning restores coupon search, fil
   assert.equal(await page.locator('[data-view="all"]').getAttribute('aria-pressed'), 'true');
   assert.deepEqual(await page.locator('#viewNav [data-view]:visible').evaluateAll(nodes => nodes.map(n => n.dataset.view)), ['all', 'brands', 'following', 'onlineDeals']);
   assert.equal(feedCalls(), 0);
-  assert.ok(!requests.some(url => /\/online-deals\.(?:js|css|json)(?:\?|$)/.test(url)), 'optional assets must not load with the default coupon view');
+  assert.ok(!requests.some(url => OPTIONAL.test(url)), 'optional assets and the online feed must not load with the default coupon view');
   await page.locator('#searchBtn').click();
   await page.locator('#q').fill('고른 메뉴');
   const beforeIds = await page.locator('#list .card').evaluateAll(nodes => nodes.map(n => n.id));
@@ -121,6 +121,7 @@ test('online trial loads only on entry and returning restores coupon search, fil
   assert.equal(await page.locator('#list').isVisible(), false);
   assert.equal(await page.locator('#onlineDeals .od-card').count(), 0);
   assert.equal(await page.locator('#onlineDeals .od-disclosure').isVisible(), false, 'ordinary links must not falsely claim affiliate commission');
+  assert.match(await page.locator('#onlineDeals .od-status').innerText(), /아직 자동으로 확인한 상품이 없어요/, 'honest empty state before any supplier is connected');
   assert.ok(!requests.some(url => /(?:partners\.)?coupang\.com/.test(new URL(url).hostname)), 'viewing the tab makes no advertising or destination-page requests');
   if (process.env.AMONG_QA_SCREENSHOT) await page.screenshot({ path: process.env.AMONG_QA_SCREENSHOT.replace('.png', '-online-empty.png'), fullPage: true });
   await page.locator('[data-view="all"]').click();
@@ -198,7 +199,7 @@ test('disabling the trial restores app navigation, and existing app coupon deep 
   assert.deepEqual(await disabled.page.locator('#viewNav [data-view]:visible').evaluateAll(nodes => nodes.map(n => n.dataset.view)), ['all', 'appCoupons', 'brands', 'following']);
   assert.equal(await disabled.page.locator('#onlineDeals').isVisible(), false);
   assert.equal(disabled.feedCalls(), 0);
-  assert.ok(!disabled.requests.some(url => /\/online-deals\.(?:js|css|json)(?:\?|$)/.test(url)));
+  assert.ok(!disabled.requests.some(url => OPTIONAL.test(url)));
   await disabled.page.locator('[data-view="appCoupons"]').click();
   await disabled.page.locator('.ac-card').waitFor();
 
@@ -212,7 +213,7 @@ test('disabling the trial restores app navigation, and existing app coupon deep 
 });
 
 test('mobile product view identifies affiliate links, preserves factual conditions and stays within the viewport', { timeout: 30000 }, async t => {
-  const { page, errors } = await setup(t, { width: 360, items: [deal({ url: 'https://link.coupang.com/a/test-fixture', affiliate: true })] });
+  const { page, errors } = await setup(t, { width: 360, state: 'live', items: [deal({ url: 'https://link.coupang.com/a/test-fixture', affiliate: true, membership: '와우회원' })] });
   await page.goto(site.base + '/index.html?view=onlineDeals');
   const card = page.locator('#onlineDeals .od-card');
   await card.waitFor();
@@ -220,6 +221,9 @@ test('mobile product view identifies affiliate links, preserves factual conditio
   assert.match(await card.innerText(), /3000원/);
   assert.doesNotMatch(await card.innerText(), /3,000원/);
   assert.match(await card.innerText(), /테스트 와우회원 조건/);
+  assert.match(await card.innerText(), /와우회원 가격/);
+  assert.match(await card.innerText(), /배송비 확인 필요/);
+  assert.doesNotMatch(await card.innerText(), /무료배송/);
   const disclosure = page.locator('#onlineDeals .od-disclosure');
   assert.match(await disclosure.innerText(), /쿠팡 파트너스.*수수료/);
   assert.equal(await disclosure.isVisible(), true);
@@ -238,3 +242,96 @@ test('mobile product view identifies affiliate links, preserves factual conditio
   if (process.env.AMONG_QA_SCREENSHOT) await page.screenshot({ path: process.env.AMONG_QA_SCREENSHOT.replace('.png', '-online-dark.png'), fullPage: true });
   assert.deepEqual(errors, []);
 });
+
+// ---------- 전체 경로 모의 검증: 가짜 공급처 → 실행기 → Apps Script(가짜 환경) → 공개 화면·관리 화면 ----------
+import { loadAppsScript } from './gas-harness.js';
+import { runOnlineDeals } from '../src/online/run.js';
+import { ADAPTERS } from '../src/online/suppliers.js';
+import { createHttpClient } from '../src/online/http.js';
+import { candidate, mixedBatch, OD_T0, HOUR } from './online-fixtures.js';
+
+async function chain(t, { width = 390, batch = mixedBatch(), publish = true, darkMode = false } = {}) {
+  const gas = loadAppsScript(new URL('../../apps-script/Code.gs', import.meta.url).pathname, { now: OD_T0 });
+  gas.ctx.setup();
+  const token = gas.props.get('COLLECTOR_TOKEN'), admin = gas.props.get('ADMIN_TOKEN');
+  const api = { async post(action, payload) { const r = gas.post({ ...payload, action, token }); if (!r.ok) throw new Error(r.error); return r; } };
+  const ingest = async items => runOnlineDeals({
+    api, env: { COUPANG_PARTNERS_ACCESS_KEY: 'k', COUPANG_PARTNERS_SECRET_KEY: 's' }, now: () => gas.clock.now,
+    adapters: { ...ADAPTERS, coupang: { ...ADAPTERS.coupang, apiHosts: ['api.mock.test'], async fetch({ http }) { return { items: (await http.request('https://api.mock.test/deals')).json().items }; } } },
+    httpFactory: o => createHttpClient({ ...o, minIntervalMs: 0, fetchImpl: async () => new Response(JSON.stringify({ items })), sleep: async () => {} }),
+  });
+  await ingest(batch);
+  if (publish) gas.post({ action: 'online_admin_set', token: admin, op: 'supplier_mode', supplier: 'coupang', mode: 'publish' });
+  const context = await browser.newContext({ viewport: { width, height: 844 }, locale: 'ko-KR', timezoneId: 'Asia/Seoul', serviceWorkers: 'block', colorScheme: darkMode ? 'dark' : 'light' });
+  t.after(() => context.close());
+  const posts = [], errors = [], outside = [];
+  await context.route('**/*', async route => {
+    const req = route.request(), url = new URL(req.url());
+    if (url.origin === site.base) return route.continue();
+    if (url.hostname === 'script.google.com') {
+      const body = req.method() === 'POST' ? JSON.parse(req.postData() || '{}') : null;
+      if (body) posts.push(body);
+      const result = body ? gas.post(body) : gas.get(Object.fromEntries(url.searchParams));
+      return route.fulfill({ json: result, headers: { 'access-control-allow-origin': '*' } });
+    }
+    outside.push(url.href);
+    return route.abort();
+  });
+  const page = await context.newPage();
+  page.on('pageerror', e => errors.push(e.message));
+  await page.clock.setFixedTime(new Date(OD_T0 + 60 * 1000));
+  await page.addInitScript(() => localStorage.setItem('among_notrack', 'true'));
+  return { gas, admin, page, posts, errors, outside, ingest };
+}
+const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+
+test('전체 경로: 검증을 통과한 상품만 공개 화면에, 제휴 고지가 목록보다 먼저, 배송비를 모르면 무료로 쓰지 않음', { timeout: 40000 }, async t => {
+  const { page, errors, outside } = await chain(t);
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  const cards = page.locator('#onlineDeals .od-card');
+  await cards.first().waitFor();
+  assert.deepEqual((await cards.locator('h3').allInnerTexts()).sort(), ['테스트 생수 2L', '테스트 화장지 30롤']);
+  const waterCard = cards.filter({ hasText: '테스트 생수 2L' }), tissueCard = cards.filter({ hasText: '테스트 화장지 30롤' });
+  const text = await page.locator('#onlineDeals').innerText();
+  for (const held of ['테스트 쌀', '테스트 라면', '테스트 커피', '테스트 냉동고', '테스트 우유']) assert.ok(!text.includes(held), `보류 상품 비공개: ${held}`);
+  assert.match(await waterCard.innerText(), /배송비 확인 필요/);
+  assert.doesNotMatch(await waterCard.innerText(), /무료배송/);
+  assert.match(await tissueCard.innerText(), /무료배송/);
+  assert.equal(await page.locator('#onlineDeals .od-card img').count(), 0, '사진 이용 범위 확인 전');
+  const disclosure = page.locator('#onlineDeals .od-disclosure');
+  assert.match(await disclosure.innerText(), /쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다/);
+  assert.ok(await disclosure.evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-card')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+  assert.match(await waterCard.getByRole('link', { name: /쿠팡에서 가격 확인/ }).getAttribute('rel'), /sponsored/);
+  assert.doesNotMatch(text, /최저가|할인율/);
+  for (const width of [320, 390, 430, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.ok(await noOverflow(page), `${width}px 가로 넘침 없음`);
+    if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-public-${width}.png`, fullPage: true });
+  }
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await noOverflow(page));
+  if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-public-390-dark.png`, fullPage: true });
+  assert.deepEqual(outside.filter(u => !/^https:\/\/cdn\.jsdelivr\.net\/gh\/orioncactus\/pretendard@/.test(u)), [], '공급처·광고 주소로 요청하지 않음 (글꼴만 예외)');
+  assert.deepEqual(errors, []);
+});
+
+test('전체 경로: 재확인 기한이 지난 상품은 새 수집 없이 빠지고, 긴 상품명·조건도 320px 안에', { timeout: 40000 }, async t => {
+  const long = candidate({ supplierItemId: 'LONG', title: '아주 긴 테스트 상품명 '.repeat(9).trim(), option: '옵션 설명이 매우 긴 경우 '.repeat(4).trim(),
+    conditions: ['조건 문구가 길어도 자르지 않고 그대로 보여 줘야 하는 테스트 조건입니다. '.repeat(4).trim(), '두 번째 조건'], shipping: 'conditional', shippingThreshold: 19800 });
+  const { gas, page, errors } = await chain(t, { width: 320, batch: [long] });
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  await page.locator('#onlineDeals .od-card').waitFor();
+  assert.match(await page.locator('#onlineDeals .od-card').innerText(), /19800원 이상 구매 시 무료배송/);
+  assert.match(await page.locator('#onlineDeals .od-card').innerText(), /그대로 보여 줘야 하는 테스트 조건입니다\./);
+  assert.ok(await noOverflow(page));
+  if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-long-320.png`, fullPage: true });
+  gas.clock.now = OD_T0 + 6 * HOUR; gas.cache.clear();
+  await page.clock.setFixedTime(new Date(OD_T0 + 6 * HOUR));
+  await page.reload();
+  await page.locator('#onlineDeals .od-status').filter({ hasText: '상품 정보를 다시 확인하고 있어요' }).waitFor();
+  assert.equal(await page.locator('#onlineDeals .od-card').count(), 0);
+  if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-stale-320.png`, fullPage: true });
+  assert.deepEqual(errors, []);
+});
+

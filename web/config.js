@@ -8,6 +8,7 @@ window.AMONG_CONFIG = {
   // 직접 계약한 광고만 입력. 필드와 게재 절차는 docs/launch-readiness.md 참고.
   sponsorship: null,
   // 시험 운영. false로 바꾸면 온라인 특가 탭을 숨기고 기존 앱 쿠폰 메뉴를 복원한다.
-  // 상품 데이터는 같은 출처의 공개 JSON만 사용한다. 파트너스 비밀키는 여기에 넣지 않는다.
+  // 상품은 Apps Script(apiUrl ?action=online_deals)가 검증을 통과한 것만 내려 준다. dataUrl은 예시 모드용 빈 목록.
+  // 공급처 키·제휴 비밀값은 여기에 넣지 않는다 (GitHub Secrets에만).
   onlineDeals: { enabled: true, dataUrl: './online-deals.json' },
 };
