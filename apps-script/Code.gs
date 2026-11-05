@@ -2241,11 +2241,11 @@ function getOnlineDeals_() {
     const d = i.affiliate && OD_SUPPLIERS[i.supplier].disclosure;
     if (d && disclosures.indexOf(d) < 0) disclosures.push(d);
   });
-  const connected = Object.keys(ctx.suppliers).some(function (id) {
-    const s = ctx.suppliers[id];
-    return s.mode === 'publish' && s.lastSuccessAt && Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR;
-  });
-  const out = { ok: true, generated_at: nowIso_(), state: connected || items.length ? 'live' : 'preparing', count: items.length, items: items, disclosures: disclosures };
+  // live: 자동 게시 중인 공급처가 재확인 기한 안에 응답함 / delayed: 연결은 됐지만 최근 확인이 늦어짐 / preparing: 아직 연결 전
+  const pubs = Object.keys(ctx.suppliers).map(function (id) { return ctx.suppliers[id]; }).filter(function (s) { return s.mode === 'publish' && s.lastSuccessAt; });
+  const recent = pubs.some(function (s) { return Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR; });
+  const state = items.length || recent ? 'live' : pubs.length ? 'delayed' : 'preparing';
+  const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, disclosures: disclosures };
   try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
   return out;
 }

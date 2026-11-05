@@ -322,3 +322,13 @@ test('같은 규칙 파일: 화면 사본과 Apps Script 생성 구역이 원본
   assert.ok(gs.includes(readFileSync(new URL('../../apps-script/online-deals-backend.gs', import.meta.url), 'utf8')));
   assert.doesNotMatch(src, /\bnew URL\(|URLSearchParams|^import /m, 'Apps Script에서도 돌아가야 함');
 });
+
+test('워크플로: 읽기 권한만, 겹침 방지, 외부 액션 고정, 비밀값은 실행 단계에만', () => {
+  const yml = readFileSync(new URL('../../.github/workflows/online-deals.yml', import.meta.url), 'utf8');
+  assert.match(yml, /permissions:\n  contents: read/);
+  assert.match(yml, /concurrency:\n  group: online-deals\n  cancel-in-progress: false/);
+  for (const uses of yml.match(/uses: \S+/g)) assert.match(uses, /@[0-9a-f]{40}$/, uses);
+  assert.doesNotMatch(yml, /echo[^\n]*secrets\.|npm (ci|install)|playwright/, '비밀값 출력·불필요한 설치 없음');
+  assert.equal((yml.match(/secrets\./g) || []).length, 5);
+  assert.match(yml, /node src\/online\/run\.js/);
+});

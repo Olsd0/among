@@ -1,0 +1,61 @@
+name: online-deals
+
+# 온라인 특가 자동 확인 (프랜차이즈 쿠폰 수집 collect.yml과 별개)
+# 3시간마다 + 관리 화면 '다시 실행' + 수동 실행.
+# 승인·키가 확인된 공급처만 호출한다. 지금은 쿠팡 파트너스·링크프라이스 모두 '승인 대기'라 호출 없이 상태만 기록한다.
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: '실행 주체 (manual | admin)'
+        required: false
+        default: manual
+      mode:
+        description: 'run = 확인 후 시트 반영 / dry = 시트에 쓰지 않고 결과만 출력'
+        required: false
+        default: run
+        type: choice
+        options: [run, dry]
+
+# 같은 워크플로가 겹치지 않게 (Apps Script 잠금과 이중으로)
+concurrency:
+  group: online-deals
+  cancel-in-progress: false
+
+# 보안: 저장소 읽기만. 비밀값은 실행 단계에만 넘기고 출력하지 않는다.
+permissions:
+  contents: read
+
+jobs:
+  online-deals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # 외부 패키지 없이 실행된다 (브라우저·AI 호출 없음)
+      - name: 온라인 특가 규칙 테스트
+        run: node --test test/online-pipeline.test.js test/online-apps-script.test.js
+
+      - name: 공급처 확인 · 시트 반영
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          # 공급처 승인 후 대표가 직접 Secrets에 등록 (값은 로그·시트·화면에 남지 않음)
+          COUPANG_PARTNERS_ACCESS_KEY: ${{ secrets.COUPANG_PARTNERS_ACCESS_KEY }}
+          COUPANG_PARTNERS_SECRET_KEY: ${{ secrets.COUPANG_PARTNERS_SECRET_KEY }}
+          LINKPRICE_API_KEY: ${{ secrets.LINKPRICE_API_KEY }}
+          ONLINE_MODE: ${{ inputs.mode || 'run' }}
+          TRIGGER: ${{ inputs.trigger || github.event_name }}
+        run: node src/online/run.js
