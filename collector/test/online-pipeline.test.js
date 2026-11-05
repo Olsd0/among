@@ -342,3 +342,60 @@ test('워크플로: 읽기 권한만, 겹침 방지, 외부 액션 고정, 비�
   assert.equal((yml.match(/secrets\./g) || []).length, 5);
   assert.match(yml, /node src\/online\/run\.js/);
 });
+
+// ---------- 직접 고른 쿠팡 특가 (최종 승인 전) ----------
+import { odPickInput, odPickPublic, odClientPick, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
+const pickRaw = (over = {}) => ({ title: '테스트 생수 2L × 12병', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', note: '와우회원 가격', price: '7900', memo: '에펨코리아 핫딜', ...over });
+
+test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노출 기간 검사, 가격 확인 시각은 서버 시각', () => {
+  const { errors, pick } = odPickInput(pickRaw(), OD_T0);
+  assert.deepEqual(errors, []);
+  assert.equal(pick.price, 7900);
+  assert.equal(pick.priceCheckedAt, iso(OD_T0));
+  assert.equal(pick.endsAt, iso(OD_T0 + 24 * HOUR), '기본 하루 (가격 확인 24시간과 같음)');
+  assert.deepEqual(Object.keys(OD_PICK_CATEGORIES), ['food', 'household', 'etc']);
+  for (const [over, msg] of [
+    [{ title: 'a' }, '상품명'], [{ url: 'https://www.coupang.com/vp/products/1' }, '간편 링크'], [{ url: 'https://link.coupang.com/a/x?lptag=AF0000001' }, '간편 링크'],
+    [{ url: 'https://evil.test/a/x' }, '간편 링크'], [{ url: 'javascript:alert(1)' }, '간편 링크'], [{ category: 'weapons' }, '항목'],
+    [{ price: '12,900' }, '가격'], [{ price: 50 }, '가격'], [{ price: '1e5' }, '가격'], [{ note: '가'.repeat(61) }, '설명'],
+    [{ endsAt: iso(OD_T0 - 1) }, '노출'], [{ endsAt: iso(OD_T0 + 31 * 24 * HOUR) }, '노출'],
+  ]) {
+    const r = odPickInput(pickRaw(over), OD_T0);
+    assert.equal(r.pick, null, JSON.stringify(over));
+    assert.ok(r.errors.some(e => e.includes(msg)), `${JSON.stringify(over)} → ${r.errors}`);
+  }
+  assert.equal(odPickInput(pickRaw({ price: '' }), OD_T0).pick.price, null, '가격은 선택');
+  // 같은 가격으로 다른 칸만 고치면 처음 확인 시각 유지, 가격을 바꾸거나 '다시 확인'이면 지금
+  const later = OD_T0 + 2 * HOUR;
+  assert.equal(odPickInput(pickRaw({ note: '바뀐 설명' }), later, pick).pick.priceCheckedAt, iso(OD_T0));
+  assert.equal(odPickInput(pickRaw({ price: 6900 }), later, pick).pick.priceCheckedAt, iso(later));
+  assert.equal(odPickInput(pickRaw({ recheck: true }), later, pick).pick.priceCheckedAt, iso(later));
+  assert.equal(odPickInput(pickRaw(), later, { ...pick, hidden: true }).pick.hidden, true, '숨김 유지');
+});
+
+test('직접 고른 카드 공개: 메모·숨김 없음, 가격 카드는 확인 후 24시간만, 노출 종료 뒤에는 빠짐', () => {
+  const pick = { ...odPickInput(pickRaw(), OD_T0).pick, id: 'pk_0123456789abcdef' };
+  const pub = odPickPublic(pick, OD_T0 + HOUR);
+  assert.deepEqual(Object.keys(pub).sort(), ['category', 'id', 'note', 'price', 'priceCheckedAt', 'priceUntil', 'title', 'url', 'visibleUntil']);
+  assert.ok(!JSON.stringify(pub).includes('에펨코리아'), '출처 메모는 공개하지 않음');
+  assert.equal(pub.price, 7900);
+  assert.equal(odPickPublic(pick, OD_T0 + 24 * HOUR - 1).price, 7900);
+  const long = { ...pick, endsAt: iso(OD_T0 + 5 * 24 * HOUR) };
+  assert.equal(odPickPublic(long, OD_T0 + 24 * HOUR), null, '가격 확인 24시간이 지나면 카드가 내려감');
+  assert.equal(odPickPublic(long, OD_T0 + HOUR).visibleUntil, iso(OD_T0 + 24 * HOUR));
+  const noPrice = { ...long, price: null, priceCheckedAt: '' };
+  assert.equal(odPickPublic(noPrice, OD_T0 + 2 * 24 * HOUR).price, null, '가격 없는 카드는 남음');
+  assert.equal(odPickPublic(noPrice, OD_T0 + 2 * 24 * HOUR).visibleUntil, iso(OD_T0 + 5 * 24 * HOUR));
+  assert.equal(odPickPublic({ ...pick, hidden: true }, OD_T0), null);
+  assert.equal(odPickPublic(pick, OD_T0 + 3 * 24 * HOUR), null);
+  // 화면 재검사
+  const now = OD_T0 + HOUR;
+  assert.equal(odClientPick(pub, now).price, 7900);
+  assert.equal(odClientPick({ ...pub, priceUntil: iso(OD_T0 + 30 * HOUR) }, now), null, '24시간보다 긴 가격 기한은 믿지 않음 (카드째 뺌)');
+  assert.equal(odClientPick({ ...pub, priceUntil: iso(now - 1) }, now), null);
+  assert.equal(odClientPick({ ...pub, price: null, priceCheckedAt: '', priceUntil: '' }, now).price, null, '가격 없는 카드는 그대로');
+  for (const over of [{ url: 'https://www.coupang.com/vp/products/1' }, { url: 'https://link.coupang.com/a/x?lptag=AF0000001' }, { id: 'x' }, { category: 'x' },
+    { visibleUntil: iso(now - 1) }, { visibleUntil: iso(now + 40 * 24 * HOUR) }, { title: '' }]) {
+    assert.equal(odClientPick({ ...pub, ...over }, now), null, JSON.stringify(over));
+  }
+});

@@ -1,6 +1,6 @@
 // 온라인 특가 관리: 공급처 연결 상태·모드, 보류 사유, 숨김·분류 지정, 운영 규칙, 실행 기록.
 // 운영자는 예외와 규칙만 다룬다. 상품을 직접 입력하는 기능은 두지 않는다.
-import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES } from './online-deals-core.js?v=20261105-2';
+import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS } from './online-deals-core.js?v=20261105-3';
 
 const root = document.querySelector('#onlineDealsManager');
 const API = window.AMONG_CONFIG?.apiUrl || '';
@@ -15,9 +15,24 @@ const kst = iso => {
 const lines = v => String(v || '').split('\n').map(s => s.trim()).filter(Boolean);
 let data = null, busy = false;
 
-root.innerHTML = `<div class="od-admin-heading"><div><h2>온라인 특가 자동화</h2><p>승인된 공급처의 상품을 자동으로 확인·게시합니다. 운영자는 공급처 모드, 보류된 예외, 규칙만 관리합니다. 시각은 한국 시간입니다.</p></div><a href="./?view=onlineDeals" target="_blank" rel="noopener">공개 화면 ↗</a></div>
+root.innerHTML = `<div class="od-admin-heading"><div><h2>온라인 특가</h2><p>쿠팡 파트너스 최종 승인 전에는 직접 고른 상품의 간편 링크를 카드로 올리고, 승인 뒤에는 공급처 상품을 자동으로 확인·게시합니다. 시각은 한국 시간입니다.</p></div><a href="./?view=onlineDeals" target="_blank" rel="noopener">공개 화면 ↗</a></div>
   <p id="odAdminMessage" class="od-admin-message" role="status">${DEMO ? '예시 모드에서는 온라인 특가 관리를 불러올 수 없어요.' : '상단 관리 토큰으로 불러오기를 눌러 주세요.'}</p>
   <div id="odAdminContent" hidden>
+    <section class="od-picks-admin" aria-labelledby="odPicksAdminTitle"><h3 id="odPicksAdminTitle">직접 고른 쿠팡 특가</h3>
+      <p class="muted">게시판 등에서 찾은 상품을 쿠팡 파트너스 '간편 링크'로 만들어 붙여 넣으면 공개 화면에 쿠폰 모양 카드로 올라가요. 공개 화면에는 상품명·항목·한 줄 설명·확인한 가격만 보이고(가격을 넣은 카드는 확인 후 24시간 뒤 자동으로 내려감, '다시 확인'하면 다시 24시간), 정보 출처 메모는 여기에만 남아요. 최종 승인 뒤에는 쿠팡 API 자동 확인으로 바꿉니다.</p>
+      <form id="odPickForm" class="od-pick-form" novalidate><input type="hidden" name="id">
+        <label class="wide">상품명<input name="title" maxlength="80" autocomplete="off" placeholder="예: 삼다수 2L × 12병"></label>
+        <label class="wide">쿠팡 파트너스 간편 링크<input name="url" inputmode="url" autocomplete="off" placeholder="https://link.coupang.com/a/…"></label>
+        <label>항목<select name="category">${Object.entries(OD_PICK_CATEGORIES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+        <label>지금 확인한 가격 (선택)<input name="price" inputmode="numeric" autocomplete="off" placeholder="예: 12900"></label>
+        <label class="wide">한 줄 설명 (선택 · 공개)<input name="note" maxlength="60" autocomplete="off" placeholder="예: 와우회원 가격 · 로켓배송"></label>
+        <label>노출 종료일<input name="ends" type="date"></label>
+        <label>정보 출처 메모 (관리자만)<input name="memo" maxlength="200" autocomplete="off" placeholder="예: 에펨코리아 핫딜 11/5"></label>
+        <label class="od-check wide"><input type="checkbox" name="recheck">가격을 방금 쿠팡에서 다시 확인했어요 (확인 시각을 지금으로)</label>
+        <div class="wide od-pick-actions"><button type="submit" class="primary" id="odPickSubmit">카드 등록</button><button type="button" id="odPickCancel" hidden>수정 취소</button></div>
+      </form>
+      <div id="odPicks" class="od-items"></div></section>
+    <h3>자동 확인 (쿠팡 API · 승인 후)</h3>
     <div id="odSuppliers" class="od-suppliers"></div>
     <p id="odCounts" class="od-counts"></p>
     <div class="od-toolbar"><label>목록<select id="odFilter"><option value="held">보류</option><option value="published">게시 중</option><option value="scheduled">시작 전</option><option value="hidden">운영자 숨김</option><option value="old">종료·재확인 기한 지남</option><option value="all">전체</option></select></label>
@@ -103,10 +118,34 @@ function runs() {
     + (data.runs.map(r => `<tr><td>${esc(kst(r.started_at || r.finished_at))}</td><td>${esc(r.trigger)}</td><td>${esc(String(r.results || '').split(' ').map(x => { const [id, res] = x.split(':'); return `${id} ${OD_RESULTS[res] || res || ''}`; }).join(', '))}</td><td class="n">${esc(r.received)}</td><td class="n">${esc(r.published)}</td><td class="n">${esc(r.held)}</td><td class="err-text">${esc(r.errors)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">실행 기록이 없어요.</td></tr>') + '</tbody>';
 }
 
+const kstDay = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10);
+function resetPickForm() {
+  const f = $('#odPickForm');
+  f.reset(); f.elements.id.value = '';
+  f.elements.ends.value = kstDay(Date.now() + OD_PICK_DEFAULT_DAYS * 864e5);
+  $('#odPickSubmit').textContent = '카드 등록'; $('#odPickCancel').hidden = true;
+}
+function pickRows() {
+  const now = Date.now();
+  $('#odPicks').innerHTML = (data.picks || []).map(p => {
+    const state = p.hidden ? '숨김' : p.live ? '공개 중' : Date.parse(p.endsAt) > now && p.price != null ? '가격 다시 확인 필요' : '노출 끝남';
+    const price = p.price == null ? '가격 없음' : p.price_fresh ? `${p.price}원 · ${kst(p.priceCheckedAt)} 확인` : `${p.price}원 (확인 후 24시간 지나 공개 화면에서 내려감 · ${kst(p.priceCheckedAt)} 확인 — '수정·가격 갱신'으로 다시 올리기)`;
+    const confirm = pendingDelete === p.id;
+    return `<article class="od-item" data-pick-id="${esc(p.id)}"><div class="od-item-top"><span class="pill ${p.live ? 'good' : p.hidden ? '' : 'warn'}">${state}</span><b>${esc(p.title)}</b></div>
+      <p>${esc(OD_PICK_CATEGORIES[p.category] || p.category)} · ${esc(price)} · ${esc(kstDay(Date.parse(p.endsAt)))}까지${Date.parse(p.endsAt) <= now ? ' (끝남)' : ''}${p.note ? ` · ${esc(p.note)}` : ''}</p>
+      ${p.memo ? `<p class="muted">출처 메모: ${esc(p.memo)}</p>` : ''}
+      <div class="od-item-actions"><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer sponsored">링크 확인 ↗</a>
+        <button type="button" data-pick-edit>수정·가격 갱신</button><button type="button" data-pick-hide>${p.hidden ? '다시 보이기' : '숨기기'}</button>
+        <button type="button" data-pick-delete class="${confirm ? 'danger' : ''}">${confirm ? '정말 삭제' : '삭제'}</button></div></article>`;
+  }).join('') || '<p class="muted">아직 올린 카드가 없어요.</p>';
+}
+let pendingDelete = '';
 function render(j, note) {
   data = j;
   $('#odAdminContent').hidden = false;
-  suppliers(); items(); rules(); runs();
+  pendingDelete = '';
+  if (!$('#odPickForm').elements.id.value) resetPickForm();
+  pickRows(); suppliers(); items(); rules(); runs();
   message(note || `불러왔어요. ${data.lock ? `실행 중 (${kst(data.lock.until)}까지 잠금)` : ''}`);
 }
 
@@ -122,6 +161,24 @@ const load = () => { if (!DEMO) act(null); };
 
 root.addEventListener('click', e => {
   const t = e.target;
+  const pick = t.closest('[data-pick-id]');
+  if (pick) {
+    const p = (data?.picks || []).find(x => x.id === pick.dataset.pickId);
+    if (!p) return;
+    if (t.matches('[data-pick-edit]')) {
+      const f = $('#odPickForm');
+      f.elements.id.value = p.id; f.elements.title.value = p.title; f.elements.url.value = p.url; f.elements.category.value = p.category; f.elements.note.value = p.note || '';
+      f.elements.price.value = p.price ?? ''; f.elements.memo.value = p.memo || ''; f.elements.ends.value = kstDay(Date.parse(p.endsAt)); f.elements.recheck.checked = false;
+      $('#odPickSubmit').textContent = '수정 저장'; $('#odPickCancel').hidden = false;
+      f.scrollIntoView({ block: 'start' }); f.elements.title.focus();
+    } else if (t.matches('[data-pick-hide]')) act({ op: 'pick_hide', id: p.id, hidden: !p.hidden }, p.hidden ? '다시 보이게 했어요.' : '숨겼어요.');
+    else if (t.matches('[data-pick-delete]')) {
+      // 브라우저 확인 창 대신 같은 버튼을 한 번 더 누르게 한다
+      if (pendingDelete !== p.id) { pendingDelete = p.id; pickRows(); return; }
+      act({ op: 'pick_delete', id: p.id }, '삭제했어요.');
+    }
+    return;
+  }
   const item = t.closest('[data-od-id]');
   if (t.matches('[data-od-mode-save]')) {
     const id = t.dataset.odModeSave;
@@ -135,6 +192,20 @@ root.addEventListener('click', e => {
     act({ op: 'category', id: item.dataset.odId, category: item.querySelector('[data-od-cat]').value, until: day ? new Date(`${day}T23:59:59+09:00`).toISOString() : '' }, '분류를 저장했어요.');
   }
 });
+$('#odPickForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  const day = f.elements.ends.value;
+  const editing = !!f.elements.id.value;
+  act({ op: 'pick_save', pick: {
+    id: f.elements.id.value || undefined, title: f.elements.title.value, url: f.elements.url.value.trim(), category: f.elements.category.value, note: f.elements.note.value,
+    price: f.elements.price.value.replace(/[,\s원]/g, ''), memo: f.elements.memo.value, recheck: f.elements.recheck.checked,
+    endsAt: day ? new Date(`${day}T23:59:59+09:00`).toISOString() : '',
+  } }, editing ? '수정했어요. 공개 화면에는 1분 안에 반영돼요.' : '카드를 올렸어요. 공개 화면에는 1분 안에 반영돼요.').then(() => {
+    if (!$('#odAdminMessage').classList.contains('bad')) resetPickForm();
+  });
+});
+$('#odPickCancel').addEventListener('click', resetPickForm);
 $('#odRulesForm').addEventListener('submit', e => {
   e.preventDefault();
   const f = new FormData(e.target);

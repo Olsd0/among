@@ -425,3 +425,79 @@ export function odShippingText(it) {
   if (it.shipping === 'conditional') return it.shippingThreshold ? `${it.shippingThreshold}원 이상 구매 시 무료배송` : '조건부 무료배송 (조건 확인 필요)';
   return '배송비 확인 필요';
 }
+
+// ---------- 직접 고른 쿠팡 특가 (11/05 대표 결정: 최종 승인 전에는 대표가 고른 상품의 간편 링크를 카드로 올리고, 승인 후 API로 자동) ----------
+// 상품 선별 정보는 운영자가 어디서 얻든(게시판 등) 공개 화면에는 상품명·쿠팡 링크·항목·한 줄 설명·확인한 가격만 싣는다.
+// 가격을 넣은 카드는 운영자가 확인한 시각과 함께 24시간만 보이고 그 뒤 자동으로 내려간다 (11/05 14:56 대표 결정, '다시 확인'하면 다시 24시간).
+// 가격 없이 올린 카드는 '쿠팡에서 가격 확인'으로 노출 종료일까지 보인다.
+export const OD_PICK_CATEGORIES = { food: '먹거리', household: '생활용품', etc: '기타' };
+export const OD_PICK_PRICE_HOURS = 24;
+export const OD_PICK_DEFAULT_DAYS = 1;
+export const OD_PICK_MAX_DAYS = 30;
+export const OD_PICK_MAX = 60;
+const OD_PICK_LINK = /^https:\/\/link\.coupang\.com\/[A-Za-z0-9/_-]+$/;
+
+/** 관리 화면 입력 → 저장 형식. 잘못된 값은 고치지 않고 오류로 돌려준다 */
+export function odPickInput(raw, now, prev) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const p = prev || {};
+  const errors = [];
+  const title = odText(r.title, 81);
+  if (title.length < 2 || title.length > 80) errors.push('상품명은 2~80자로 입력하세요.');
+  const url = odLink(odText(r.url, 301), 'coupang');
+  if (!url || !OD_PICK_LINK.test(url)) errors.push('쿠팡 파트너스 간편 링크(https://link.coupang.com/a/…)를 넣으세요.');
+  const category = OD_PICK_CATEGORIES[r.category] ? r.category : '';
+  if (!category) errors.push('항목을 고르세요.');
+  const note = odText(r.note, 61);
+  if (note.length > 60) errors.push('한 줄 설명은 60자 이내로 입력하세요.');
+  const memo = odText(r.memo, 200);
+  let price = null;
+  if (r.price !== '' && r.price !== null && r.price !== undefined) {
+    const t = String(r.price).trim();
+    const n = typeof r.price === 'number' ? r.price : /^\d+$/.test(t) ? Number(t) : NaN;
+    if (!Number.isSafeInteger(n) || n < 100 || n > 10000000) errors.push('가격은 100원~1000만원 사이 숫자로 입력하세요.');
+    else price = n;
+  }
+  const ends = r.endsAt ? odMs_(odIso_(r.endsAt)) : (p.endsAt ? odMs_(p.endsAt) : now + OD_PICK_DEFAULT_DAYS * OD_DAY);
+  if (!Number.isFinite(ends) || ends <= now || ends > now + OD_PICK_MAX_DAYS * OD_DAY) errors.push('노출 종료는 지금부터 30일 안으로 정하세요.');
+  if (errors.length) return { errors, pick: null };
+  const at = new Date(now).toISOString();
+  // 가격을 새로 넣거나 바꾸거나 '다시 확인'을 누르면 지금 확인한 것으로 본다. 같은 가격으로 다른 칸만 고치면 처음 확인 시각을 유지한다.
+  const priceCheckedAt = price === null ? '' : (r.recheck === true || price !== p.price || !p.priceCheckedAt ? at : p.priceCheckedAt);
+  return { errors, pick: { id: p.id || '', title, url, category, note, memo, price, priceCheckedAt, endsAt: new Date(ends).toISOString(),
+    hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
+}
+
+/** 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료·가격 확인 24시간 지남이면 null */
+export function odPickPublic(p, now) {
+  if (!p || p.hidden || !(odMs_(p.endsAt) > now)) return null;
+  const priced = !!odPosInt_(p.price);
+  const until = odMs_(p.priceCheckedAt) + OD_PICK_PRICE_HOURS * OD_HOUR;
+  if (priced && !(until > now)) return null;
+  const visible = priced ? Math.min(odMs_(p.endsAt), until) : odMs_(p.endsAt);
+  return { id: p.id, title: p.title, url: p.url, category: p.category, note: p.note || '',
+    price: priced ? p.price : null, priceCheckedAt: priced ? p.priceCheckedAt : '', priceUntil: priced ? new Date(until).toISOString() : '',
+    visibleUntil: new Date(visible).toISOString() };
+}
+
+/** 화면에서 다시 검사. 통과하지 못하면 null, 가격 기한이 지났거나 맞지 않으면 가격만 뺀다 */
+export function odClientPick(raw, now) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = typeof raw.id === 'string' && /^pk_[0-9a-z]{8,24}$/.test(raw.id) ? raw.id : '';
+  const title = odText(raw.title, 81), note = odText(raw.note, 61);
+  const url = odLink(raw.url, 'coupang');
+  const until = odMs_(odIso_(raw.visibleUntil));
+  if (!id || title.length < 2 || title.length > 80 || note.length > 60 || !url || !OD_PICK_LINK.test(url) || !OD_PICK_CATEGORIES[raw.category]) return null;
+  if (!Number.isFinite(until) || until <= now || until > now + (OD_PICK_MAX_DAYS + 1) * OD_DAY) return null;
+  let price = null, checked = NaN, priceUntil = 0;
+  if (raw.price !== null && raw.price !== undefined && raw.price !== '') {
+    // 가격이 있는 카드는 확인 시각부터 24시간 안이어야 보인다 (기한이 맞지 않으면 카드째 뺀다)
+    checked = odMs_(odIso_(raw.priceCheckedAt)); priceUntil = odMs_(odIso_(raw.priceUntil));
+    const fresh = odPosInt_(raw.price) && Number.isFinite(checked) && checked <= now + 5 * 60000 && Number.isFinite(priceUntil)
+      && priceUntil > now && priceUntil <= checked + OD_PICK_PRICE_HOURS * OD_HOUR;
+    if (!fresh) return null;
+    price = raw.price;
+  }
+  return { id, title, url, category: raw.category, note, affiliate: true,
+    price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price ? Math.min(until, priceUntil) : until };
+}

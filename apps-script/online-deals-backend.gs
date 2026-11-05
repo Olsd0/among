@@ -58,6 +58,33 @@ function odCounts_(ev, supplier) {
   return c;
 }
 
+// ============ 직접 고른 쿠팡 특가 (online_picks) ============
+
+function odReadPicks_() {
+  return readTable_('online_picks').rows.filter(function (r) { return /^pk_[0-9a-z]{8,24}$/.test(String(r.id)); }).map(function (r) {
+    return {
+      id: r.id, title: odUncell_(r.title), url: String(r.url), category: String(r.category), note: odUncell_(r.note), memo: odUncell_(r.memo),
+      price: r.price === '' || r.price == null ? null : Number(r.price), priceCheckedAt: String(r.price_checked_at || ''), endsAt: String(r.ends_at || ''),
+      hidden: String(r.hidden).toUpperCase() === 'TRUE', createdAt: String(r.created_at || ''), updatedAt: String(r.updated_at || ''),
+    };
+  });
+}
+function odWritePicks_(picks) {
+  const now = Date.now();
+  // 노출이 끝난 지 30일 지난 것은 정리한다 (숨김도 같은 기준)
+  const keep = picks.filter(function (p) { return Date.parse(p.endsAt) > now - OD_PICK_MAX_DAYS * OD_DAY; });
+  writeTable_(sheet_('online_picks'), SHEETS.online_picks, keep.map(function (p) {
+    return {
+      id: p.id, status: p.hidden ? 'hidden' : Date.parse(p.endsAt) > now ? 'published' : 'ended',
+      title: odCell_(p.title), url: p.url, category: p.category, note: odCell_(p.note), price: p.price == null ? '' : p.price,
+      price_checked_at: p.priceCheckedAt || '', ends_at: p.endsAt, hidden: p.hidden ? 'TRUE' : '', memo: odCell_(p.memo),
+      created_at: p.createdAt, updated_at: p.updatedAt,
+    };
+  }));
+  CacheService.getScriptCache().remove(OD_CACHE_KEY);
+}
+const odNewest_ = function (a, b) { return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0; };
+
 // ============ 공개 ============
 
 /** 게시 중인 상품만. 상태는 읽을 때 다시 계산하므로 기한이 지난 상품은 새 수집 없이도 빠진다. */
@@ -77,7 +104,9 @@ function getOnlineDeals_() {
   const pubs = Object.keys(ctx.suppliers).map(function (id) { return ctx.suppliers[id]; }).filter(function (s) { return s.mode === 'publish' && s.lastSuccessAt; });
   const recent = pubs.some(function (s) { return Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR; });
   const state = items.length || recent ? 'live' : pubs.length ? 'delayed' : 'preparing';
-  const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, disclosures: disclosures };
+  const picks = odReadPicks_().sort(odNewest_).map(function (p) { return odPickPublic(p, ctx.now); }).filter(Boolean).slice(0, OD_PICK_MAX);
+  if (picks.length && disclosures.indexOf(OD_SUPPLIERS.coupang.disclosure) < 0) disclosures.unshift(OD_SUPPLIERS.coupang.disclosure);
+  const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, picks: picks, disclosures: disclosures };
   try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
   return out;
 }
@@ -193,6 +222,10 @@ function odAdmin_() {
       };
     }),
     runs: runs,
+    picks: odReadPicks_().sort(odNewest_).map(function (p) {
+      const pub = odPickPublic(p, ctx.now);
+      return Object.assign({}, p, { live: !!pub, price_fresh: !!(pub && pub.price) });
+    }),
   };
 }
 
@@ -228,6 +261,26 @@ function odAdminSet_(b) {
       rec.overrideUntil = cat && Number.isFinite(until) ? new Date(until).toISOString() : '';
     }
     odWriteRecords_(records, odCtx_());
+  } else if (op === 'pick_save') {
+    const picks = odReadPicks_();
+    const id = b.pick && b.pick.id ? String(b.pick.id) : '';
+    const prev = id ? picks.filter(function (p) { return p.id === id; })[0] : null;
+    if (id && !prev) throw new Error('카드를 찾을 수 없어요. 목록을 새로고침해 주세요.');
+    if (!prev && picks.length >= 200) throw new Error('카드가 너무 많아요. 끝난 카드를 지운 뒤 다시 등록하세요.');
+    const res = odPickInput(b.pick, now, prev);
+    if (res.errors.length) throw new Error(res.errors.join(' '));
+    if (!prev) {
+      res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
+      picks.push(res.pick);
+    } else picks[picks.indexOf(prev)] = res.pick;
+    odWritePicks_(picks);
+  } else if (op === 'pick_hide' || op === 'pick_delete') {
+    const picks = odReadPicks_();
+    const prev = picks.filter(function (p) { return p.id === b.id; })[0];
+    if (!prev) throw new Error('카드를 찾을 수 없어요. 목록을 새로고침해 주세요.');
+    if (op === 'pick_hide') { prev.hidden = b.hidden === true; prev.updatedAt = new Date(now).toISOString(); }
+    else picks.splice(picks.indexOf(prev), 1);
+    odWritePicks_(picks);
   } else if (op === 'rerun') {
     const p = PropertiesService.getScriptProperties();
     const last = Number(p.getProperty('ONLINE_RERUN_MS') || 0);

@@ -251,3 +251,45 @@ test('보관: 실행 기록은 최근 것만, 7일간 다시 받지 못한 상�
   await run(b, null);
   assert.ok(b.gas.sheet('online_runs').objects().length <= 500);
 });
+
+test('직접 고른 쿠팡 특가: 관리 토큰으로 등록·수정·숨김·삭제, 공개 응답엔 메모 없이, 가격 카드는 확인 후 24시간만', async () => {
+  const b = boot();
+  const save = pick => b.adminSet({ op: 'pick_save', pick });
+  const bad = save({ title: '테스트 생수', url: 'https://www.coupang.com/vp/products/1', category: 'food' });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error, /간편 링크/);
+  const r = save({ title: '=HYPERLINK("x") 테스트 생수', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', note: '와우회원 가격', price: '7900', memo: '에펨코리아 핫딜 11/5' });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.picks.length, 1);
+  const id = r.picks[0].id;
+  assert.match(id, /^pk_[0-9a-f]{16}$/);
+  assert.ok(b.gas.sheet('online_picks').objects()[0].title.startsWith("'="), '시트 수식 무력화');
+  let pub = pub_(b);
+  assert.equal(pub.picks.length, 1);
+  assert.equal(pub.picks[0].title, '=HYPERLINK("x") 테스트 생수');
+  assert.equal(pub.picks[0].price, 7900);
+  assert.ok(!JSON.stringify(pub).includes('에펨코리아'), '출처 메모 비공개');
+  assert.deepEqual(pub.disclosures, ['이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.']);
+  assert.equal(pub.picks[0].visibleUntil, new Date(OD_T0 + 24 * HOUR).toISOString(), '기본 노출은 하루, 가격 확인 24시간과 같음');
+  later(b, 23 * HOUR);
+  assert.equal(pub_(b).picks[0].price, 7900, '23시간 뒤에는 그대로');
+  save({ id, title: '테스트 생수', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', price: '7900', endsAt: new Date(OD_T0 + 5 * 24 * HOUR).toISOString() });
+  later(b, HOUR);
+  assert.equal(pub_(b).picks.length, 0, '노출 종료일을 늘려도 가격 확인 24시간이 지나면 카드가 내려감');
+  assert.equal(b.adminGet().picks[0].live, false);
+  save({ id, title: '테스트 생수', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', price: '7900', recheck: true });
+  assert.equal(pub_(b).picks[0].price, 7900, '다시 확인하면 다시 24시간');
+  save({ id, title: '테스트 생수', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', price: '' });
+  later(b, 30 * HOUR);
+  assert.equal(pub_(b).picks[0].price, null, '가격 없이 올린 카드는 노출 종료일까지');
+  assert.equal(b.adminSet({ op: 'pick_hide', id, hidden: true }).ok, true);
+  assert.equal(pub_(b).picks.length, 0);
+  b.adminSet({ op: 'pick_hide', id, hidden: false });
+  assert.equal(pub_(b).picks.length, 1);
+  assert.equal(b.gas.post({ action: 'online_admin_set', token: b.token, op: 'pick_delete', id }).error, 'unauthorized', '수집기 토큰으로는 못 바꿈');
+  assert.equal(b.adminSet({ op: 'pick_delete', id }).ok, true);
+  assert.equal(pub_(b).picks.length, 0);
+  assert.equal(b.adminSet({ op: 'pick_delete', id }).ok, false);
+  assert.equal(b.adminSet({ op: 'pick_save', pick: { id: 'pk_ffffffffffffffff', title: '없는 카드', url: 'https://link.coupang.com/a/x', category: 'food' } }).ok, false);
+});
+function pub_(b) { b.gas.cache.clear(); return b.gas.get({ action: 'online_deals' }); }

@@ -31,5 +31,16 @@
 .od-rule-grid label { display: grid; gap: 6px; font-size: 13px; min-width: 0; }
 .od-rule-grid textarea { width: 100%; min-width: 0; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 8px; resize: vertical; }
 #onlineDealsManager h3 { font-size: 15px; margin: 18px 0 8px; }
+.od-picks-admin { margin: 14px 0 20px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.od-picks-admin h3 { margin-top: 0 !important; }
+.od-picks-admin > p { margin: 0 0 12px; font-size: 13px; max-width: 70ch; }
+.od-pick-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.od-pick-form label { display: grid; gap: 5px; font-size: 13px; min-width: 0; }
+.od-pick-form label.wide, .od-pick-form .wide { grid-column: 1 / -1; }
+.od-pick-form label.od-check { display: flex; }
+.od-pick-form input:not([type=checkbox]), .od-pick-form select { width: 100%; min-width: 0; }
+.od-pick-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#onlineDealsManager button.danger { color: var(--bad); border-color: var(--bad); font-weight: 700; }
+@media (max-width: 600px) { .od-pick-form { grid-template-columns: 1fr; } }
 #onlineDealsManager button { min-height: 40px; }
 @media (max-width: 600px) { .od-rule-grid { grid-template-columns: 1fr; } }

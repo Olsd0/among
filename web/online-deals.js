@@ -1,7 +1,7 @@
 // 온라인 특가 화면 (선택해서 열 때만 불러옴). 프랜차이즈 쿠폰 데이터와 섞지 않는다.
 // 상품은 승인된 공급처에서 자동으로 확인해 검증을 통과한 것만 Apps Script가 내려 준다.
 // 서버 응답도 그대로 믿지 않고 같은 규칙(online-deals-core.js)으로 다시 검사한다.
-import { OD_CATEGORIES, OD_SUPPLIERS, odClientItem, odShippingText, odLink, odIsAffiliateLink } from './online-deals-core.js?v=20261105-2';
+import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink } from './online-deals-core.js?v=20261105-3';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 // 항목별 바로가기 (11/05 대표 요청: 자취에 필요한 물품을 항목별로). 쿠팡 검색 결과 페이지로 보낸다 — AMONG이 고른 상품·가격이 아니다.
@@ -31,6 +31,16 @@ export function normalizeOnlineDeals(payload, now = Date.now()) {
   }).slice(0, 60);
 }
 
+/** 직접 고른 쿠팡 특가 (최종 승인 전 대표가 관리 화면에서 올린 간편 링크) — 검사 통과·중복 제거·최대 60개 */
+export function normalizePicks(payload, now = Date.now()) {
+  if (!payload || !Array.isArray(payload.picks)) return [];
+  const seen = new Set();
+  return payload.picks.slice(0, 100).map(row => odClientPick(row, now)).filter(p => {
+    if (!p || seen.has(p.id)) return false;
+    seen.add(p.id); return true;
+  }).slice(0, 60);
+}
+
 const kst = value => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value));
 
 export function onlineDealCard(item) {
@@ -48,6 +58,17 @@ export function onlineDealCard(item) {
     <p class="od-checked">${esc(kst(item.checkedAt))} 확인${item.endsAt ? ` · 행사 종료 ${esc(kst(item.endsAt))}` : ''} · 한국 시간</p>
     <div class="od-product-links"><a class="od-product-cta" href="${esc(item.url)}" target="_blank" rel="${rel}">${esc(sp.cta)} <span aria-hidden="true">↗</span><span class="od-sr-only"> (새 탭)</span></a></div></div>
   </article>`;
+}
+
+export function pickCard(p) {
+  const stub = p.price
+    ? `<b>${p.price}<small>원</small></b><span>${esc(kst(p.priceCheckedAt))} 확인</span>`
+    : '<b class="q">가격</b><span>쿠팡에서 확인</span>';
+  return `<li><a class="od-pick-card" data-od-pick="${esc(p.id)}" href="${esc(p.url)}" target="_blank" rel="sponsored noopener noreferrer">
+    <span class="od-pick-stub od-pc-${esc(p.category)}">${stub}</span>
+    <span class="od-pick-body"><span class="od-pick-top"><span>쿠팡 · ${esc(OD_PICK_CATEGORIES[p.category])}</span><span class="od-ad-label">제휴광고</span></span>
+    <span class="od-pick-title">${esc(p.title)}</span>${p.note ? `<span class="od-pick-line">${esc(p.note)}</span>` : ''}
+    <span class="od-pick-cta">쿠팡에서 보기 <span aria-hidden="true">↗</span><span class="od-sr-only"> (새 탭)</span></span></span></a></li>`;
 }
 
 function loadStyles() {
@@ -80,21 +101,25 @@ export function createOnlineDealsUI(root, options = {}) {
   const shortcuts = shortcutLinks(options.shortcutLinks);
   const shortcutAffiliate = shortcuts.some(g => g.items.some(i => i.affiliate));
   const rel = affiliate => (affiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer');
-  let payload = { items: [] }, active = false, loaded = false, loading = false, failed = false;
+  let payload = { items: [], picks: [] }, active = false, loaded = false, loading = false, failed = false;
   let request = null, expiryTimer = 0, controller = null, destroyed = false;
   root.classList.add('od-view');
   root.setAttribute('aria-labelledby', 'onlineDealsTitle');
   root.innerHTML = `<div class="od-heading"><p class="od-eyebrow">필요한 장보기도, 한곳에서</p><h2 id="onlineDealsTitle">온라인 특가</h2><p>식품·생활용품 혜택을 가볍게 둘러보세요.</p></div>
     <div class="od-disclosure" hidden></div>
+    <section class="od-picks" aria-labelledby="odPicksTitle"><div class="od-list-heading"><h3 id="odPicksTitle">AMONG이 고른 쿠팡 특가</h3><p class="od-pick-count"></p></div>
+      <div class="od-status" role="status" aria-live="polite"></div><ul class="od-picks-list" role="list"></ul>
+      <p class="od-pick-note" hidden>가격은 AMONG이 확인한 시각 기준이며, 확인 후 24시간이 지나면 카드가 내려가요. 최종 가격·옵션·배송비는 쿠팡에서 확인하세요.</p></section>
     <section class="od-shortcuts" aria-labelledby="odShortcutsTitle"><div class="od-shortcuts-head"><h3 id="odShortcutsTitle">자취 필수품, 항목별로</h3>${shortcutAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div>
       <p>누르면 쿠팡의 해당 항목 검색 결과로 이동해요. 가격과 배송 조건은 쿠팡에서 확인하세요.</p>
       ${shortcuts.map(g => `<div class="od-sc-group"><h4>${esc(g.group)}</h4><div class="od-sc-grid">${g.items.map(i => `<a class="od-sc" data-od-shortcut="${esc(i.key)}" href="${esc(i.url)}" target="_blank" rel="${rel(i.affiliate)}">${esc(i.label)}<span aria-hidden="true">↗</span><span class="od-sr-only"> 쿠팡에서 보기 (새 탭)</span></a>`).join('')}</div></div>`).join('')}
     </section>
     <article class="od-official-entry"><div class="od-entry-top"><span class="od-entry-label">쿠팡 공식 특가 바로가기</span><span class="od-membership">와우회원 전용</span>${goldboxAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div><h3>오늘의 골드박스</h3><p>지금 진행 중인 특가 상품과<br>회원 혜택을 쿠팡에서 확인하세요.</p><a href="${esc(goldbox)}" target="_blank" rel="${rel(goldboxAffiliate)}">쿠팡에서 특가 보기 <span aria-hidden="true">↗</span><span class="od-sr-only"> (새 탭)</span></a></article>
-    <div class="od-list-heading"><h3>확인한 상품</h3><p class="od-count"></p></div><div class="od-status" role="status" aria-live="polite"></div>
-    <div class="od-products-list"></div><p class="od-price-note" hidden>표시 가격은 확인 당시 기준이에요. 옵션·회원 여부·쿠폰·배송비에 따라 최종 결제 금액이 달라질 수 있어요. 구매 전 판매처에서 꼭 확인해 주세요.</p>
+    <section class="od-auto" hidden><div class="od-list-heading"><h3>자동으로 확인한 상품</h3><p class="od-count"></p></div>
+    <div class="od-products-list"></div><p class="od-price-note">표시 가격은 확인 당시 기준이에요. 옵션·회원 여부·쿠폰·배송비에 따라 최종 결제 금액이 달라질 수 있어요. 구매 전 판매처에서 꼭 확인해 주세요.</p></section>
     <p class="od-footnote">주문과 결제는 각 판매처에서 진행돼요. AMONG은 가격을 보장하지 않아요.</p>`;
   const list = root.querySelector('.od-products-list');
+  const pickList = root.querySelector('.od-picks-list');
   const status = root.querySelector('.od-status');
 
   function render() {
@@ -102,24 +127,29 @@ export function createOnlineDealsUI(root, options = {}) {
     if (destroyed) return;
     let items = [];
     try { items = normalizeOnlineDeals(payload); } catch { /* 형식이 맞지 않으면 빈 목록 (쿠폰 화면에는 영향 없음) */ }
+    const picks = normalizePicks(payload);
     root.setAttribute('aria-busy', String(loading));
     // 제휴 링크가 있는 공급처의 고지 문구를 목록보다 먼저 보여 준다 (화면이 가진 목록 기준, 서버 문구를 그대로 쓰지 않음).
-    const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
+    const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate || picks.length ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
     const disclosure = root.querySelector('.od-disclosure');
     disclosure.hidden = !notes.length;
     disclosure.innerHTML = notes.map(n => `<p>${esc(n)}</p>`).join('');
     root.querySelector('.od-count').textContent = items.length ? `${items.length}개` : '';
-    root.querySelector('.od-price-note').hidden = !items.length;
+    root.querySelector('.od-auto').hidden = !items.length;
     list.innerHTML = items.map(onlineDealCard).join('');
+    root.querySelector('.od-pick-count').textContent = picks.length ? `${picks.length}개` : '';
+    root.querySelector('.od-pick-note').hidden = !picks.some(p => p.price);
+    pickList.innerHTML = picks.map(pickCard).join('');
+    const none = !items.length && !picks.length;
     if (loading) status.innerHTML = '<span>상품 정보를 확인하고 있어요…</span>';
     else if (failed) status.innerHTML = '<strong>상품 정보를 불러오지 못했어요.</strong><span>쿠폰 화면은 그대로 쓸 수 있어요.</span><button type="button" data-od-retry>다시 불러오기</button>';
-    else if (!items.length && payload.state === 'live') status.innerHTML = '<strong>지금 기준을 통과한 상품이 없어요.</strong><span>가격과 조건은 몇 시간마다 다시 확인해요.</span>';
-    else if (!items.length && payload.state === 'delayed') status.innerHTML = '<strong>상품 정보를 다시 확인하고 있어요.</strong><span>확인한 지 오래된 가격은 보여 드리지 않아요. 확인이 끝나면 다시 표시돼요.</span>';
-    else if (!items.length) status.innerHTML = '<strong>아직 자동으로 확인한 상품이 없어요.</strong><span>제휴 공급처 연결을 준비하고 있어요. 가격·조건을 확인한 상품만 보여 드릴게요.</span>';
+    else if (none && payload.state === 'live') status.innerHTML = '<strong>지금 기준을 통과한 상품이 없어요.</strong><span>가격과 조건은 몇 시간마다 다시 확인해요.</span>';
+    else if (none && payload.state === 'delayed') status.innerHTML = '<strong>상품 정보를 다시 확인하고 있어요.</strong><span>확인한 지 오래된 가격은 보여 드리지 않아요. 확인이 끝나면 다시 표시돼요.</span>';
+    else if (none) status.innerHTML = '<strong>아직 올라온 특가가 없어요.</strong><span>아래 항목별 바로가기로 쿠팡 상품을 먼저 둘러보세요.</span>';
     else status.innerHTML = '';
     status.hidden = !status.innerHTML;
-    if (active && items.length) {
-      const next = Math.min(...items.map(item => item.visibleUntil));
+    if (active && (items.length || picks.length)) {
+      const next = Math.min(...items.map(item => item.visibleUntil), ...picks.map(p => p.visibleUntil), ...picks.filter(p => p.priceUntil).map(p => p.priceUntil));
       expiryTimer = setTimeout(render, Math.max(1000, Math.min(next - Date.now() + 20, 2 ** 31 - 1)));
     }
   }
@@ -139,9 +169,9 @@ export function createOnlineDealsUI(root, options = {}) {
         const candidate = await response.json();
         if (candidate.ok === false) throw new Error('online_deals_unavailable');
         normalizeOnlineDeals(candidate);
-        payload = { items: candidate.items, state: ['live', 'delayed'].includes(candidate.state) ? candidate.state : 'preparing' }; loaded = true;
+        payload = { items: candidate.items, picks: Array.isArray(candidate.picks) ? candidate.picks : [], state: ['live', 'delayed'].includes(candidate.state) ? candidate.state : 'preparing' }; loaded = true;
       } catch {
-        payload = { items: [] }; failed = true;
+        payload = { items: [], picks: [] }; failed = true;
       } finally {
         clearTimeout(timeout); controller = null; request = null; loading = false; render();
       }

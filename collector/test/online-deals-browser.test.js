@@ -121,7 +121,7 @@ test('online trial loads only on entry and returning restores coupon search, fil
   assert.equal(await page.locator('#list').isVisible(), false);
   assert.equal(await page.locator('#onlineDeals .od-card').count(), 0);
   assert.equal(await page.locator('#onlineDeals .od-disclosure').isVisible(), false, 'ordinary links must not falsely claim affiliate commission');
-  assert.match(await page.locator('#onlineDeals .od-status').innerText(), /아직 자동으로 확인한 상품이 없어요/, 'honest empty state before any supplier is connected');
+  assert.match(await page.locator('#onlineDeals .od-status').innerText(), /아직 올라온 특가가 없어요/, 'honest empty state before any supplier is connected');
   assert.ok(!requests.some(url => /(?:partners\.)?coupang\.com/.test(new URL(url).hostname)), 'viewing the tab makes no advertising or destination-page requests');
   if (process.env.AMONG_QA_SCREENSHOT) await page.screenshot({ path: process.env.AMONG_QA_SCREENSHOT.replace('.png', '-online-empty.png'), fullPage: true });
   await page.locator('[data-view="all"]').click();
@@ -427,5 +427,94 @@ test('관리 화면: 승인 대기 표시, 보류 사유, 숨김·규칙 저장�
   const saved = posts.filter(p => p.op === 'rules').at(-1).rules;
   assert.deepEqual(saved.excludeKeywords, ['주류', '화장지']);
   assert.ok(!posts.some(p => p.token && p.action === 'online_deals'), '공개 조회에 토큰 없음');
+  assert.deepEqual(errors, []);
+});
+
+test('직접 고른 쿠팡 특가: 관리 화면에서 올리면 공개 화면에 쿠폰 모양 카드, 가격 카드는 확인 후 24시간 뒤 내려감', { timeout: 90000 }, async t => {
+  const { gas, admin, page, posts, errors } = await chain(t, { width: 390, batch: [], publish: false });
+  await page.goto(site.base + '/admin.html');
+  await page.locator('#token').fill(admin);
+  await page.getByRole('button', { name: '불러오기', exact: true }).click();
+  const box = page.locator('#onlineDealsManager');
+  await box.locator('#odAdminContent').waitFor();
+  const form = box.locator('#odPickForm');
+  await form.locator('[name="title"]').fill('테스트 화장지 30롤 × 2팩');
+  await form.locator('[name="url"]').fill('https://www.coupang.com/vp/products/1');
+  await form.locator('[name="category"]').selectOption('household');
+  await form.locator('[name="price"]').fill('15,900원');
+  await form.locator('[name="note"]').fill('와우회원 가격 · 로켓배송');
+  await form.locator('[name="memo"]').fill('에펨코리아 핫딜 11/5');
+  await box.getByRole('button', { name: '카드 등록', exact: true }).click();
+  await box.locator('#odAdminMessage.bad').filter({ hasText: '간편 링크' }).waitFor();
+  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 화장지 30롤 × 2팩', '오류면 입력 유지');
+  await form.locator('[name="url"]').fill('https://link.coupang.com/a/testTissue01');
+  await box.getByRole('button', { name: '카드 등록', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
+  assert.equal(await form.locator('[name="title"]').inputValue(), '', '등록하면 입력 칸 비움');
+  const row = box.locator('#odPicks [data-pick-id]');
+  assert.match(await row.innerText(), /공개 중[\s\S]*테스트 화장지[\s\S]*15900원[\s\S]*출처 메모: 에펨코리아 핫딜/);
+  assert.equal(posts.filter(p => p.op === 'pick_save').at(-1).pick.price, '15900', '쉼표·원 제거');
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `관리 ${width}px`);
+    if (process.env.AMONG_QA_DIR) { await box.locator('.od-picks-admin').scrollIntoViewIfNeeded(); await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-picks-admin-${width}.png`, fullPage: true }); }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  const card = page.locator('#onlineDeals .od-pick-card');
+  await card.waitFor();
+  assert.equal(await card.getAttribute('href'), 'https://link.coupang.com/a/testTissue01');
+  assert.equal(await card.getAttribute('rel'), 'sponsored noopener noreferrer');
+  assert.equal(await card.getAttribute('target'), '_blank');
+  const text = await card.innerText();
+  assert.match(text, /15900원/);
+  assert.match(text, /확인/);
+  assert.match(text, /쿠팡 · 생활용품/);
+  assert.match(text, /제휴광고/);
+  assert.match(text, /와우회원 가격 · 로켓배송/);
+  assert.doesNotMatch(await page.locator('#onlineDeals').innerText(), /에펨코리아|최저가/);
+  const disclosure = page.locator('#onlineDeals .od-disclosure');
+  assert.equal(await disclosure.isVisible(), true);
+  assert.ok(await disclosure.evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-pick-card')) & Node.DOCUMENT_POSITION_FOLLOWING)), '고지가 카드보다 먼저');
+  assert.ok(await card.evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-shortcuts')) & Node.DOCUMENT_POSITION_FOLLOWING)), '카드가 항목별 바로가기보다 먼저');
+  assert.equal(await page.locator('#onlineDeals .od-status').isVisible(), false, '카드가 있으면 빈 안내 없음');
+  for (const width of [320, 390, 430, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `공개 ${width}px`);
+    if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-picks-${width}.png`, fullPage: true });
+  }
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-picks-390-dark.png`, fullPage: true });
+  await page.emulateMedia({ colorScheme: 'light' });
+
+  // 가격 확인 24시간이 지나면 카드가 내려간다
+  gas.clock.now = OD_T0 + 24 * HOUR; gas.cache.clear();
+  await page.clock.setFixedTime(new Date(OD_T0 + 24 * HOUR + 60 * 1000));
+  await page.reload();
+  await page.locator('#onlineDeals .od-status').filter({ hasText: '아직 올라온 특가가 없어요' }).waitFor();
+  assert.equal(await card.count(), 0);
+
+  // 관리 화면: 가격 다시 확인 → 숨기기 → 삭제(두 번 눌러야)
+  await page.goto(site.base + '/admin.html');
+  await page.locator('#token').fill(admin);
+  await page.getByRole('button', { name: '불러오기', exact: true }).click();
+  await box.locator('#odPicks [data-pick-id]').waitFor();
+  assert.match(await box.locator('#odPicks').innerText(), /가격 다시 확인 필요[\s\S]*24시간 지나 공개 화면에서 내려감/);
+  await box.getByRole('button', { name: '수정·가격 갱신', exact: true }).click();
+  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 화장지 30롤 × 2팩');
+  await form.locator('[name="recheck"]').check();
+  await box.getByRole('button', { name: '수정 저장', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '수정했어요' }).waitFor();
+  assert.equal(gas.get({ action: 'online_deals' }).picks[0].price, 15900);
+  await box.getByRole('button', { name: '숨기기', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '숨겼어요' }).waitFor();
+  gas.cache.clear();
+  assert.equal(gas.get({ action: 'online_deals' }).picks.length, 0);
+  await box.getByRole('button', { name: '삭제', exact: true }).click();
+  await box.getByRole('button', { name: '정말 삭제', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '삭제했어요' }).waitFor();
+  assert.match(await box.locator('#odPicks').innerText(), /아직 올린 카드가 없어요/);
   assert.deepEqual(errors, []);
 });
