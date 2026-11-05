@@ -104,7 +104,8 @@ export function createOnlineDealsUI(root, options = {}) {
     if (request) return request;
     loading = true; failed = false; render();
     controller = new AbortController();
-    const timeout = setTimeout(() => controller?.abort(), 10000);
+    // Apps Script는 처음 깨어날 때 수 초가 걸려 쿠폰 조회와 같은 20초를 기다린다.
+    const timeout = setTimeout(() => controller?.abort(), 20000);
     request = Promise.resolve().then(async () => {
       try {
         if (!src) throw new Error('bad_source');

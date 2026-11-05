@@ -353,7 +353,7 @@ function showOnlineDeals() {
   const panel = $('#onlineDeals');
   panel.innerHTML = '<div class="empty" role="status">온라인 특가를 불러오고 있어요.</div>';
   // 코드·스타일·상품 JSON 모두 실제로 이 탭을 열 때만 요청한다.
-  onlineDealsLoading = import('./online-deals.js?v=20261105-1').then(({ createOnlineDealsUI }) => {
+  onlineDealsLoading = import('./online-deals.js?v=20261105-2').then(({ createOnlineDealsUI }) => {
     // 실제 상품은 Apps Script(online_deals)에서, 예시 모드는 같은 출처의 빈 JSON에서 읽는다.
     onlineDealsUI = createOnlineDealsUI(panel, { apiUrl: DEMO ? '' : API, dataUrl: CFG.onlineDeals.dataUrl });
     if (state.view === 'onlineDeals') onlineDealsUI.show();

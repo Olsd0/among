@@ -183,7 +183,7 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
 - **기간**: 실제 행사 종료와 AMONG 재확인 기한(마지막 수신 + 6시간)을 따로 두고 이른 쪽에서 내린다. 실패·빈 응답은 상품을 지우지 않고, 응답에 없는 상품도 품절로 보지 않는다. 운영자 숨김은 다시 받아도 유지.
 - **표시**: 확인 당시 가격, 배송비를 모르면 '배송비 확인 필요'(무료 표시 안 함), 조건 전체, 쿠팡 필수 고지 문구를 목록 위에, 상품마다 '제휴광고'·`rel=sponsored`. 최저가·할인율 없음. 사진은 이용 범위 확인 전 표시 안 함.
 - **비밀값**: 승인 후 GitHub Secrets `COUPANG_PARTNERS_ACCESS_KEY`·`COUPANG_PARTNERS_SECRET_KEY`·`LINKPRICE_API_KEY`에 대표가 직접 등록. 로그·시트·응답에 남지 않음을 테스트로 확인.
-- 바뀐 파일 버전: `app.js?v=20261105-1`, `online-deals.js`·`online-deals-core.js`·`online-deals.css` `?v=20261105-1`, 서비스 워커 캐시 `among-shell-v39`, Apps Script `SCHEMA_VERSION` 7.
+- 바뀐 파일 버전: `app.js?v=20261105-2`, `online-deals.js`·`online-deals.css` `?v=20261105-2`, `online-deals-core.js?v=20261105-1`, 서비스 워커 캐시 `among-shell-v40`, Apps Script 웹앱 버전 9(`SCHEMA_VERSION` 7). 온라인 특가 응답 대기는 쿠폰 조회와 같은 20초(Apps Script가 처음 깨어날 때 6초가량 걸림).
 
 ## 운영
 
