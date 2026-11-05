@@ -1,13 +1,14 @@
 /**
  * AMONG 시트 백엔드 (Google Apps Script 웹앱)
  * ------------------------------------------------------------
- * 탭: coupons · news · sources · run_log · events · reports · nutrition
- * 공개 API (토큰 없음): GET coupons(+ 소식 news 포함) · status · nutrition / POST refresh · event · report
+ * 탭: coupons · news · sources · run_log · events · reports · nutrition · app_coupons · online_items · online_runs
+ * 공개 API (토큰 없음): GET coupons(+ 소식 news 포함) · status · nutrition · online_deals / POST refresh · event · report
  * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish · nutrition_ingest
+ *                               · online_run_start · online_ingest · online_run_finish (온라인 특가 — 쿠폰과 분리)
  *
  * 코드를 새 버전으로 배포하면 첫 요청 때 migrate_()가 새 열·탭·출처를 자동으로 추가한다 (SCHEMA_VERSION).
  * 00시 정시 수집: 편집기에서 installTriggers() 1회 실행 → 매일 00시대에 scheduledCollect()가 GitHub 수집을 부른다.
- * 관리 API (ADMIN_TOKEN): POST metrics
+ * 관리 API (ADMIN_TOKEN): POST metrics · app_coupon_* · online_admin · online_admin_set
  *
  * 스크립트 속성 (프로젝트 설정 → 스크립트 속성):
  *   COLLECTOR_TOKEN   수집기와 공유하는 임의의 긴 문자열 (GitHub Secret과 같은 값)
@@ -68,6 +69,10 @@ const SHEETS = {
     'updated', 'unchanged', 'gone', 'expired', 'input_tokens', 'output_tokens', 'errors'],
   events: ['ts', 'sid', 'type', 'coupon_id', 'brand', 'value'],
   reports: ['ts', 'sid', 'coupon_id', 'brand', 'menu', 'reason', 'memo', 'status'],
+  // 온라인 특가 (v7): 프랜차이즈 쿠폰과 분리. 상태·보류 사유 열은 사람이 읽기 위한 사본이며 판단은 읽을 때마다 다시 계산한다.
+  online_items: ['key', 'id', 'supplier', 'status', 'holds', 'title', 'price', 'seller', 'category', 'last_received_at', 'ends_at',
+    'hidden', 'hidden_reason', 'hidden_at', 'category_override', 'override_until', 'first_seen_at', 'updated_at', 'payload'],
+  online_runs: ['run_id', 'trigger', 'started_at', 'finished_at', 'results', 'received', 'published', 'held', 'errors'],
 };
 const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_price', 'coupon_price', 'discount_rate',
   'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only', 'start_date', 'end_date',
@@ -75,7 +80,7 @@ const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_
 const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
   'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
@@ -111,6 +116,7 @@ function doGet(e) {
       case 'app_coupons': return json_(getAppCoupons_());
       case 'status': return json_(getStatus_());
       case 'nutrition': return json_(getNutrition_());
+      case 'online_deals': return json_(getOnlineDeals_());
       default: return json_({ ok: false, error: 'unknown action' });
     }
   } catch (err) {
@@ -148,6 +154,18 @@ function doPost(e) {
       case 'app_coupon_close': authed = auth_(body, 'ADMIN_TOKEN'); return json_(withLock_(() => closeAppCoupon_(body)));
       case 'app_coupon_duplicates': authed = auth_(body, 'ADMIN_TOKEN'); return json_({ ok: true, duplicates: acDuplicates(acNormalize(body.coupon), readAppCoupons_()).map(c => ({ id: c.id, product_name: c.product_name, audience: acAudience(c) })) });
       case 'metrics': authed = auth_(body, 'ADMIN_TOKEN'); return json_(getMetrics_(body));
+      // 온라인 특가 (쿠폰 탭과 분리된 online_items · online_runs만 바꾼다)
+      case 'online_run_start': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(withLock_(() => odRunStart_(body)));
+      case 'online_ingest':
+        authed = auth_(body, 'COLLECTOR_TOKEN');
+        if (raw.length > 800000) throw new Error('입력이 너무 커요.');
+        return json_(withLock_(() => odIngest_(body)));
+      case 'online_run_finish': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(withLock_(() => odRunFinish_(body)));
+      case 'online_admin': authed = auth_(body, 'ADMIN_TOKEN'); return json_(odAdmin_());
+      case 'online_admin_set':
+        authed = auth_(body, 'ADMIN_TOKEN');
+        if (raw.length > 60000) throw new Error('입력이 너무 커요.');
+        return json_(withLock_(() => odAdminSet_(body)));
       default: return json_({ ok: false, error: 'unknown action' });
     }
   } catch (err) {
@@ -258,13 +276,13 @@ function requestRefresh_() {
   });
 }
 
-function dispatchWorkflow_(trigger) {
+function dispatchWorkflow_(trigger, workflow) {
   const p = PropertiesService.getScriptProperties();
   // 붙여넣을 때 딸려 온 앞뒤 공백·줄바꿈은 무시한다
   const token = String(p.getProperty('GITHUB_TOKEN') || '').trim();
   const repo = String(p.getProperty('GITHUB_REPO') || '').trim();
   if (!token || !repo) return { ok: false, error: 'GITHUB_TOKEN / GITHUB_REPO 미설정' };
-  const wf = p.getProperty('GITHUB_WORKFLOW') || 'collect.yml';
+  const wf = workflow || p.getProperty('GITHUB_WORKFLOW') || 'collect.yml';
   const ref = p.getProperty('GITHUB_REF') || 'main';
   const res = UrlFetchApp.fetch('https://api.github.com/repos/' + repo + '/actions/workflows/' + wf + '/dispatches', {
     method: 'post',
@@ -1738,3 +1756,659 @@ function seedAppCouponDrafts_() {
 }
 
 // END GENERATED APP COUPONS
+
+// BEGIN GENERATED ONLINE DEALS
+// 온라인 특가 공통 규칙 — 수집기(Node)·Apps Script(Code.gs 생성 구역)·화면(web/)이 같은 판단을 쓴다.
+// 프랜차이즈 쿠폰 데이터와 섞지 않는다.
+// 공급처 응답의 필드 이름은 여기서 추측하지 않는다. 공급처별 어댑터가 공식 문서로 확인한 필드만
+// 아래 '표준 후보' 형식으로 옮기고, 이 파일은 표준 후보만 다룬다.
+// import 없이 순수 함수만 둔다 (Apps Script에 그대로 붙여 넣기 위해 — collector/scripts/sync-web.js).
+
+const OD_HOUR = 3600000;
+const OD_DAY = 24 * OD_HOUR;
+const OD_MAX_INGEST = 200;      // 공급처 응답 1회에서 받는 최대 후보 수
+const OD_MAX_RECORDS = 2000;    // 시트에 보관하는 최대 상품 수 (운영자 숨김은 별도로 항상 보관)
+const OD_RETENTION_DAYS = 7;    // 다시 받지 못한 상품 기록 보관 기간 (가격 이력은 저장하지 않음)
+const OD_HARD_MAX_AGE_HOURS = 24;
+
+const OD_CATEGORIES = { food: '식품', household: '생활용품' };
+const OD_MODES = { off: '끄기', observe: '관찰 (비공개)', publish: '자동 게시' };
+const OD_STATUSES = { published: '게시 중', held: '보류', scheduled: '시작 전', stale: '재확인 기한 지남', ended: '종료', hidden: '운영자 숨김' };
+const OD_SHIPPING = ['free', 'paid', 'conditional', 'unknown'];
+const OD_PRICE_BASIS = ['item_total', 'unit', 'discount', 'points', 'min_order', 'unknown'];
+const OD_RESULTS = {
+  ok: '정상', empty: '빈 응답 (기존 상품 유지)', failed: '실패 (기존 상품 유지)', rate_limited: '호출 제한 (일시 중지)',
+  paused: '일시 중지 중', off: '꺼짐', awaiting_access: '승인 대기 (연결 안 됨)', missing_secrets: '키 미등록', too_soon: '최소 간격 전',
+};
+const OD_HOLD_LABELS = {
+  MISSING_TITLE: '상품명 없음',
+  BAD_PRICE: '가격이 없거나 형식이 맞지 않음',
+  BAD_CURRENCY: '원화 가격이 아님',
+  PRICE_NOT_TOTAL: '상품 실구매가가 아님 (단위가·할인액·적립금·최소주문금액 등)',
+  OPTION_PRICE_UNCLEAR: '옵션별 가격이 불분명',
+  PERSONAL_PRICE: '개인별 가격이거나 개인별 여부 미확인',
+  CONDITION_UNCLEAR: '적용 조건이 완전하지 않음',
+  BAD_LINK: '허용되지 않은 링크',
+  SELLER_UNKNOWN: '판매자 불명',
+  CATEGORY_UNMAPPED: '분류 규칙에 없는 분류',
+  CATEGORY_EXCLUDED: '게시하지 않는 분류',
+  SELLER_EXCLUDED: '제외한 판매자',
+  KEYWORD_EXCLUDED: '제외 키워드 포함',
+  DUPLICATE: '같은 상품이 이미 게시 중',
+  OVER_LIMIT: '게시 개수 상한 밖',
+  SUPPLIER_OBSERVE: '공급처 관찰 모드 (비공개)',
+  SUPPLIER_OFF: '공급처 꺼짐',
+};
+
+// 공급처 목록. 연결 여부와 무관하게 '어떤 링크·사진 주소를 허용하는지'만 정한다.
+// 실제 호출 방식은 collector/src/online/suppliers.js (승인 전에는 비활성).
+const OD_SUPPLIERS = {
+  coupang: {
+    name: '쿠팡', store: '쿠팡', cta: '쿠팡에서 가격 확인',
+    linkHosts: ['link.coupang.com', 'www.coupang.com', 'm.coupang.com', 'coupang.com'],
+    imageHosts: ['thumbnail.coupangcdn.com', 'image.coupangcdn.com'],
+    // 사진 사용·저장 범위를 약관·승인 조건으로 확인하기 전에는 사진을 보이지 않는다.
+    imagesAllowed: false,
+    // 쿠팡 파트너스 공식 가이드의 필수 문구 (게시물 제목 또는 첫 부분)
+    disclosure: '이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
+  },
+  linkprice: {
+    name: '링크프라이스', store: '', cta: '판매처에서 가격 확인',
+    // 승인 후 발급되는 제휴 링크 주소를 공식 문서로 확인한 뒤 추가한다. 비어 있으면 모든 링크가 보류된다.
+    linkHosts: [],
+    imageHosts: [],
+    imagesAllowed: false,
+    disclosure: '이 페이지의 일부 링크는 링크프라이스 제휴 링크로, 구매가 이루어지면 AMONG이 일정액의 수수료를 받을 수 있습니다.',
+  },
+};
+
+const OD_DEFAULT_RULES = {
+  includeCategories: ['food', 'household'],
+  // 공급처 분류 경로의 한 단계와 정확히 같을 때만 연결한다 (부분 일치로 가전 '냉동고'가 식품이 되는 일을 막음).
+  categoryKeywords: { food: ['식품'], household: ['생활용품'] },
+  excludeKeywords: ['주류', '담배', '전자담배', '의약품', '성인용품'],
+  excludeSellers: [],
+  maxItems: 30,
+  maxAgeHours: 6,
+};
+
+const OD_CONTROL = /[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g;
+function odText(v, max) {
+  if (typeof v !== 'string' && typeof v !== 'number') return '';
+  return String(v).replace(OD_CONTROL, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+function odOneOf_(v, list, fallback) { return list.indexOf(v) >= 0 ? v : fallback; }
+function odPosInt_(v) { return Number.isSafeInteger(v) && v > 0 ? v : null; }
+function odIso_(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(v)) return '';
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? new Date(t).toISOString() : '';
+}
+const odMs_ = v => (v ? Date.parse(v) : NaN);
+
+/** 53비트 해시 (cyrb53) → 11자리 36진수. 공개 id용이며 비밀 보호용이 아니다. */
+function odHash(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36).padStart(11, '0');
+}
+
+// Apps Script에는 URL 클래스가 없으므로 정규식으로 엄격하게 검사한다 (https, 허용 호스트, 계정·포트 없음).
+function odUrlFor_(value, hosts) {
+  if (typeof value !== 'string' || !hosts || !hosts.length || value.length > 2000 || /[\x00-\x20\x7f\\]/.test(value)) return '';
+  const m = /^https:\/\/([A-Za-z0-9.-]+)(\/[^?#]*)?(\?[^#]*)?(#.*)?$/.exec(value);
+  if (!m || hosts.indexOf(m[1].toLowerCase()) < 0) return '';
+  // 로그인·결제·개인 쿠폰 정보는 공개 링크에 싣지 않는다.
+  const bad = /^(token|access_token|authorization|password|session|sessionid|coupon_code|couponcode)$/i;
+  const pairs = m[3] ? m[3].slice(1).split('&') : [];
+  for (let i = 0; i < pairs.length; i++) {
+    let key;
+    try { key = decodeURIComponent(pairs[i].split('=')[0].replace(/\+/g, ' ')); } catch (e) { return ''; }
+    if (bad.test(key.trim())) return '';
+  }
+  return value;
+}
+function odLink(value, supplier, registry) { const s = (registry || OD_SUPPLIERS)[supplier]; return s ? odUrlFor_(value, s.linkHosts) : ''; }
+function odImage(value, supplier, registry) { const s = (registry || OD_SUPPLIERS)[supplier]; return s ? odUrlFor_(value, s.imageHosts) : ''; }
+
+/**
+ * 표준 후보 → 저장 형식. 식별할 수 없으면 null. 판단(게시·보류)은 하지 않고 값만 정리한다.
+ * 같은 결과를 다시 넣어도 같은 결과가 나온다 (Apps Script가 수집기 결과를 다시 검사할 수 있게).
+ */
+function odNormalize(raw, supplier, registry) {
+  const reg = registry || OD_SUPPLIERS;
+  if (!raw || typeof raw !== 'object' || !reg[supplier]) return null;
+  const sid = odText(raw.supplierItemId, 81), opt = odText(raw.optionKey, 81);
+  if (!/^[A-Za-z0-9._:-]{1,80}$/.test(sid) || (opt && !/^[A-Za-z0-9._:-]{1,80}$/.test(opt))) return null;
+  const observedAt = odIso_(raw.observedAt);
+  if (!observedAt) return null;
+  const list = Array.isArray(raw.conditions) ? raw.conditions : [];
+  const conditions = [];
+  // 조건은 줄이거나 자르지 않는다. 길거나 빈 조건이 있으면 '불완전'으로 보고 보류한다.
+  let complete = raw.conditionsComplete === true && Array.isArray(raw.conditions) && list.length <= 8;
+  list.slice(0, 8).forEach(c => { const t = odText(c, 301); if (!t || t.length > 300) complete = false; else conditions.push(t); });
+  const sp = reg[supplier];
+  const item = {
+    supplier, supplierItemId: sid, optionKey: opt,
+    title: odText(raw.title, 160), option: odText(raw.option, 100),
+    store: odText(raw.store, 40) || sp.store || '', seller: odText(raw.seller, 60),
+    price: Number.isSafeInteger(raw.price) ? raw.price : null,
+    currency: odText(raw.currency, 3).toUpperCase(),
+    priceBasis: odOneOf_(raw.priceBasis, OD_PRICE_BASIS, 'unknown'),
+    optionPrice: odOneOf_(raw.optionPrice, ['single', 'varies', 'unknown'], 'unknown'),
+    membership: odText(raw.membership, 30),
+    personalized: raw.personalized === false ? false : raw.personalized === true ? true : null,
+    shipping: odOneOf_(raw.shipping, OD_SHIPPING, 'unknown'),
+    shippingFee: odPosInt_(raw.shippingFee), shippingThreshold: odPosInt_(raw.shippingThreshold),
+    conditions, conditionsComplete: complete,
+    categoryPath: odText(raw.categoryPath, 200),
+    url: odLink(raw.url, supplier, reg), imageUrl: odImage(raw.imageUrl, supplier, reg),
+    affiliate: raw.affiliate === true,
+    pick: odText(raw.pick, 20),
+    availability: odOneOf_(raw.availability, ['available', 'sold_out', 'ended', 'unknown'], 'unknown'),
+    startsAt: odIso_(raw.startsAt), endsAt: odIso_(raw.endsAt),
+    observedAt,
+  };
+  // 같은 상품·옵션이라도 회원 전용 가격은 다른 혜택으로 본다. 조건 문구가 조금 바뀌면 같은 기록을 갱신한다.
+  item.key = [supplier, sid, opt, item.membership].join(':');
+  item.id = 'od_' + odHash(item.key);
+  return item;
+}
+
+/** 운영 규칙 정리 (관리 화면 입력은 이 함수를 거쳐야 저장된다) */
+function odRules(input) {
+  const d = OD_DEFAULT_RULES;
+  const r = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const words = (v, max, len, fallback) => {
+    if (!Array.isArray(v)) return fallback.slice();
+    const out = [];
+    v.forEach(x => { const t = odText(x, len + 1); if (t && t.length <= len && out.indexOf(t) < 0 && out.length < max) out.push(t); });
+    return out;
+  };
+  const int = (v, lo, hi, fallback) => (Number.isSafeInteger(v) && v >= lo && v <= hi ? v : fallback);
+  const ck = r.categoryKeywords && typeof r.categoryKeywords === 'object' ? r.categoryKeywords : {};
+  return {
+    includeCategories: words(r.includeCategories, 2, 20, d.includeCategories).filter(c => OD_CATEGORIES[c]),
+    categoryKeywords: { food: words(ck.food, 50, 30, d.categoryKeywords.food), household: words(ck.household, 50, 30, d.categoryKeywords.household) },
+    excludeKeywords: words(r.excludeKeywords, 100, 30, d.excludeKeywords),
+    excludeSellers: words(r.excludeSellers, 100, 60, d.excludeSellers),
+    maxItems: int(r.maxItems, 1, 60, d.maxItems),
+    maxAgeHours: int(r.maxAgeHours, 1, OD_HARD_MAX_AGE_HOURS, d.maxAgeHours),
+  };
+}
+
+/** 공급처 운영 상태 정리. 새 공급처는 '관찰(비공개)'로 시작한다. */
+function odSupplierStates(input, registry) {
+  const reg = registry || OD_SUPPLIERS;
+  const src = input && typeof input === 'object' ? input : {};
+  const out = {};
+  Object.keys(reg).forEach(id => {
+    const s = src[id] && typeof src[id] === 'object' ? src[id] : {};
+    out[id] = {
+      mode: odOneOf_(s.mode, Object.keys(OD_MODES), 'observe'),
+      pauseUntil: odIso_(s.pauseUntil), failures: Number.isSafeInteger(s.failures) && s.failures > 0 ? Math.min(s.failures, 99) : 0,
+      lastResult: odOneOf_(s.lastResult, Object.keys(OD_RESULTS), ''), lastError: odText(s.lastError, 200),
+      lastRunAt: odIso_(s.lastRunAt), lastAttemptAt: odIso_(s.lastAttemptAt), lastSuccessAt: odIso_(s.lastSuccessAt),
+      lastReceived: Number.isSafeInteger(s.lastReceived) && s.lastReceived >= 0 ? s.lastReceived : 0,
+    };
+  });
+  return out;
+}
+
+/** 실패 뒤 다음 시도 시각: 429는 Retry-After(15분~24시간), 연속 실패 3회부터 15분·30분…최대 12시간 */
+function odAfterFailure(state, failure, now) {
+  const s = Object.assign({}, state);
+  s.failures = Math.min((s.failures || 0) + 1, 99);
+  s.lastAttemptAt = new Date(now).toISOString();
+  s.lastError = odText(failure.error, 200);
+  let pause = 0;
+  if (failure.rateLimited) {
+    const ra = Number.isFinite(failure.retryAfterMs) ? failure.retryAfterMs : OD_HOUR;
+    pause = Math.min(Math.max(ra, 15 * 60000), OD_DAY);
+    s.lastResult = 'rate_limited';
+  } else {
+    s.lastResult = 'failed';
+    if (s.failures >= 3) pause = Math.min(15 * 60000 * Math.pow(2, s.failures - 3), 12 * OD_HOUR);
+  }
+  if (pause) s.pauseUntil = new Date(now + pause).toISOString();
+  return s;
+}
+
+/** 분류: 운영자 지정(기한 내) → 분류 규칙(경로의 한 단계와 정확히 일치) → 없음 */
+function odCategory(rec, rules, now) {
+  if (rec.categoryOverride && (!rec.overrideUntil || odMs_(rec.overrideUntil) > now)) return rec.categoryOverride;
+  const parts = String(rec.item.categoryPath || '').split('>').map(s => s.trim()).filter(Boolean);
+  const keys = Object.keys(OD_CATEGORIES);
+  for (let i = 0; i < keys.length; i++) {
+    const words = rules.categoryKeywords[keys[i]] || [];
+    if (parts.some(p => words.indexOf(p) >= 0)) return keys[i];
+  }
+  return '';
+}
+
+/** 보류 사유 (공급처 모드·중복·상한은 odEvaluate에서 더한다) */
+function odHolds(item, category, rules, registry) {
+  const h = [];
+  if (!item.title) h.push('MISSING_TITLE');
+  if (!odPosInt_(item.price) || item.price > 10000000) h.push('BAD_PRICE');
+  if (item.currency !== 'KRW') h.push('BAD_CURRENCY');
+  if (item.priceBasis !== 'item_total') h.push('PRICE_NOT_TOTAL');
+  if (item.optionPrice === 'unknown' || (item.optionPrice === 'varies' && !item.optionKey)) h.push('OPTION_PRICE_UNCLEAR');
+  if (item.personalized !== false) h.push('PERSONAL_PRICE');
+  if (!item.conditionsComplete) h.push('CONDITION_UNCLEAR');
+  if (!odLink(item.url, item.supplier, registry)) h.push('BAD_LINK');
+  if (!item.seller) h.push('SELLER_UNKNOWN');
+  if (!category) h.push('CATEGORY_UNMAPPED');
+  else if (category === 'excluded' || rules.includeCategories.indexOf(category) < 0) h.push('CATEGORY_EXCLUDED');
+  if (item.seller && rules.excludeSellers.indexOf(item.seller) >= 0) h.push('SELLER_EXCLUDED');
+  const title = (item.title + ' ' + item.option).toLowerCase();
+  if (rules.excludeKeywords.some(k => title.indexOf(k.toLowerCase()) >= 0)) h.push('KEYWORD_EXCLUDED');
+  return h;
+}
+
+/** AMONG 재확인 기한(마지막 수신 + maxAgeHours)과 실제 행사 종료 중 이른 시각 */
+function odVisibleUntil(rec, rules) {
+  const recheck = odMs_(rec.lastReceivedAt) + rules.maxAgeHours * OD_HOUR;
+  const end = odMs_(rec.item.endsAt);
+  return Number.isFinite(end) ? Math.min(end, recheck) : recheck;
+}
+
+function odFingerprint_(item) {
+  const n = s => String(s || '').toLowerCase().replace(/[\s()[\]{}·,./+_-]+/g, '');
+  return [n(item.title), n(item.option), n(item.store)].join('|');
+}
+function odCompare(a, b) {
+  const ea = odMs_(a.item.endsAt), eb = odMs_(b.item.endsAt);
+  if (Number.isFinite(ea) !== Number.isFinite(eb)) return Number.isFinite(ea) ? -1 : 1;
+  if (Number.isFinite(ea) && ea !== eb) return ea - eb;
+  const la = odMs_(a.lastReceivedAt), lb = odMs_(b.lastReceivedAt);
+  if (la !== lb) return lb - la;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * 저장된 기록 전체의 현재 상태. 상태는 저장값이 아니라 읽을 때마다 계산한다
+ * (시간이 지나거나 규칙·공급처 모드가 바뀌면 다음 조회부터 바로 반영).
+ * ctx: { rules, suppliers(상태), now, registry? }
+ */
+function odEvaluate(records, ctx) {
+  const rules = odRules(ctx.rules), now = ctx.now, reg = ctx.registry || OD_SUPPLIERS;
+  const sup = odSupplierStates(ctx.suppliers, reg);
+  const out = records.map(rec => {
+    const r = Object.assign({}, rec);
+    r.category = odCategory(rec, rules, now);
+    r.visibleUntil = odVisibleUntil(rec, rules);
+    r.holds = [];
+    const it = rec.item;
+    if (rec.hidden) r.status = 'hidden';
+    else if (it.availability === 'ended' || it.availability === 'sold_out' || odMs_(it.endsAt) <= now) r.status = 'ended';
+    else if (!(r.visibleUntil > now)) r.status = 'stale';
+    else {
+      r.holds = odHolds(it, r.category, rules, reg);
+      const mode = sup[rec.supplier] ? sup[rec.supplier].mode : 'off';
+      if (mode === 'off') r.holds.push('SUPPLIER_OFF');
+      else if (mode === 'observe') r.holds.push('SUPPLIER_OBSERVE');
+      if (r.holds.length) r.status = 'held';
+      else r.status = odMs_(it.startsAt) > now ? 'scheduled' : 'published';
+    }
+    return r;
+  });
+  // 같은 상품(상품명·옵션·판매처)은 가장 최근에 확인한 하나만 게시한다.
+  const live = out.filter(r => r.status === 'published').sort((a, b) => {
+    const la = odMs_(a.lastReceivedAt), lb = odMs_(b.lastReceivedAt);
+    return la !== lb ? lb - la : (a.id < b.id ? -1 : 1);
+  });
+  const seen = {};
+  live.forEach(r => {
+    const f = odFingerprint_(r.item);
+    if (seen[f]) { r.status = 'held'; r.holds = ['DUPLICATE']; } else seen[f] = true;
+  });
+  out.filter(r => r.status === 'published').sort(odCompare).forEach((r, i) => {
+    if (i >= rules.maxItems) { r.status = 'held'; r.holds = ['OVER_LIMIT']; }
+  });
+  return out;
+}
+
+/**
+ * 공급처 응답 1회를 기존 기록에 반영한다.
+ * - 실패·빈 응답·전부 잘못된 응답이면 기존 기록을 그대로 둔다 (삭제·종료 처리하지 않음).
+ * - 이번 응답에 없는 상품도 품절로 보지 않는다. 다시 받지 못하면 재확인 기한이 지나 자동으로 내려간다.
+ * - 운영자 숨김·분류 지정은 새 응답이 와도 유지한다.
+ * run: { supplier, ok, items, observedAt }, now: 서버 시각(ms)
+ */
+function odMerge(records, run, now, registry) {
+  const out = records.map(r => Object.assign({}, r));
+  const stats = { received: 0, inserted: 0, updated: 0, invalid: 0, duplicate: 0, skipped: false };
+  const items = run && run.ok && Array.isArray(run.items) ? run.items.slice(0, OD_MAX_INGEST) : [];
+  const observed = odMs_(odIso_(run && run.observedAt));
+  // 수신 시각은 서버 시각을 넘지 않는다 (오래된 응답을 새것처럼 보이게 하지 않음).
+  const at = new Date(Number.isFinite(observed) ? Math.min(observed, now) : now).toISOString();
+  const byKey = {};
+  out.forEach(r => { byKey[r.key] = r; });
+  const seen = {};
+  items.forEach(raw => {
+    const item = odNormalize(raw, run.supplier, registry);
+    if (!item) { stats.invalid++; return; }
+    if (seen[item.key]) { stats.duplicate++; return; }
+    seen[item.key] = true;
+    stats.received++;
+    const prev = byKey[item.key];
+    if (prev) { prev.item = item; prev.lastReceivedAt = at; stats.updated++; return; }
+    const rec = { key: item.key, id: item.id, supplier: run.supplier, item, hidden: false, hiddenReason: '', hiddenAt: '',
+      categoryOverride: '', overrideUntil: '', firstSeenAt: at, lastReceivedAt: at };
+    out.push(rec); byKey[item.key] = rec; stats.inserted++;
+  });
+  if (!stats.received) stats.skipped = true;
+  return { records: out, stats };
+}
+
+/** 보관 정리: 7일간 다시 받지 못한 기록은 지우고, 운영자 숨김은 남긴다 (다시 들어와도 숨김 유지). */
+function odPrune(records, now) {
+  const from = now - OD_RETENTION_DAYS * OD_DAY;
+  const hidden = records.filter(r => r.hidden);
+  const rest = records.filter(r => !r.hidden && odMs_(r.lastReceivedAt) >= from)
+    .sort((a, b) => odMs_(b.lastReceivedAt) - odMs_(a.lastReceivedAt))
+    .slice(0, Math.max(0, OD_MAX_RECORDS - hidden.length));
+  return hidden.concat(rest);
+}
+
+/** 공개 응답에 싣는 필드 (보류 사유·운영 메모·공급처 내부 id는 싣지 않는다) */
+function odPublic(r, registry) {
+  const it = r.item, sp = (registry || OD_SUPPLIERS)[r.supplier];
+  return {
+    id: r.id, supplier: r.supplier, store: it.store, title: it.title, option: it.option, seller: it.seller,
+    price: it.price, membership: it.membership, conditions: it.conditions.slice(),
+    shipping: it.shipping, shippingFee: it.shippingFee, shippingThreshold: it.shippingThreshold,
+    category: r.category, url: it.url, imageUrl: sp && sp.imagesAllowed ? it.imageUrl : '',
+    affiliate: it.affiliate, pick: it.pick,
+    checkedAt: r.lastReceivedAt, endsAt: it.endsAt, visibleUntil: new Date(r.visibleUntil).toISOString(),
+  };
+}
+
+/** 화면에서 다시 검사 (서버 응답도 그대로 믿지 않는다). 통과하지 못하면 null */
+function odClientItem(raw, now, registry) {
+  const reg = registry || OD_SUPPLIERS;
+  if (!raw || typeof raw !== 'object' || !reg[raw.supplier]) return null;
+  const sp = reg[raw.supplier];
+  const id = typeof raw.id === 'string' && /^od_[0-9a-z]{11}$/.test(raw.id) ? raw.id : '';
+  const title = odText(raw.title, 160), url = odLink(raw.url, raw.supplier, reg);
+  const checked = odMs_(odIso_(raw.checkedAt)), until = odMs_(odIso_(raw.visibleUntil)), end = odMs_(odIso_(raw.endsAt));
+  if (!id || !title || !url || !odPosInt_(raw.price) || !Array.isArray(raw.conditions) || raw.conditions.length > 9) return null;
+  const conditions = raw.conditions.map(c => odText(c, 301));
+  if (conditions.some(c => !c || c.length > 300)) return null;
+  if (!Number.isFinite(checked) || checked > now + 5 * 60000 || !Number.isFinite(until) || until <= now) return null;
+  if (until > checked + OD_HARD_MAX_AGE_HOURS * OD_HOUR) return null;
+  if (Number.isFinite(end) && end <= now) return null;
+  return {
+    id, supplier: raw.supplier, store: odText(raw.store, 40) || sp.store, title, option: odText(raw.option, 100), seller: odText(raw.seller, 60),
+    price: raw.price, membership: odText(raw.membership, 30), conditions,
+    shipping: odOneOf_(raw.shipping, OD_SHIPPING, 'unknown'), shippingFee: odPosInt_(raw.shippingFee), shippingThreshold: odPosInt_(raw.shippingThreshold),
+    category: OD_CATEGORIES[raw.category] ? raw.category : '', url,
+    imageUrl: sp.imagesAllowed ? odImage(raw.imageUrl, raw.supplier, reg) : '',
+    // 제휴 여부는 서버 표시와 링크 주소 중 하나라도 해당하면 제휴로 본다.
+    affiliate: raw.affiliate === true || /^https:\/\/link\.coupang\.com\//.test(url) || /[?&]lptag=/i.test(url),
+    pick: odText(raw.pick, 20), checkedAt: new Date(checked).toISOString(),
+    endsAt: Number.isFinite(end) ? new Date(end).toISOString() : '', visibleUntil: until,
+  };
+}
+
+/** 배송비 안내. 확인되지 않은 배송비를 무료로 표시하지 않는다. */
+function odShippingText(it) {
+  if (it.shipping === 'free') return '무료배송';
+  if (it.shipping === 'paid') return it.shippingFee ? `배송비 ${it.shippingFee}원` : '배송비 별도';
+  if (it.shipping === 'conditional') return it.shippingThreshold ? `${it.shippingThreshold}원 이상 구매 시 무료배송` : '조건부 무료배송 (조건 확인 필요)';
+  return '배송비 확인 필요';
+}
+
+// 온라인 특가 저장·공개·관리 (collector/scripts/sync-web.js가 Code.gs 생성 구역에 넣는다. 따로 붙여 넣지 말 것)
+// 프랜차이즈 쿠폰(coupons·news 탭)과 섞지 않는다. 탭: online_items · online_runs
+// 스크립트 속성: ONLINE_RULES(운영 규칙) · ONLINE_SUPPLIERS(공급처 모드·중지) · ONLINE_RUN_LOCK(동시 실행 방지)
+const OD_CACHE_KEY = 'online_deals_v1';
+const OD_LOCK_MIN = 20;
+const OD_RERUN_COOLDOWN_MIN = 10;
+const OD_RUNS_KEEP = 500;
+const OD_WORKFLOW = 'online-deals.yml';
+
+function odJsonProp_(key) {
+  const v = PropertiesService.getScriptProperties().getProperty(key);
+  if (!v) return null;
+  try { return JSON.parse(v); } catch (err) { return null; }
+}
+function odSetJsonProp_(key, value) { PropertiesService.getScriptProperties().setProperty(key, value ? JSON.stringify(value) : ''); }
+function odCtx_() {
+  return { rules: odRules(odJsonProp_('ONLINE_RULES')), suppliers: odSupplierStates(odJsonProp_('ONLINE_SUPPLIERS')), now: Date.now() };
+}
+function odCell_(s) { s = String(s == null ? '' : s); return /^[=+@-]/.test(s) ? "'" + s : s; }
+function odUncell_(s) { s = String(s == null ? '' : s); return /^'[=+@-]/.test(s) ? s.slice(1) : s; }
+function odRunId_(v) { return typeof v === 'string' && /^odr_[0-9a-f]{16}$/.test(v) ? v : ''; }
+
+function odReadRecords_() {
+  return readTable_('online_items').rows.map(function (r) {
+    let item = null;
+    try { item = odNormalize(JSON.parse(r.payload), r.supplier); } catch (err) { item = null; }
+    if (!item || item.key !== r.key) { console.error('online_items 잘못된 행: ' + r.key); return null; }
+    const cat = odUncell_(r.category_override);
+    return {
+      key: item.key, id: item.id, supplier: item.supplier, item: item,
+      hidden: String(r.hidden).toUpperCase() === 'TRUE', hiddenReason: odUncell_(r.hidden_reason), hiddenAt: r.hidden_at,
+      categoryOverride: ['food', 'household', 'excluded'].indexOf(cat) >= 0 ? cat : '', overrideUntil: r.override_until,
+      firstSeenAt: r.first_seen_at, lastReceivedAt: r.last_received_at,
+    };
+  }).filter(Boolean);
+}
+
+function odWriteRecords_(records, ctx) {
+  const ev = odEvaluate(records, ctx);
+  const now = nowIso_();
+  const rows = ev.map(function (r) {
+    return {
+      key: r.key, id: r.id, supplier: r.supplier, status: r.status, holds: r.holds.join(','),
+      title: odCell_(r.item.title), price: r.item.price == null ? '' : r.item.price, seller: odCell_(r.item.seller), category: r.category,
+      last_received_at: r.lastReceivedAt, ends_at: r.item.endsAt, hidden: r.hidden ? 'TRUE' : '', hidden_reason: odCell_(r.hiddenReason),
+      hidden_at: r.hiddenAt || '', category_override: r.categoryOverride || '', override_until: r.overrideUntil || '',
+      first_seen_at: r.firstSeenAt, updated_at: now, payload: JSON.stringify(r.item),
+    };
+  });
+  writeTable_(sheet_('online_items'), SHEETS.online_items, rows);
+  CacheService.getScriptCache().remove(OD_CACHE_KEY);
+  return ev;
+}
+
+function odCounts_(ev, supplier) {
+  const c = { published: 0, held: 0, scheduled: 0, stale: 0, ended: 0, hidden: 0 };
+  ev.forEach(function (r) { if (!supplier || r.supplier === supplier) c[r.status] = (c[r.status] || 0) + 1; });
+  return c;
+}
+
+// ============ 공개 ============
+
+/** 게시 중인 상품만. 상태는 읽을 때 다시 계산하므로 기한이 지난 상품은 새 수집 없이도 빠진다. */
+function getOnlineDeals_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(OD_CACHE_KEY);
+  if (hit) return JSON.parse(hit);
+  const ctx = odCtx_();
+  const live = odEvaluate(odReadRecords_(), ctx).filter(function (r) { return r.status === 'published'; }).sort(odCompare);
+  const items = live.map(function (r) { return odPublic(r); });
+  const disclosures = [];
+  items.forEach(function (i) {
+    const d = i.affiliate && OD_SUPPLIERS[i.supplier].disclosure;
+    if (d && disclosures.indexOf(d) < 0) disclosures.push(d);
+  });
+  const connected = Object.keys(ctx.suppliers).some(function (id) {
+    const s = ctx.suppliers[id];
+    return s.mode === 'publish' && s.lastSuccessAt && Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR;
+  });
+  const out = { ok: true, generated_at: nowIso_(), state: connected || items.length ? 'live' : 'preparing', count: items.length, items: items, disclosures: disclosures };
+  try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
+  return out;
+}
+
+// ============ 수집기 (COLLECTOR_TOKEN) ============
+
+function odLock_() {
+  const l = odJsonProp_('ONLINE_RUN_LOCK');
+  return l && l.run_id && Date.parse(l.until) > Date.now() ? l : null;
+}
+
+function odRunStart_(b) {
+  const runId = odRunId_(b.run_id);
+  if (!runId) throw new Error('bad run_id');
+  const lock = odLock_();
+  if (lock) return { ok: true, busy: true, running: lock.run_id };
+  const now = Date.now();
+  odSetJsonProp_('ONLINE_RUN_LOCK', { run_id: runId, trigger: String(b.trigger || '').slice(0, 20), started_at: new Date(now).toISOString(), until: new Date(now + OD_LOCK_MIN * 60000).toISOString() });
+  const ctx = odCtx_();
+  return { ok: true, run_id: runId, rules: ctx.rules, suppliers: ctx.suppliers };
+}
+
+function odCheckRun_(runId) {
+  const lock = odLock_();
+  if (!lock || lock.run_id !== odRunId_(runId)) throw new Error('run_not_active');
+  return lock;
+}
+
+function odIngest_(b) {
+  odCheckRun_(b.run_id);
+  const sup = String(b.supplier || '');
+  if (!OD_SUPPLIERS[sup]) throw new Error('unknown supplier');
+  const now = Date.now();
+  const states = odSupplierStates(odJsonProp_('ONLINE_SUPPLIERS'));
+  if (b.ok !== true) {
+    // 실패·호출 제한: 상품은 건드리지 않고 다음 시도 시각만 늦춘다.
+    states[sup] = odAfterFailure(states[sup], { error: b.error, rateLimited: b.rate_limited === true, retryAfterMs: Number(b.retry_after_ms) }, now);
+    odSetJsonProp_('ONLINE_SUPPLIERS', states);
+    return { ok: true, stats: { skipped: true }, supplier: states[sup] };
+  }
+  if (!Array.isArray(b.items) || b.items.length > OD_MAX_INGEST) throw new Error('bad items');
+  const observed = Date.parse(b.observed_at);
+  if (!Number.isFinite(observed) || observed > now + 5 * 60000 || observed < now - OD_HOUR) throw new Error('stale payload');
+  const merged = odMerge(odReadRecords_(), { supplier: sup, ok: true, items: b.items, observedAt: b.observed_at }, now);
+  const s = states[sup];
+  s.lastAttemptAt = new Date(now).toISOString();
+  s.lastReceived = merged.stats.received;
+  s.failures = 0; s.pauseUntil = ''; s.lastError = '';
+  s.lastResult = merged.stats.received ? 'ok' : 'empty';
+  if (merged.stats.received) s.lastSuccessAt = s.lastAttemptAt;
+  odSetJsonProp_('ONLINE_SUPPLIERS', states);
+  // 빈 응답·전부 형식 오류면 상품 탭을 다시 쓰지 않는다.
+  if (merged.stats.skipped) return { ok: true, stats: merged.stats, counts: odCounts_(odEvaluate(odReadRecords_(), odCtx_()), sup) };
+  const ev = odWriteRecords_(odPrune(merged.records, now), odCtx_());
+  return { ok: true, stats: merged.stats, counts: odCounts_(ev, sup) };
+}
+
+function odRunFinish_(b) {
+  const runId = odRunId_(b.run_id);
+  const lock = odJsonProp_('ONLINE_RUN_LOCK') || {};
+  const results = Array.isArray(b.results) ? b.results.slice(0, 10) : [];
+  const states = odSupplierStates(odJsonProp_('ONLINE_SUPPLIERS'));
+  const now = nowIso_();
+  const errors = [];
+  let received = 0;
+  results.forEach(function (r) {
+    if (!r || !OD_SUPPLIERS[r.supplier] || !OD_RESULTS[r.result]) return;
+    const s = states[r.supplier];
+    s.lastRunAt = now;
+    // 호출하지 않은 공급처의 현재 상태(승인 대기·키 없음·중지 등)를 관리 화면에 보여 준다.
+    if (['off', 'awaiting_access', 'missing_secrets', 'paused', 'too_soon'].indexOf(r.result) >= 0) s.lastResult = r.result;
+    received += Number.isSafeInteger(r.received) && r.received > 0 ? r.received : 0;
+    if (r.error) errors.push(r.supplier + ': ' + String(r.error).slice(0, 120));
+  });
+  odSetJsonProp_('ONLINE_SUPPLIERS', states);
+  const c = odCounts_(odEvaluate(odReadRecords_(), odCtx_()));
+  appendRow_('online_runs', {
+    run_id: runId || 'invalid', trigger: odCell_(String(b.trigger || lock.trigger || '').slice(0, 20)), started_at: lock.run_id === runId ? lock.started_at : '', finished_at: now,
+    results: results.filter(function (r) { return r && OD_SUPPLIERS[r.supplier]; }).map(function (r) { return r.supplier + ':' + (OD_RESULTS[r.result] ? r.result : 'unknown'); }).join(' '),
+    received: received, published: c.published, held: c.held, errors: odCell_(errors.join(' / ').slice(0, 500)),
+  });
+  const sh = sheet_('online_runs');
+  if (sh.getLastRow() > OD_RUNS_KEEP + 100) {
+    const t = readTable_('online_runs');
+    writeTable_(sh, t.headers, t.rows.slice(-OD_RUNS_KEEP));
+  }
+  if (lock.run_id && lock.run_id === runId) odSetJsonProp_('ONLINE_RUN_LOCK', null);
+  return { ok: true, counts: c };
+}
+
+// ============ 관리 (ADMIN_TOKEN) ============
+
+function odAdmin_() {
+  const ctx = odCtx_();
+  const order = { held: 0, published: 1, scheduled: 2, stale: 3, hidden: 4, ended: 5 };
+  const ev = odEvaluate(odReadRecords_(), ctx).sort(function (a, b) { return (order[a.status] - order[b.status]) || odCompare(a, b); });
+  const runs = readTable_('online_runs').rows.slice(-20).reverse();
+  const lock = odLock_();
+  return {
+    ok: true, now: nowIso_(), rules: ctx.rules, lock: lock ? { run_id: lock.run_id, until: lock.until } : null,
+    suppliers: Object.keys(OD_SUPPLIERS).map(function (id) {
+      return Object.assign({ id: id, name: OD_SUPPLIERS[id].name, images_allowed: OD_SUPPLIERS[id].imagesAllowed, link_hosts_ready: OD_SUPPLIERS[id].linkHosts.length > 0 }, ctx.suppliers[id]);
+    }),
+    counts: odCounts_(ev),
+    items: ev.slice(0, 500).map(function (r) {
+      const it = r.item;
+      return {
+        id: r.id, supplier: r.supplier, status: r.status, holds: r.holds, category: r.category, category_path: it.categoryPath,
+        title: it.title, option: it.option, store: it.store, seller: it.seller, price: it.price, price_basis: it.priceBasis,
+        membership: it.membership, conditions: it.conditions, shipping: odShippingText(it), url: it.url, pick: it.pick,
+        first_seen_at: r.firstSeenAt, last_received_at: r.lastReceivedAt, ends_at: it.endsAt, visible_until: new Date(r.visibleUntil).toISOString(),
+        hidden: r.hidden, hidden_reason: r.hiddenReason, category_override: r.categoryOverride, override_until: r.overrideUntil,
+      };
+    }),
+    runs: runs,
+  };
+}
+
+function odAdminSet_(b) {
+  const op = String(b.op || '');
+  const now = Date.now();
+  if (op === 'rules') {
+    odSetJsonProp_('ONLINE_RULES', odRules(b.rules));
+  } else if (op === 'supplier_mode' || op === 'supplier_resume') {
+    const states = odSupplierStates(odJsonProp_('ONLINE_SUPPLIERS'));
+    const s = states[String(b.supplier || '')];
+    if (!s) throw new Error('알 수 없는 공급처예요.');
+    if (op === 'supplier_mode') {
+      if (!OD_MODES[b.mode]) throw new Error('알 수 없는 모드예요.');
+      s.mode = b.mode;
+    } else { s.pauseUntil = ''; s.failures = 0; }
+    odSetJsonProp_('ONLINE_SUPPLIERS', states);
+  } else if (op === 'hide' || op === 'unhide' || op === 'category') {
+    const records = odReadRecords_();
+    const rec = records.filter(function (r) { return r.id === b.id; })[0];
+    if (!rec) throw new Error('상품을 찾을 수 없어요. 목록을 새로고침해 주세요.');
+    if (op === 'hide') {
+      rec.hidden = true; rec.hiddenAt = new Date(now).toISOString();
+      rec.hiddenReason = String(b.reason || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 100);
+    } else if (op === 'unhide') {
+      rec.hidden = false; rec.hiddenAt = ''; rec.hiddenReason = '';
+    } else {
+      const cat = String(b.category || '');
+      if (['', 'food', 'household', 'excluded'].indexOf(cat) < 0) throw new Error('알 수 없는 분류예요.');
+      const until = b.until ? Date.parse(b.until) : NaN;
+      if (b.until && (!Number.isFinite(until) || until <= now || until > now + 366 * OD_DAY)) throw new Error('분류 지정 기한을 확인해 주세요.');
+      rec.categoryOverride = cat;
+      rec.overrideUntil = cat && Number.isFinite(until) ? new Date(until).toISOString() : '';
+    }
+    odWriteRecords_(records, odCtx_());
+  } else if (op === 'rerun') {
+    const p = PropertiesService.getScriptProperties();
+    const last = Number(p.getProperty('ONLINE_RERUN_MS') || 0);
+    if (now - last < OD_RERUN_COOLDOWN_MIN * 60000) throw new Error(OD_RERUN_COOLDOWN_MIN + '분 안에 다시 실행할 수 없어요.');
+    if (odLock_()) throw new Error('이미 실행 중이에요.');
+    const res = dispatchWorkflow_('admin', OD_WORKFLOW);
+    if (!res.ok) throw new Error('실행 요청 실패: ' + res.error);
+    p.setProperty('ONLINE_RERUN_MS', String(now));
+  } else {
+    throw new Error('알 수 없는 작업이에요.');
+  }
+  CacheService.getScriptCache().remove(OD_CACHE_KEY);
+  return odAdmin_();
+}
+
+// END GENERATED ONLINE DEALS
