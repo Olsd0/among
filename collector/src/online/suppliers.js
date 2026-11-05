@@ -18,9 +18,11 @@ export const ADAPTERS = {
     requiredSecrets: ['COUPANG_PARTNERS_ACCESS_KEY', 'COUPANG_PARTNERS_SECRET_KEY'],
     minIntervalMinutes: 30,
     apiHosts: [],
+    // 11/05 대표가 쿠팡 파트너스 가입 (파트너스 ID AF1327603 — online-deals-core.js의 partnerId). API는 최종 승인 뒤에만 쓸 수 있다.
     needs: [
-      '쿠팡 파트너스 가입과 활동 매체(AMONG 페이지) 등록 — 대표 승인 필요',
-      '최종 승인 (공식 가이드 기준 누적 판매 15만원 이상부터 심사)',
+      '완료: 쿠팡 파트너스 가입 (11/05, AF1327603)',
+      '활동 매체 등록: 파트너스 내 정보 → 활동하는 모든 페이지 추가하기 — AMONG 첫 화면과 온라인 특가 화면 주소',
+      '최종 승인 (공식 가이드 기준 누적 판매 15만원 이상이면 자동 심사, 승인 전에도 실적은 집계) — 승인 전에는 API·정산 불가',
       'Open API 키 발급 후 GitHub Secrets에 COUPANG_PARTNERS_ACCESS_KEY · COUPANG_PARTNERS_SECRET_KEY 등록',
       '상품·골드박스 API의 호출 주소·응답 필드·호출 한도와 사진·캐시 이용 범위를 공식 문서로 확인',
     ],

@@ -1805,6 +1805,9 @@ const OD_HOLD_LABELS = {
 const OD_SUPPLIERS = {
   coupang: {
     name: '쿠팡', store: '쿠팡', cta: '쿠팡에서 가격 확인',
+    // AMONG의 쿠팡 파트너스 ID (11/05 가입, 공개 값 — 링크에 실리는 추적 코드이며 비밀번호·API 키가 아니다).
+    // 링크에 파트너스 추적 코드(lptag)가 있으면 이 ID여야 한다 (다른 사람의 제휴 링크를 싣지 않음).
+    partnerId: 'AF1327603',
     linkHosts: ['link.coupang.com', 'www.coupang.com', 'm.coupang.com', 'coupang.com'],
     imageHosts: ['thumbnail.coupangcdn.com', 'image.coupangcdn.com'],
     // 사진 사용·저장 범위를 약관·승인 조건으로 확인하기 전에는 사진을 보이지 않는다.
@@ -1874,7 +1877,24 @@ function odUrlFor_(value, hosts) {
   }
   return value;
 }
-function odLink(value, supplier, registry) { const s = (registry || OD_SUPPLIERS)[supplier]; return s ? odUrlFor_(value, s.linkHosts) : ''; }
+function odLink(value, supplier, registry) {
+  const s = (registry || OD_SUPPLIERS)[supplier];
+  const url = s ? odUrlFor_(value, s.linkHosts) : '';
+  if (!url || !s.partnerId) return url;
+  const q = /\?([^#]*)/.exec(url);
+  const pairs = q ? q[1].split('&') : [];
+  for (let i = 0; i < pairs.length; i++) {
+    const kv = pairs[i].split('=');
+    let key, val;
+    try { key = decodeURIComponent(kv[0]).trim().toLowerCase(); val = decodeURIComponent(kv.slice(1).join('=')).trim(); } catch (e) { return ''; }
+    if (key === 'lptag' && val !== s.partnerId) return '';
+  }
+  return url;
+}
+/** 제휴 링크인가: 쿠팡 단축 링크(link.coupang.com) 또는 파트너스 추적 코드(lptag)가 있는 링크 */
+function odIsAffiliateLink(url) {
+  return /^https:\/\/link\.coupang\.com\//i.test(url || '') || /[?&]lptag=/i.test(url || '');
+}
 function odImage(value, supplier, registry) { const s = (registry || OD_SUPPLIERS)[supplier]; return s ? odUrlFor_(value, s.imageHosts) : ''; }
 
 /**
@@ -2152,7 +2172,7 @@ function odClientItem(raw, now, registry) {
     category: OD_CATEGORIES[raw.category] ? raw.category : '', url,
     imageUrl: sp.imagesAllowed ? odImage(raw.imageUrl, raw.supplier, reg) : '',
     // 제휴 여부는 서버 표시와 링크 주소 중 하나라도 해당하면 제휴로 본다.
-    affiliate: raw.affiliate === true || /^https:\/\/link\.coupang\.com\//.test(url) || /[?&]lptag=/i.test(url),
+    affiliate: raw.affiliate === true || odIsAffiliateLink(url),
     pick: odText(raw.pick, 20), checkedAt: new Date(checked).toISOString(),
     endsAt: Number.isFinite(end) ? new Date(end).toISOString() : '', visibleUntil: until,
   };

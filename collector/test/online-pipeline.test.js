@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   OD_SUPPLIERS, OD_HOLD_LABELS, odNormalize, odRules, odEvaluate, odMerge, odPrune, odPublic, odClientItem,
-  odShippingText, odLink, odAfterFailure, odSupplierStates, odVisibleUntil,
+  odShippingText, odLink, odIsAffiliateLink, odAfterFailure, odSupplierStates, odVisibleUntil,
 } from '../src/online-deals-core.js';
 import { createHttpClient, parseRetryAfter, RateLimitError, HttpError, safeError } from '../src/online/http.js';
 import { ADAPTERS } from '../src/online/suppliers.js';
@@ -73,6 +73,15 @@ test('배송비: 모르면 무료로 표시하지 않는다', () => {
 test('링크: 공급처별 허용 HTTPS 호스트만, 계정·포트·토큰·개인 쿠폰 정보 금지, 승인 전 링크프라이스는 전부 보류', () => {
   assert.equal(odLink('https://link.coupang.com/a/abc?subId=among', 'coupang'), 'https://link.coupang.com/a/abc?subId=among');
   assert.equal(odLink('https://WWW.COUPANG.COM/vp/products/1', 'coupang'), 'https://WWW.COUPANG.COM/vp/products/1');
+  // 파트너스 추적 코드가 있으면 AMONG의 ID(AF1327603)여야 한다
+  assert.equal(OD_SUPPLIERS.coupang.partnerId, 'AF1327603');
+  assert.equal(odLink('https://www.coupang.com/np/goldbox?lptag=AF1327603&subid=among', 'coupang'), 'https://www.coupang.com/np/goldbox?lptag=AF1327603&subid=among');
+  for (const url of ['https://www.coupang.com/np/goldbox?lptag=AF0000001', 'https://www.coupang.com/np/goldbox?LPTAG=AF0000001', 'https://www.coupang.com/np/goldbox?%6Cptag=AF0000001', 'https://www.coupang.com/np/goldbox?lptag=']) {
+    assert.equal(odLink(url, 'coupang'), '', url);
+  }
+  assert.equal(odIsAffiliateLink('https://link.coupang.com/a/abc'), true);
+  assert.equal(odIsAffiliateLink('https://www.coupang.com/np/goldbox?lptag=AF1327603'), true);
+  assert.equal(odIsAffiliateLink('https://www.coupang.com/np/goldbox'), false);
   for (const url of ['javascript:alert(1)', 'http://www.coupang.com/', 'https://coupang.com.attacker.test/', 'https://user:pass@www.coupang.com/',
     'https://www.coupang.com:8443/', 'https://www.coupang.com/?%74oken=secret', 'https://www.coupang.com/?coupon_code=abc',
     'https://www.coupang.com\\@attacker.test/', 'https://www.coupang.com/ x', 'https://www.coupang.com/?%E0%A4%A=1', '//www.coupang.com/']) {
@@ -200,7 +209,8 @@ test('화면 재검사: 기한·링크·가격·조건이 맞지 않으면 버�
     { checkedAt: iso(now + HOUR) }, { endsAt: iso(now - 1) }, { id: '../x' }, { supplier: 'other' }, { title: '' }]) {
     assert.equal(odClientItem({ ...pub, ...over }, now), null, JSON.stringify(over));
   }
-  assert.equal(odClientItem({ ...pub, affiliate: false, url: 'https://www.coupang.com/vp/products/1?lptag=AF1' }, now).affiliate, true, '링크가 제휴면 제휴 표시');
+  assert.equal(odClientItem({ ...pub, affiliate: false, url: 'https://www.coupang.com/vp/products/1?lptag=AF1327603' }, now).affiliate, true, '링크가 제휴면 제휴 표시');
+  assert.equal(odClientItem({ ...pub, url: 'https://www.coupang.com/vp/products/1?lptag=AF0000001' }, now), null, '다른 파트너스 ID 링크는 표시하지 않음');
 });
 
 test('실패 뒤 일시 중지: 429는 Retry-After(15분~24시간), 일반 실패는 3회째부터 늘려 가며', () => {

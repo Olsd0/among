@@ -1,7 +1,7 @@
 // 온라인 특가 화면 (선택해서 열 때만 불러옴). 프랜차이즈 쿠폰 데이터와 섞지 않는다.
 // 상품은 승인된 공급처에서 자동으로 확인해 검증을 통과한 것만 Apps Script가 내려 준다.
 // 서버 응답도 그대로 믿지 않고 같은 규칙(online-deals-core.js)으로 다시 검사한다.
-import { OD_CATEGORIES, OD_SUPPLIERS, odClientItem, odShippingText } from './online-deals-core.js?v=20261105-1';
+import { OD_CATEGORIES, OD_SUPPLIERS, odClientItem, odShippingText, odLink, odIsAffiliateLink } from './online-deals-core.js?v=20261105-2';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 const API_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
@@ -59,6 +59,10 @@ function source(options) {
 export function createOnlineDealsUI(root, options = {}) {
   loadStyles();
   const src = source(options);
+  // 골드박스 바로가기: 파트너스 '간편 링크'로 만든 AMONG 제휴 링크(config.onlineDeals.goldboxUrl)가 있으면 그 링크, 없으면 일반 링크.
+  // 다른 파트너스 ID가 붙은 링크는 odLink가 거절한다.
+  const goldbox = odLink(options.goldboxUrl || '', 'coupang') || GOLDBOX;
+  const goldboxAffiliate = odIsAffiliateLink(goldbox);
   let payload = { items: [] }, active = false, loaded = false, loading = false, failed = false;
   let request = null, expiryTimer = 0, controller = null, destroyed = false;
   root.classList.add('od-view');
@@ -67,7 +71,7 @@ export function createOnlineDealsUI(root, options = {}) {
     <div class="od-disclosure" hidden></div>
     <div class="od-list-heading"><h3>확인한 상품</h3><p class="od-count"></p></div><div class="od-status" role="status" aria-live="polite"></div>
     <div class="od-products-list"></div><p class="od-price-note" hidden>표시 가격은 확인 당시 기준이에요. 옵션·회원 여부·쿠폰·배송비에 따라 최종 결제 금액이 달라질 수 있어요. 구매 전 판매처에서 꼭 확인해 주세요.</p>
-    <article class="od-official-entry"><div class="od-entry-top"><span class="od-entry-label">쿠팡 공식 특가 바로가기</span><span class="od-membership">와우회원 전용</span></div><h3>오늘의 골드박스</h3><p>지금 진행 중인 특가 상품과<br>회원 혜택을 쿠팡에서 확인하세요.</p><a href="${GOLDBOX}" target="_blank" rel="noopener noreferrer">쿠팡에서 특가 보기 <span aria-hidden="true">↗</span><span class="od-sr-only"> (새 탭)</span></a></article>
+    <article class="od-official-entry"><div class="od-entry-top"><span class="od-entry-label">쿠팡 공식 특가 바로가기</span><span class="od-membership">와우회원 전용</span>${goldboxAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div><h3>오늘의 골드박스</h3><p>지금 진행 중인 특가 상품과<br>회원 혜택을 쿠팡에서 확인하세요.</p><a href="${esc(goldbox)}" target="_blank" rel="${goldboxAffiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer'}">쿠팡에서 특가 보기 <span aria-hidden="true">↗</span><span class="od-sr-only"> (새 탭)</span></a></article>
     <p class="od-footnote">주문과 결제는 각 판매처에서 진행돼요. AMONG은 가격을 보장하지 않아요.</p>`;
   const list = root.querySelector('.od-products-list');
   const status = root.querySelector('.od-status');
@@ -79,7 +83,7 @@ export function createOnlineDealsUI(root, options = {}) {
     try { items = normalizeOnlineDeals(payload); } catch { /* 형식이 맞지 않으면 빈 목록 (쿠폰 화면에는 영향 없음) */ }
     root.setAttribute('aria-busy', String(loading));
     // 제휴 링크가 있는 공급처의 고지 문구를 목록보다 먼저 보여 준다 (화면이 가진 목록 기준, 서버 문구를 그대로 쓰지 않음).
-    const notes = [...new Set(items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure))];
+    const notes = [...new Set([...(goldboxAffiliate ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
     const disclosure = root.querySelector('.od-disclosure');
     disclosure.hidden = !notes.length;
     disclosure.innerHTML = notes.map(n => `<p>${esc(n)}</p>`).join('');

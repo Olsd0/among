@@ -10,5 +10,7 @@ window.AMONG_CONFIG = {
   // 시험 운영. false로 바꾸면 온라인 특가 탭을 숨기고 기존 앱 쿠폰 메뉴를 복원한다.
   // 상품은 Apps Script(apiUrl ?action=online_deals)가 검증을 통과한 것만 내려 준다. dataUrl은 예시 모드용 빈 목록.
   // 공급처 키·제휴 비밀값은 여기에 넣지 않는다 (GitHub Secrets에만).
-  onlineDeals: { enabled: true, dataUrl: './online-deals.json' },
+  // goldboxUrl: 쿠팡 파트너스(AF1327603) '간편 링크'로 골드박스 주소(https://www.coupang.com/np/goldbox)를 바꾼 링크.
+  //             넣으면 바로가기가 제휴 링크가 되고 화면 맨 위에 파트너스 고지 문구가 보인다. 비우면 일반 링크(고지 없음).
+  onlineDeals: { enabled: true, dataUrl: './online-deals.json', goldboxUrl: '' },
 };

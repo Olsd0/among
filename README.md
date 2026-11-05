@@ -40,7 +40,7 @@ Apps Script 웹앱 → 구글시트 (coupons · news · sources · run_log · ev
 
 ### 온라인 특가 (자동화 구조 · 공급처 승인 대기)
 
-마지막 메뉴의 독립된 온라인 특가 화면. 승인된 공급처의 상품을 3시간마다 자동으로 확인해 가격·조건·링크·분류 검증을 통과한 것만 게시하고, 나머지는 사유와 함께 비공개 보류한다(`online-deals.yml` → Apps Script `online_items`). 쿠폰 데이터와 섞지 않는다. **현재 쿠팡 파트너스·링크프라이스 모두 계정·승인 전이라 실제 연결은 없고, 모의 데이터로만 검증했다.** 공개 화면은 '아직 자동으로 확인한 상품이 없어요'와 골드박스 일반 링크만 보인다. 운영은 `admin.html`의 '온라인 특가 자동화'에서 공급처 모드·보류·숨김·규칙만 다룬다. `web/config.js`의 `onlineDeals.enabled`를 `false`로 바꾸면 메뉴가 사라진다. [기준·운영·공급처 연결 절차](docs/online-deals-trial.md)
+마지막 메뉴의 독립된 온라인 특가 화면. 승인된 공급처의 상품을 3시간마다 자동으로 확인해 가격·조건·링크·분류 검증을 통과한 것만 게시하고, 나머지는 사유와 함께 비공개 보류한다(`online-deals.yml` → Apps Script `online_items`). 쿠폰 데이터와 섞지 않는다. **쿠팡 파트너스는 11/05 가입(파트너스 ID AF1327603)했지만 최종 승인 전이라 API를 쓸 수 없고, 링크프라이스는 계정 전이다. 상품 자동 확인은 모의 데이터로만 검증했다.** 공개 화면은 '아직 자동으로 확인한 상품이 없어요'와 골드박스 바로가기만 보인다. 파트너스 '간편 링크'로 만든 골드박스 링크를 `web/config.js`의 `onlineDeals.goldboxUrl`에 넣으면 바로가기가 제휴 링크가 되고 고지 문구가 맨 위에 붙는다(다른 파트너스 ID 링크는 거절). 운영은 `admin.html`의 '온라인 특가 자동화'에서 공급처 모드·보류·숨김·규칙만 다룬다. `web/config.js`의 `onlineDeals.enabled`를 `false`로 바꾸면 메뉴가 사라진다. [기준·운영·공급처 연결 절차](docs/online-deals-trial.md)
 
 ### 개발·테스트
 
@@ -190,7 +190,7 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
 - **기간**: 실제 행사 종료와 AMONG 재확인 기한(마지막 수신 + 6시간)을 따로 두고 이른 쪽에서 내린다. 실패·빈 응답은 상품을 지우지 않고, 응답에 없는 상품도 품절로 보지 않는다. 운영자 숨김은 다시 받아도 유지.
 - **표시**: 확인 당시 가격, 배송비를 모르면 '배송비 확인 필요'(무료 표시 안 함), 조건 전체, 쿠팡 필수 고지 문구를 목록 위에, 상품마다 '제휴광고'·`rel=sponsored`. 최저가·할인율 없음. 사진은 이용 범위 확인 전 표시 안 함.
 - **비밀값**: 승인 후 GitHub Secrets `COUPANG_PARTNERS_ACCESS_KEY`·`COUPANG_PARTNERS_SECRET_KEY`·`LINKPRICE_API_KEY`에 대표가 직접 등록. 로그·시트·응답에 남지 않음을 테스트로 확인.
-- 바뀐 파일 버전: `app.js?v=20261105-2`, `online-deals.js`·`online-deals.css` `?v=20261105-2`, `online-deals-core.js?v=20261105-1`, 서비스 워커 캐시 `among-shell-v40`, Apps Script 웹앱 버전 9(`SCHEMA_VERSION` 7). 온라인 특가 응답 대기는 쿠폰 조회와 같은 20초(Apps Script가 처음 깨어날 때 6초가량 걸림).
+- 바뀐 파일 버전(11/05 11시대 파트너스 반영 후): `app.js?v=20261105-4`, `online-deals.js`·`online-deals.css` `?v=20261105-3`, `online-deals-core.js?v=20261105-2`, `online-admin.js?v=20261105-2`, 서비스 워커 캐시 `among-shell-v42`, Apps Script 웹앱 버전 10(`SCHEMA_VERSION` 7). 온라인 특가 응답 대기는 쿠폰 조회와 같은 20초(Apps Script가 처음 깨어날 때 6초가량 걸림).
 
 ## 운영
 

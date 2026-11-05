@@ -56,7 +56,7 @@ async function setup(t, options = {}) {
     if (url.origin === site.base && url.pathname.endsWith('/config.js')) {
       return route.fulfill({ contentType: 'text/javascript', body: `window.AMONG_CONFIG = ${JSON.stringify({
         apiUrl: 'https://script.google.com/macros/s/test/exec', contactEmail: '',
-        onlineDeals: { enabled: options.enabled !== false, dataUrl: './online-deals.json' },
+        onlineDeals: { enabled: options.enabled !== false, dataUrl: './online-deals.json', goldboxUrl: options.goldboxUrl || '' },
       })};` });
     }
     if (options.delayModule && url.origin === site.base && url.pathname.endsWith('/online-deals.js')) {
@@ -241,6 +241,31 @@ test('mobile product view identifies affiliate links, preserves factual conditio
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   if (process.env.AMONG_QA_SCREENSHOT) await page.screenshot({ path: process.env.AMONG_QA_SCREENSHOT.replace('.png', '-online-dark.png'), fullPage: true });
   assert.deepEqual(errors, []);
+});
+
+test('파트너스 골드박스 링크: AMONG ID 링크면 제휴 고지를 맨 위에, 다른 ID 링크는 쓰지 않고 일반 링크로', { timeout: 30000 }, async t => {
+  const ours = await setup(t, { goldboxUrl: 'https://link.coupang.com/a/among-goldbox-test' });
+  await ours.page.goto(site.base + '/index.html?view=onlineDeals');
+  const panel = ours.page.locator('#onlineDeals');
+  await panel.locator('.od-official-entry').waitFor();
+  await ours.page.waitForFunction(() => document.querySelector('#onlineDeals')?.getAttribute('aria-busy') === 'false');
+  const link = panel.locator('.od-official-entry a');
+  assert.equal(await link.getAttribute('href'), 'https://link.coupang.com/a/among-goldbox-test');
+  assert.match(await link.getAttribute('rel'), /sponsored/);
+  assert.match(await panel.locator('.od-official-entry').innerText(), /제휴광고/);
+  const disclosure = panel.locator('.od-disclosure');
+  assert.equal(await disclosure.isVisible(), true, '상품이 없어도 제휴 링크가 있으면 고지');
+  assert.match(await disclosure.innerText(), /^이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다\.$/);
+  assert.ok(await disclosure.evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-official-entry')) & Node.DOCUMENT_POSITION_FOLLOWING)), '고지가 링크보다 먼저');
+  assert.ok(await ours.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  if (process.env.AMONG_QA_DIR) await ours.page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-goldbox-affiliate-390.png`, fullPage: true });
+  const other = await setup(t, { goldboxUrl: 'https://www.coupang.com/np/goldbox?lptag=AF0000001' });
+  await other.page.goto(site.base + '/index.html?view=onlineDeals');
+  await other.page.locator('#onlineDeals .od-official-entry').waitFor();
+  assert.equal(await other.page.locator('#onlineDeals .od-official-entry a').getAttribute('href'), 'https://www.coupang.com/np/goldbox');
+  assert.equal(await other.page.locator('#onlineDeals .od-disclosure').isVisible(), false);
+  assert.deepEqual(ours.errors, []);
+  assert.deepEqual(other.errors, []);
 });
 
 // ---------- 전체 경로 모의 검증: 가짜 공급처 → 실행기 → Apps Script(가짜 환경) → 공개 화면·관리 화면 ----------
