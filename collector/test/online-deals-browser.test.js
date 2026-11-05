@@ -268,17 +268,17 @@ test('파트너스 골드박스 링크: AMONG ID 링크면 제휴 고지를 맨 
   assert.deepEqual(other.errors, []);
 });
 
-test('자취 필수품 항목별 바로가기: 골드박스보다 먼저, 기본은 일반 검색 링크(고지 없음), 제휴 링크가 생기면 고지·sponsored', { timeout: 40000 }, async t => {
+test('항목별로 더 찾아보기: 골드박스 카드 다음, 기본은 일반 검색 링크(고지 없음), 제휴 링크가 생기면 고지·sponsored', { timeout: 40000 }, async t => {
   const plain = await setup(t, { width: 320 });
   await plain.page.goto(site.base + '/index.html?view=onlineDeals');
   const panel = plain.page.locator('#onlineDeals');
   await panel.locator('.od-shortcuts').waitFor();
   const links = panel.locator('.od-sc');
-  assert.deepEqual((await links.allInnerTexts()).map(x => x.replace(/\s*↗.*$/s, '')), ['생수', '라면', '즉석밥', '냉동 간편식', '화장지', '물티슈', '세탁세제', '주방세제']);
+  assert.deepEqual((await links.allInnerTexts()).map(x => x.replace(/\s*(쿠팡에서 보기|↗).*$/s, '')), ['생수', '라면', '즉석밥', '냉동 간편식', '화장지', '물티슈', '세탁세제', '주방세제']);
   assert.equal(await links.first().getAttribute('href'), 'https://www.coupang.com/np/search?q=%EC%83%9D%EC%88%98');
   assert.equal(await links.first().getAttribute('rel'), 'noopener noreferrer');
   assert.equal(await links.first().getAttribute('target'), '_blank');
-  assert.ok(await panel.locator('.od-shortcuts').evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-official-entry')) & Node.DOCUMENT_POSITION_FOLLOWING)), '항목별 바로가기가 골드박스보다 먼저');
+  assert.ok(await panel.locator('.od-official-entry').evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-shortcuts')) & Node.DOCUMENT_POSITION_FOLLOWING)), '골드박스 카드 다음에 항목별 바로가기');
   assert.equal(await panel.locator('.od-disclosure').isVisible(), false);
   const heights = await links.evaluateAll(els => els.map(e => e.getBoundingClientRect().height));
   assert.ok(heights.every(h => h >= 44), '누르기 쉬운 높이');
@@ -307,8 +307,9 @@ import { runOnlineDeals } from '../src/online/run.js';
 import { ADAPTERS } from '../src/online/suppliers.js';
 import { createHttpClient } from '../src/online/http.js';
 import { candidate, mixedBatch, OD_T0, HOUR } from './online-fixtures.js';
+import { readFileSync } from 'node:fs';
 
-async function chain(t, { width = 390, batch = mixedBatch(), publish = true, darkMode = false } = {}) {
+async function chain(t, { width = 390, batch = mixedBatch(), publish = true, darkMode = false, images = null } = {}) {
   const gas = loadAppsScript(new URL('../../apps-script/Code.gs', import.meta.url).pathname, { now: OD_T0 });
   gas.ctx.setup();
   const token = gas.props.get('COLLECTOR_TOKEN'), admin = gas.props.get('ADMIN_TOKEN');
@@ -333,6 +334,8 @@ async function chain(t, { width = 390, batch = mixedBatch(), publish = true, dar
       return route.fulfill({ json: result, headers: { 'access-control-allow-origin': '*' } });
     }
     outside.push(url.href);
+    // 사진 시험: 쿠팡 CDN 주소는 저장소의 아이콘으로 대신 응답 (실제 쿠팡 사진을 받지 않음), 'broken'이 든 주소는 실패
+    if (images && /\.coupangcdn\.com$/.test(url.hostname)) return /broken/.test(url.pathname) ? route.fulfill({ status: 404, body: '' }) : route.fulfill({ contentType: 'image/png', body: images });
     return route.abort();
   });
   const page = await context.newPage();
@@ -547,7 +550,7 @@ test('자동 후보 → 카드: 관리 화면에서 후보를 골라 간편 링�
   assert.ok(before && !/[/]\s*$/.test(before));
   assert.equal(await form.locator('[name="price"]').inputValue(), '9370');
   assert.match(await form.locator('[name="memo"]').inputValue(), /^루리웹 핫딜 /);
-  assert.equal(await page.evaluate(() => document.activeElement?.name), 'url', '간편 링크 칸으로 이동');
+  assert.equal(await page.evaluate(() => document.activeElement?.name), 'html', '파트너스 HTML 칸으로 이동');
   await form.locator('[name="url"]').fill('https://link.coupang.com/a/amongShrimp1');
   await box.getByRole('button', { name: '카드 등록 (후보에서)', exact: true }).click();
   await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
@@ -563,5 +566,96 @@ test('자동 후보 → 카드: 관리 화면에서 후보를 골라 간편 링�
   assert.equal(await card.getAttribute('href'), 'https://link.coupang.com/a/amongShrimp1');
   const text = await page.locator('#onlineDeals').innerText();
   assert.doesNotMatch(text, /루리웹|뽐뿌|게시글/, '후보 출처는 공개 화면에 없음');
+  assert.deepEqual(errors, []);
+});
+
+test('카드 사진: 파트너스 HTML을 붙이면 링크·사진·상품명이 채워지고, 공개 카드에 사진(비율 그대로)과 가격이 바로 보임 · 항목별 칩 · 사진 실패 시 글자 칸', { timeout: 90000 }, async t => {
+  const icon = readFileSync(new URL('../../web/icon-192.png', import.meta.url));
+  const { gas, admin, page, errors, outside } = await chain(t, { width: 390, batch: [], publish: false, images: icon });
+  // 파트너스 상품 링크 HTML 형식을 흉내 낸 테스트 값 (실제 링크·사진 아님)
+  const html = (code, img, alt) => `<a href="https://link.coupang.com/a/${code}" target="_blank" referrerpolicy="unsafe-url"><img src="${img}" alt="${alt}" width="120" height="240"></a>`;
+  const banner = name => `https://img5c.coupangcdn.com/image/affiliate/banner/${name}@2x.jpg`;
+  await page.goto(site.base + '/admin.html');
+  await page.locator('#token').fill(admin);
+  await page.getByRole('button', { name: '불러오기', exact: true }).click();
+  const box = page.locator('#onlineDealsManager');
+  await box.locator('#odAdminContent').waitFor();
+  const form = box.locator('#odPickForm');
+  const photo = box.locator('.od-pick-photo');
+  assert.equal(await photo.isVisible(), false);
+  // 1) HTML 칸에 붙여 넣기 → 링크·사진·상품명
+  await form.locator('[name="html"]').fill(html('testShrimp01', banner('shrimp'), '테스트 새우깡, 90g, 10개 &amp; 증정'));
+  await box.locator('#odAdminMessage').filter({ hasText: '링크·사진·상품명을 채웠어요' }).waitFor();
+  assert.equal(await form.locator('[name="url"]').inputValue(), 'https://link.coupang.com/a/testShrimp01');
+  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 새우깡, 90g, 10개 & 증정');
+  assert.equal(await photo.isVisible(), true);
+  assert.equal(await photo.locator('img').getAttribute('src'), banner('shrimp'));
+  await page.waitForFunction(() => document.querySelector('.od-pick-photo img')?.naturalWidth > 0);
+  if (process.env.AMONG_QA_DIR) { await form.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-pick-html-admin-390.png`, fullPage: true }); }
+  await form.locator('[name="price"]').fill('9370');
+  await form.locator('[name="note"]').fill('로켓배송');
+  await box.getByRole('button', { name: '카드 등록', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
+  assert.equal(await photo.isVisible(), false, '등록하면 사진 미리보기도 비움');
+  assert.equal(gas.sheet('online_picks').objects()[0].image_url, banner('shrimp'), '시트에는 사진 주소만 (파일 저장 안 함)');
+  // 2) 상품 페이지 사진이 든 HTML은 링크만 받고 사진은 거절 — 링크 칸에 통째로 붙여 넣어도 같은 방식
+  await form.locator('[name="url"]').fill(html('testTissue02', 'https://thumbnail6.coupangcdn.com/thumbnails/remote/230x230ex/image/retail/a.jpg', '테스트 화장지 30롤'));
+  await box.locator('#odAdminMessage').filter({ hasText: '사진은 넣지 않았어요' }).waitFor();
+  assert.equal(await form.locator('[name="url"]').inputValue(), 'https://link.coupang.com/a/testTissue02');
+  assert.equal(await photo.isVisible(), false);
+  await form.locator('[name="category"]').selectOption('household');
+  await form.locator('[name="price"]').fill('15900');
+  await box.getByRole('button', { name: '카드 등록', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
+  // 3) 사진을 못 불러오는 카드
+  await form.locator('[name="html"]').fill(html('testRice0003', banner('broken'), '테스트 즉석밥 24개'));
+  await box.locator('#odAdminMessage').filter({ hasText: '링크·사진·상품명을 채웠어요' }).waitFor();
+  await form.locator('[name="price"]').fill('21900');
+  await box.getByRole('button', { name: '카드 등록', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
+  assert.equal(await box.locator('#odPicks .od-pick-thumb').count(), 2, '관리 목록에 사진 미리보기');
+  assert.match(await box.locator('#odPicks').innerText(), /사진 없음/);
+  assert.ok(await noOverflow(page));
+
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  const cards = page.locator('#onlineDeals .od-pick-card');
+  await cards.nth(2).waitFor();
+  assert.equal(await cards.count(), 3);
+  const shrimp = cards.filter({ hasText: '테스트 새우깡' });
+  assert.equal(await shrimp.getAttribute('href'), 'https://link.coupang.com/a/testShrimp01');
+  const img = shrimp.locator('img.od-ph');
+  await page.waitForFunction(() => document.querySelector('#onlineDeals .od-ph')?.naturalWidth > 0);
+  const geo = await img.evaluate(el => ({ ratio: el.getBoundingClientRect().height / el.getBoundingClientRect().width, natural: el.naturalHeight / el.naturalWidth, fit: getComputedStyle(el).objectFit, alt: el.alt, ref: el.referrerPolicy }));
+  assert.ok(Math.abs(geo.ratio - geo.natural) < 0.03, `사진 비율 그대로 ${JSON.stringify(geo)}`);
+  assert.notEqual(geo.fit, 'cover', '자르지 않음');
+  assert.equal(geo.ref, 'no-referrer');
+  const shrimpText = await shrimp.innerText();
+  assert.match(shrimpText, /9370원/); assert.match(shrimpText, /확인 당시 가격/); assert.match(shrimpText, /쿠팡 · 먹거리/); assert.match(shrimpText, /제휴광고/);
+  const firstBox = await shrimp.boundingBox();
+  assert.ok(firstBox.y + firstBox.height <= 844, '첫 카드(사진·가격)가 첫 화면 안에 보임');
+  assert.equal(await shrimp.locator('.ticket').count(), 1, '메인 쿠폰과 같은 티켓');
+  // 사진 거절된 카드·사진 실패 카드는 글자 칸 (사진 대신 '쿠팡 · 항목')
+  assert.equal(await cards.filter({ hasText: '테스트 화장지' }).locator('img').count(), 0);
+  const rice = cards.filter({ hasText: '테스트 즉석밥' });
+  await page.waitForFunction(() => [...document.querySelectorAll('#onlineDeals .od-pick-card')].find(c => c.textContent.includes('테스트 즉석밥'))?.querySelector('img') === null);
+  assert.match(await rice.locator('.stub').innerText(), /쿠팡\s*먹거리/);
+  // 항목별 칩
+  const chips = page.locator('#onlineDeals .od-cats [data-od-cat]');
+  assert.deepEqual((await chips.allInnerTexts()).map(x => x.replace(/\s+/g, ' ')), ['전체 3', '먹거리 2', '생활용품 1']);
+  await page.locator('#onlineDeals [data-od-cat="household"]').click();
+  assert.equal(await cards.count(), 1);
+  assert.equal(await page.locator('#onlineDeals [data-od-cat="household"]').getAttribute('aria-pressed'), 'true');
+  await page.locator('#onlineDeals [data-od-cat="all"]').click();
+  assert.equal(await cards.count(), 3);
+  for (const width of [320, 390, 430, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await noOverflow(page), `공개 ${width}px`);
+    if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-pick-photo-${width}.png`, fullPage: true });
+  }
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-pick-photo-390-dark.png`, fullPage: true });
+  // 기존 글꼴(cdn.jsdelivr.net) 외에 새로 생긴 외부 요청은 쿠팡 파트너스 사진뿐 (광고·추적 스크립트 없음)
+  assert.ok(outside.filter(u => !u.startsWith('https://cdn.jsdelivr.net/')).every(u => /^https:\/\/img5c\.coupangcdn\.com\/image\/affiliate\//.test(u)), `쿠팡 파트너스 사진 외 외부 요청 없음: ${outside.join(', ')}`);
   assert.deepEqual(errors, []);
 });

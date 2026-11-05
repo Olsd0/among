@@ -40,6 +40,15 @@
 .od-pick-form label.od-check { display: flex; }
 .od-pick-form input:not([type=checkbox]), .od-pick-form select { width: 100%; min-width: 0; }
 .od-pick-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.od-pick-form textarea { width: 100%; min-width: 0; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 8px; resize: vertical; }
+.od-hint { font-size: 12px; line-height: 1.55; }
+.od-pick-photo { display: flex; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.od-pick-photo[hidden] { display: none; }
+.od-pick-photo img { flex: none; width: 60px; height: auto; border-radius: 4px; background: #fff; box-shadow: 0 0 0 1px var(--line); }
+.od-pick-photo p { margin: 0 0 6px; font-size: 12.5px; }
+.od-item.has-thumb { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; }
+.od-item.has-thumb > :not(.od-pick-thumb) { grid-column: 2; }
+.od-pick-thumb { grid-row: 1 / span 4; width: 40px; height: auto; border-radius: 4px; background: #fff; box-shadow: 0 0 0 1px var(--line); }
 #onlineDealsManager button.danger { color: var(--bad); border-color: var(--bad); font-weight: 700; }
 .od-leads { margin: 10px 0 16px; padding: 12px; border: 1px dashed var(--line-strong, var(--line)); border-radius: 12px; }
 .od-leads h4 { margin: 0 0 4px; font-size: 14px; }

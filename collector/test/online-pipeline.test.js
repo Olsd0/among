@@ -344,7 +344,7 @@ test('워크플로: 읽기 권한만, 겹침 방지, 외부 액션 고정, 비�
 });
 
 // ---------- 직접 고른 쿠팡 특가 (최종 승인 전) ----------
-import { odPickInput, odPickPublic, odClientPick, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
+import { odPickInput, odPickPublic, odClientPick, odPickImage, odPartnerHtml, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
 const pickRaw = (over = {}) => ({ title: '테스트 생수 2L × 12병', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', note: '와우회원 가격', price: '7900', memo: '에펨코리아 핫딜', ...over });
 
 test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노출 기간 검사, 가격 확인 시각은 서버 시각', () => {
@@ -376,7 +376,7 @@ test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노�
 test('직접 고른 카드 공개: 메모·숨김 없음, 가격 카드는 확인 후 24시간만, 노출 종료 뒤에는 빠짐', () => {
   const pick = { ...odPickInput(pickRaw(), OD_T0).pick, id: 'pk_0123456789abcdef' };
   const pub = odPickPublic(pick, OD_T0 + HOUR);
-  assert.deepEqual(Object.keys(pub).sort(), ['category', 'id', 'note', 'price', 'priceCheckedAt', 'priceUntil', 'title', 'url', 'visibleUntil']);
+  assert.deepEqual(Object.keys(pub).sort(), ['category', 'id', 'imageUrl', 'note', 'price', 'priceCheckedAt', 'priceUntil', 'title', 'url', 'visibleUntil']);
   assert.ok(!JSON.stringify(pub).includes('에펨코리아'), '출처 메모는 공개하지 않음');
   assert.equal(pub.price, 7900);
   assert.equal(odPickPublic(pick, OD_T0 + 24 * HOUR - 1).price, 7900);
@@ -398,4 +398,37 @@ test('직접 고른 카드 공개: 메모·숨김 없음, 가격 카드는 확�
     { visibleUntil: iso(now - 1) }, { visibleUntil: iso(now + 40 * 24 * HOUR) }, { title: '' }]) {
     assert.equal(odClientPick({ ...pub, ...over }, now), null, JSON.stringify(over));
   }
+});
+
+// 11/05 17:38 대표 요청: 카드에 상품 사진과 가격이 바로 보이게. 사진은 쿠팡 파트너스 '상품 링크' HTML이 주는 배너만.
+// 아래 HTML은 파트너스 상품 링크 HTML의 형식을 흉내 낸 테스트 값이며 실제 상품·링크가 아니다.
+const PARTNER_HTML = '<a href="https://link.coupang.com/a/testHtml01" target="_blank" referrerpolicy="unsafe-url"><img src="https://img5c.coupangcdn.com/image/affiliate/banner/0123456789abcdef0123456789abcdef@2x.jpg" alt="테스트 새우깡, 90g, 10개 &amp; 증정" width="120" height="240"></a>';
+test('파트너스 HTML 붙여넣기: 간편 링크·배너 사진·상품명만 읽고, 다른 사진·다른 주소는 받지 않음', () => {
+  assert.deepEqual(odPartnerHtml(PARTNER_HTML), { url: 'https://link.coupang.com/a/testHtml01', imageUrl: 'https://img5c.coupangcdn.com/image/affiliate/banner/0123456789abcdef0123456789abcdef@2x.jpg', title: '테스트 새우깡, 90g, 10개 & 증정', imageRejected: false });
+  assert.deepEqual(odPartnerHtml("<A HREF='https://link.coupang.com/a/x2'><IMG SRC='https://img1a.coupangcdn.com/image/affiliate/banner/a.jpg' ALT='작은따옴표'></A>"),
+    { url: 'https://link.coupang.com/a/x2', imageUrl: 'https://img1a.coupangcdn.com/image/affiliate/banner/a.jpg', title: '작은따옴표', imageRejected: false });
+  const page = odPartnerHtml('<a href="https://link.coupang.com/a/x3"><img src="https://thumbnail6.coupangcdn.com/thumbnails/remote/230x230ex/image/retail/a.jpg" alt="x"></a>');
+  assert.equal(page.imageUrl, '', '상품 페이지 사진은 받지 않음'); assert.equal(page.imageRejected, true);
+  assert.equal(odPartnerHtml('<iframe src="https://coupa.ng/abc" width="120" height="240"></iframe>').url, '', '위젯(iframe)은 쓰지 않음');
+  assert.equal(odPartnerHtml('<a href="https://www.coupang.com/vp/products/1"><img src="x"></a>').url, '', '간편 링크가 아닌 주소');
+  assert.equal(odPartnerHtml('<a href="javascript:alert(1)">').url, '');
+  for (const bad of ['http://img5c.coupangcdn.com/image/affiliate/banner/a.jpg', 'https://img5c.coupangcdn.com.evil.test/image/affiliate/a.jpg', 'https://evil.test/image/affiliate/a.jpg',
+    'https://img5c.coupangcdn.com/image/affiliate/../retail/a.jpg', 'https://img5c.coupangcdn.com/image/affiliate/a.jpg?x=1', 'https://img5c.coupangcdn.com/image/affiliate/a".jpg', 'https://img5c.coupangcdn.com//image/affiliate/a.jpg']) {
+    assert.equal(odPickImage(bad), '', bad);
+  }
+});
+
+test('직접 고른 카드 사진: 저장·공개·화면 재검사 모두 같은 기준, 잘못된 사진은 오류(입력) 또는 빼기(공개)', () => {
+  const img = odPartnerHtml(PARTNER_HTML).imageUrl;
+  const saved = odPickInput(pickRaw({ imageUrl: img }), OD_T0).pick;
+  assert.equal(saved.imageUrl, img);
+  assert.match(odPickInput(pickRaw({ imageUrl: 'https://evil.test/a.jpg' }), OD_T0).errors.join(' '), /쿠팡 파트너스/);
+  assert.equal(odPickInput(pickRaw(), OD_T0).pick.imageUrl, '', '사진 없이도 올릴 수 있음');
+  const pub = odPickPublic({ ...saved, id: 'pk_0123456789abcdef' }, OD_T0 + HOUR);
+  assert.equal(pub.imageUrl, img);
+  assert.equal(odPickPublic({ ...saved, id: 'pk_0123456789abcdef', imageUrl: 'https://evil.test/a.jpg' }, OD_T0 + HOUR).imageUrl, '', '시트를 직접 고쳐도 공개되지 않음');
+  assert.equal(odClientPick(pub, OD_T0 + HOUR).imageUrl, img);
+  const tampered = odClientPick({ ...pub, imageUrl: 'https://evil.test/a.jpg' }, OD_T0 + HOUR);
+  assert.equal(tampered.imageUrl, '', '응답이 바뀌어도 화면은 사진만 빼고 카드는 유지');
+  assert.equal(tampered.price, 7900);
 });

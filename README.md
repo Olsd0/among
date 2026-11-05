@@ -188,9 +188,11 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
 - **규칙 한 곳**: `collector/src/online-deals-core.js` → `npm run sync-web`이 `web/`과 `Code.gs` 생성 구역에 복사(테스트가 같은지 확인).
 - **게시 기준**: 원화 실구매가(단위가·할인액·적립금·최소주문금액 제외), 옵션 가격 특정, 개인별 가격 아님, 조건 완전, 허용 링크, 판매자, 분류 규칙, 제외 키워드·판매자, 중복·상한, 공급처 '자동 게시'. 새 공급처는 '관찰(비공개)'로 시작.
 - **기간**: 실제 행사 종료와 AMONG 재확인 기한(마지막 수신 + 6시간)을 따로 두고 이른 쪽에서 내린다. 실패·빈 응답은 상품을 지우지 않고, 응답에 없는 상품도 품절로 보지 않는다. 운영자 숨김은 다시 받아도 유지.
-- **표시**: 확인 당시 가격, 배송비를 모르면 '배송비 확인 필요'(무료 표시 안 함), 조건 전체, 쿠팡 필수 고지 문구를 목록 위에, 상품마다 '제휴광고'·`rel=sponsored`. 최저가·할인율 없음. 사진은 이용 범위 확인 전 표시 안 함.
+- **표시**: 확인 당시 가격, 배송비를 모르면 '배송비 확인 필요'(무료 표시 안 함), 조건 전체, 쿠팡 필수 고지 문구를 목록 위에, 상품마다 '제휴광고'·`rel=sponsored`. 최저가·할인율 없음. 자동 확인 상품 사진은 공급처 이용 범위 확인 전 표시 안 함(직접 고른 카드는 파트너스 HTML 배너만).
 - **비밀값**: 승인 후 GitHub Secrets `COUPANG_PARTNERS_ACCESS_KEY`·`COUPANG_PARTNERS_SECRET_KEY`·`LINKPRICE_API_KEY`에 대표가 직접 등록. 로그·시트·응답에 남지 않음을 테스트로 확인.
-- 바뀐 파일 버전(11/05 직접 고른 특가·자동 후보 후): `app.js?v=20261105-7`, `online-deals.js`·`online-deals.css` `?v=20261105-6`, `online-deals-core.js?v=20261105-4`, `online-admin.js?v=20261105-4`·`online-admin.css?v=20261105-3`, 서비스 워커 캐시 `among-shell-v45`, Apps Script 웹앱 버전 11(`SCHEMA_VERSION` 8: `online_picks`·`online_leads` 탭). 온라인 특가 응답 대기는 쿠폰 조회와 같은 20초(Apps Script가 처음 깨어날 때 6초가량 걸림).
+- **사진·가격이 바로 보이는 쿠폰 카드로 통일 (11/05 17:38 대표 요청)**: 직접 고른 특가·자동 확인 상품·골드박스를 모두 메인 쿠폰과 같은 티켓(`.tk/.ticket/.stub/.body`)으로 보여 준다. 왼쪽 칸은 상품 사진, 본문은 `쿠팡 · 항목`·상품명·**확인 당시 가격**·한 줄 설명·확인 시각·'쿠팡에서 보기'. 두 항목 이상 올라오면 `전체 / 먹거리 / 생활용품 / 기타` 칩으로 항목별 보기. 검색 바로가기 8개는 사진·가격이 없어 맨 아래 '항목별로 더 찾아보기' 칩으로 내렸다.
+  - 사진 출처: 쿠팡 파트너스 '상품 링크' → 링크 생성 → **HTML(이미지+텍스트)** 이 주는 배너 사진만(`https://img…coupangcdn.com/image/affiliate/…`, 120×240). 관리 화면 'HTML' 칸에 그대로 붙여 넣으면 링크·사진·상품명(사진 설명)이 채워진다(`odPartnerHtml`, HTML은 실행하지 않고 글자로만 읽음). 상품 페이지·게시판 사진은 받지 않는다. 사진은 저장하지 않고 쿠팡 주소만 시트 `online_picks.image_url`에 둔다. 화면은 자르거나 위에 덮지 않고 비율 그대로, 못 불러오면 글자 칸(`쿠팡 · 항목`)으로 바뀐다.
+- 바뀐 파일 버전(11/05 사진 카드 후): `app.js?v=20261105-8`, `online-deals.js`·`online-deals.css` `?v=20261105-7`, `online-deals-core.js?v=20261105-5`, `online-admin.js?v=20261105-6`·`online-admin.css?v=20261105-4`, 서비스 워커 캐시 `among-shell-v46`, Apps Script `SCHEMA_VERSION` 9(`online_picks.image_url`), 관리 화면 CSP `img-src`에 `https://*.coupangcdn.com`. 온라인 특가 응답 대기는 쿠폰 조회와 같은 20초(Apps Script가 처음 깨어날 때 6초가량 걸림).
 
 ## 운영
 

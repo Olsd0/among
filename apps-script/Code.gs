@@ -74,7 +74,7 @@ const SHEETS = {
     'hidden', 'hidden_reason', 'hidden_at', 'category_override', 'override_until', 'first_seen_at', 'updated_at', 'payload'],
   online_runs: ['run_id', 'trigger', 'started_at', 'finished_at', 'results', 'received', 'published', 'held', 'errors'],
   // 직접 고른 쿠팡 특가 (v8): 최종 승인 전 대표가 관리 화면에서 고른 상품의 파트너스 간편 링크. memo는 관리 화면에만
-  online_picks: ['id', 'status', 'title', 'url', 'category', 'note', 'price', 'price_checked_at', 'ends_at', 'hidden', 'memo', 'created_at', 'updated_at'],
+  online_picks: ['id', 'status', 'title', 'url', 'category', 'note', 'price', 'price_checked_at', 'ends_at', 'hidden', 'memo', 'created_at', 'updated_at', 'image_url'],
   // 핫딜 게시판에서 자동으로 찾은 쿠팡 상품 후보 (관리 화면 전용, 공개 응답에 싣지 않음). 3일 보관
   online_leads: ['key', 'status', 'source', 'title', 'price_hint', 'free_shipping', 'coupang_url', 'affiliate_only', 'post_url', 'posted_at', 'found_at'],
 };
@@ -84,7 +84,7 @@ const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_
 const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
   'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진)
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
@@ -2205,6 +2205,40 @@ const OD_PICK_DEFAULT_DAYS = 1;
 const OD_PICK_MAX_DAYS = 30;
 const OD_PICK_MAX = 60;
 const OD_PICK_LINK = /^https:\/\/link\.coupang\.com\/[A-Za-z0-9/_-]+$/;
+// 카드 사진 (11/05 17:38 대표 요청: 사진과 가격이 바로 보이게): 쿠팡 파트너스 '상품 링크' → 링크 생성 → HTML(이미지+텍스트)이
+// 주는 쿠팡 배너 사진만 받는다 (예: https://img5c.coupangcdn.com/image/affiliate/banner/…@2x.jpg, 120×240).
+// 쿠팡이 파트너스 활동용으로 주는 사진이라 자르거나 다른 그림을 덮지 않고 비율 그대로 보여 준다.
+// 상품 페이지·게시판 사진은 받지 않는다 (판매자·게시자의 저작물).
+const OD_PICK_IMAGE = /^https:\/\/[a-z0-9][a-z0-9-]{0,30}\.coupangcdn\.com\/image\/affiliate\/[A-Za-z0-9_@.\/-]{1,200}$/;
+function odPickImage(v) {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return OD_PICK_IMAGE.test(s) && s.indexOf('..') < 0 && s.indexOf('//', 8) < 0 ? s : '';
+}
+function odUnent_(s) {
+  return String(s).replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|amp|lt|gt|quot|apos);/gi, function (m, e) {
+    const k = e.toLowerCase();
+    if (k[0] !== '#') return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[k];
+    const n = k[1] === 'x' ? parseInt(k.slice(2), 16) : Number(k.slice(1));
+    return n > 31 && n < 0x110000 ? String.fromCodePoint(n) : ' ';
+  });
+}
+function odAttr_(tag, name) {
+  const m = new RegExp('\\s' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s>]+))', 'i').exec(tag || '');
+  if (!m) return '';
+  return odUnent_(m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3]).trim();
+}
+/**
+ * 파트너스 '상품 링크' HTML → { url, imageUrl, title, imageRejected }. HTML을 화면에 넣거나 실행하지 않고 글자로만 읽는다.
+ * url은 AMONG 파트너스 간편 링크 형식, imageUrl은 쿠팡 파트너스 배너 사진일 때만 채운다.
+ */
+function odPartnerHtml(html) {
+  const s = String(html || '').slice(0, 5000);
+  const a = /<a\b[^>]*>/i.exec(s), img = /<img\b[^>]*>/i.exec(s);
+  const link = odLink(odAttr_(a ? a[0] : '', 'href'), 'coupang');
+  const src = odAttr_(img ? img[0] : '', 'src');
+  const imageUrl = odPickImage(src);
+  return { url: link && OD_PICK_LINK.test(link) ? link : '', imageUrl, title: odText(odAttr_(img ? img[0] : '', 'alt'), 80), imageRejected: !!src && !imageUrl };
+}
 
 /** 관리 화면 입력 → 저장 형식. 잘못된 값은 고치지 않고 오류로 돌려준다 */
 function odPickInput(raw, now, prev) {
@@ -2220,6 +2254,8 @@ function odPickInput(raw, now, prev) {
   const note = odText(r.note, 61);
   if (note.length > 60) errors.push('한 줄 설명은 60자 이내로 입력하세요.');
   const memo = odText(r.memo, 200);
+  const imageUrl = r.imageUrl ? odPickImage(r.imageUrl) : '';
+  if (r.imageUrl && !imageUrl) errors.push('사진은 쿠팡 파트너스 상품 링크 HTML의 사진(…coupangcdn.com/image/affiliate/…)만 쓸 수 있어요.');
   let price = null;
   if (r.price !== '' && r.price !== null && r.price !== undefined) {
     const t = String(r.price).trim();
@@ -2233,7 +2269,7 @@ function odPickInput(raw, now, prev) {
   const at = new Date(now).toISOString();
   // 가격을 새로 넣거나 바꾸거나 '다시 확인'을 누르면 지금 확인한 것으로 본다. 같은 가격으로 다른 칸만 고치면 처음 확인 시각을 유지한다.
   const priceCheckedAt = price === null ? '' : (r.recheck === true || price !== p.price || !p.priceCheckedAt ? at : p.priceCheckedAt);
-  return { errors, pick: { id: p.id || '', title, url, category, note, memo, price, priceCheckedAt, endsAt: new Date(ends).toISOString(),
+  return { errors, pick: { id: p.id || '', title, url, imageUrl, category, note, memo, price, priceCheckedAt, endsAt: new Date(ends).toISOString(),
     hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
 }
 
@@ -2244,7 +2280,7 @@ function odPickPublic(p, now) {
   const until = odMs_(p.priceCheckedAt) + OD_PICK_PRICE_HOURS * OD_HOUR;
   if (priced && !(until > now)) return null;
   const visible = priced ? Math.min(odMs_(p.endsAt), until) : odMs_(p.endsAt);
-  return { id: p.id, title: p.title, url: p.url, category: p.category, note: p.note || '',
+  return { id: p.id, title: p.title, url: p.url, imageUrl: odPickImage(p.imageUrl), category: p.category, note: p.note || '',
     price: priced ? p.price : null, priceCheckedAt: priced ? p.priceCheckedAt : '', priceUntil: priced ? new Date(until).toISOString() : '',
     visibleUntil: new Date(visible).toISOString() };
 }
@@ -2267,7 +2303,7 @@ function odClientPick(raw, now) {
     if (!fresh) return null;
     price = raw.price;
   }
-  return { id, title, url, category: raw.category, note, affiliate: true,
+  return { id, title, url, imageUrl: odPickImage(raw.imageUrl), category: raw.category, note, affiliate: true,
     price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price ? Math.min(until, priceUntil) : until };
 }
 
@@ -2379,7 +2415,7 @@ function odCounts_(ev, supplier) {
 function odReadPicks_() {
   return readTable_('online_picks').rows.filter(function (r) { return /^pk_[0-9a-z]{8,24}$/.test(String(r.id)); }).map(function (r) {
     return {
-      id: r.id, title: odUncell_(r.title), url: String(r.url), category: String(r.category), note: odUncell_(r.note), memo: odUncell_(r.memo),
+      id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), note: odUncell_(r.note), memo: odUncell_(r.memo),
       price: r.price === '' || r.price == null ? null : Number(r.price), priceCheckedAt: String(r.price_checked_at || ''), endsAt: String(r.ends_at || ''),
       hidden: String(r.hidden).toUpperCase() === 'TRUE', createdAt: String(r.created_at || ''), updatedAt: String(r.updated_at || ''),
     };
@@ -2394,7 +2430,7 @@ function odWritePicks_(picks) {
       id: p.id, status: p.hidden ? 'hidden' : Date.parse(p.endsAt) > now ? 'published' : 'ended',
       title: odCell_(p.title), url: p.url, category: p.category, note: odCell_(p.note), price: p.price == null ? '' : p.price,
       price_checked_at: p.priceCheckedAt || '', ends_at: p.endsAt, hidden: p.hidden ? 'TRUE' : '', memo: odCell_(p.memo),
-      created_at: p.createdAt, updated_at: p.updatedAt,
+      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '',
     };
   }));
   CacheService.getScriptCache().remove(OD_CACHE_KEY);

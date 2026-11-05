@@ -436,6 +436,40 @@ export const OD_PICK_DEFAULT_DAYS = 1;
 export const OD_PICK_MAX_DAYS = 30;
 export const OD_PICK_MAX = 60;
 const OD_PICK_LINK = /^https:\/\/link\.coupang\.com\/[A-Za-z0-9/_-]+$/;
+// 카드 사진 (11/05 17:38 대표 요청: 사진과 가격이 바로 보이게): 쿠팡 파트너스 '상품 링크' → 링크 생성 → HTML(이미지+텍스트)이
+// 주는 쿠팡 배너 사진만 받는다 (예: https://img5c.coupangcdn.com/image/affiliate/banner/…@2x.jpg, 120×240).
+// 쿠팡이 파트너스 활동용으로 주는 사진이라 자르거나 다른 그림을 덮지 않고 비율 그대로 보여 준다.
+// 상품 페이지·게시판 사진은 받지 않는다 (판매자·게시자의 저작물).
+const OD_PICK_IMAGE = /^https:\/\/[a-z0-9][a-z0-9-]{0,30}\.coupangcdn\.com\/image\/affiliate\/[A-Za-z0-9_@.\/-]{1,200}$/;
+export function odPickImage(v) {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return OD_PICK_IMAGE.test(s) && s.indexOf('..') < 0 && s.indexOf('//', 8) < 0 ? s : '';
+}
+function odUnent_(s) {
+  return String(s).replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|amp|lt|gt|quot|apos);/gi, function (m, e) {
+    const k = e.toLowerCase();
+    if (k[0] !== '#') return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[k];
+    const n = k[1] === 'x' ? parseInt(k.slice(2), 16) : Number(k.slice(1));
+    return n > 31 && n < 0x110000 ? String.fromCodePoint(n) : ' ';
+  });
+}
+function odAttr_(tag, name) {
+  const m = new RegExp('\\s' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s>]+))', 'i').exec(tag || '');
+  if (!m) return '';
+  return odUnent_(m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3]).trim();
+}
+/**
+ * 파트너스 '상품 링크' HTML → { url, imageUrl, title, imageRejected }. HTML을 화면에 넣거나 실행하지 않고 글자로만 읽는다.
+ * url은 AMONG 파트너스 간편 링크 형식, imageUrl은 쿠팡 파트너스 배너 사진일 때만 채운다.
+ */
+export function odPartnerHtml(html) {
+  const s = String(html || '').slice(0, 5000);
+  const a = /<a\b[^>]*>/i.exec(s), img = /<img\b[^>]*>/i.exec(s);
+  const link = odLink(odAttr_(a ? a[0] : '', 'href'), 'coupang');
+  const src = odAttr_(img ? img[0] : '', 'src');
+  const imageUrl = odPickImage(src);
+  return { url: link && OD_PICK_LINK.test(link) ? link : '', imageUrl, title: odText(odAttr_(img ? img[0] : '', 'alt'), 80), imageRejected: !!src && !imageUrl };
+}
 
 /** 관리 화면 입력 → 저장 형식. 잘못된 값은 고치지 않고 오류로 돌려준다 */
 export function odPickInput(raw, now, prev) {
@@ -451,6 +485,8 @@ export function odPickInput(raw, now, prev) {
   const note = odText(r.note, 61);
   if (note.length > 60) errors.push('한 줄 설명은 60자 이내로 입력하세요.');
   const memo = odText(r.memo, 200);
+  const imageUrl = r.imageUrl ? odPickImage(r.imageUrl) : '';
+  if (r.imageUrl && !imageUrl) errors.push('사진은 쿠팡 파트너스 상품 링크 HTML의 사진(…coupangcdn.com/image/affiliate/…)만 쓸 수 있어요.');
   let price = null;
   if (r.price !== '' && r.price !== null && r.price !== undefined) {
     const t = String(r.price).trim();
@@ -464,7 +500,7 @@ export function odPickInput(raw, now, prev) {
   const at = new Date(now).toISOString();
   // 가격을 새로 넣거나 바꾸거나 '다시 확인'을 누르면 지금 확인한 것으로 본다. 같은 가격으로 다른 칸만 고치면 처음 확인 시각을 유지한다.
   const priceCheckedAt = price === null ? '' : (r.recheck === true || price !== p.price || !p.priceCheckedAt ? at : p.priceCheckedAt);
-  return { errors, pick: { id: p.id || '', title, url, category, note, memo, price, priceCheckedAt, endsAt: new Date(ends).toISOString(),
+  return { errors, pick: { id: p.id || '', title, url, imageUrl, category, note, memo, price, priceCheckedAt, endsAt: new Date(ends).toISOString(),
     hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
 }
 
@@ -475,7 +511,7 @@ export function odPickPublic(p, now) {
   const until = odMs_(p.priceCheckedAt) + OD_PICK_PRICE_HOURS * OD_HOUR;
   if (priced && !(until > now)) return null;
   const visible = priced ? Math.min(odMs_(p.endsAt), until) : odMs_(p.endsAt);
-  return { id: p.id, title: p.title, url: p.url, category: p.category, note: p.note || '',
+  return { id: p.id, title: p.title, url: p.url, imageUrl: odPickImage(p.imageUrl), category: p.category, note: p.note || '',
     price: priced ? p.price : null, priceCheckedAt: priced ? p.priceCheckedAt : '', priceUntil: priced ? new Date(until).toISOString() : '',
     visibleUntil: new Date(visible).toISOString() };
 }
@@ -498,7 +534,7 @@ export function odClientPick(raw, now) {
     if (!fresh) return null;
     price = raw.price;
   }
-  return { id, title, url, category: raw.category, note, affiliate: true,
+  return { id, title, url, imageUrl: odPickImage(raw.imageUrl), category: raw.category, note, affiliate: true,
     price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price ? Math.min(until, priceUntil) : until };
 }
 

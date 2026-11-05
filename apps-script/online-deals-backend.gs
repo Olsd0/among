@@ -63,7 +63,7 @@ function odCounts_(ev, supplier) {
 function odReadPicks_() {
   return readTable_('online_picks').rows.filter(function (r) { return /^pk_[0-9a-z]{8,24}$/.test(String(r.id)); }).map(function (r) {
     return {
-      id: r.id, title: odUncell_(r.title), url: String(r.url), category: String(r.category), note: odUncell_(r.note), memo: odUncell_(r.memo),
+      id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), note: odUncell_(r.note), memo: odUncell_(r.memo),
       price: r.price === '' || r.price == null ? null : Number(r.price), priceCheckedAt: String(r.price_checked_at || ''), endsAt: String(r.ends_at || ''),
       hidden: String(r.hidden).toUpperCase() === 'TRUE', createdAt: String(r.created_at || ''), updatedAt: String(r.updated_at || ''),
     };
@@ -78,7 +78,7 @@ function odWritePicks_(picks) {
       id: p.id, status: p.hidden ? 'hidden' : Date.parse(p.endsAt) > now ? 'published' : 'ended',
       title: odCell_(p.title), url: p.url, category: p.category, note: odCell_(p.note), price: p.price == null ? '' : p.price,
       price_checked_at: p.priceCheckedAt || '', ends_at: p.endsAt, hidden: p.hidden ? 'TRUE' : '', memo: odCell_(p.memo),
-      created_at: p.createdAt, updated_at: p.updatedAt,
+      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '',
     };
   }));
   CacheService.getScriptCache().remove(OD_CACHE_KEY);

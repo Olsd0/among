@@ -27,14 +27,15 @@ test('응답 재검사: 형식·기한·링크가 맞지 않으면 빼고, 중�
 test('카드: 사실만 표시 (확인 당시 가격·배송비·조건·판매자), 최저가·할인율·쉼표 없음, 이스케이프', () => {
   const [it] = normalizeOnlineDeals({ items: [item({ title: '<script>bad</script>', conditions: ['<img onerror=bad()>'], membership: '와우회원', pick: '골드박스', endsAt: iso(now + 3600e3) })] }, now);
   const card = onlineDealCard(it);
-  assert.match(card, /확인 당시<\/span> 3000원/);
+  assert.match(card, /<b>3000원<\/b><span class="what">확인 당시 가격<\/span>/);
+  assert.match(card, /class="ticket od-ticket"/, '메인 쿠폰과 같은 티켓 모양');
   assert.match(card, /배송비 확인 필요/);
   assert.doesNotMatch(card, /무료배송|최저가|할인율|3,000|<script>|<img onerror/);
   assert.match(card, /&lt;script&gt;bad/);
   assert.match(card, /<li>와우회원 가격<\/li>/);
   assert.match(card, /판매자 테스트 판매자/);
   assert.match(card, /골드박스/);
-  assert.match(card, /행사 종료/);
+  assert.match(card, /종료/);
   assert.match(card, /제휴광고/);
   assert.match(card, /rel="sponsored noopener noreferrer"/);
   assert.match(card, /쿠팡에서 가격 확인/);
