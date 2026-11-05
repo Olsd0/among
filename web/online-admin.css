@@ -1,0 +1,35 @@
+#onlineDealsManager { margin: 20px 0 30px; border-top: 3px solid var(--series); padding-top: 18px; }
+.od-admin-heading { display: flex; align-items: baseline; gap: 16px; justify-content: space-between; flex-wrap: wrap; }
+.od-admin-heading h2 { margin: 0; font-size: 21px; }
+.od-admin-heading p { color: var(--muted); font-size: 13px; max-width: 62ch; }
+.od-admin-heading a { color: var(--series); }
+.od-admin-message { padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; white-space: pre-wrap; }
+.od-admin-message.bad { color: var(--bad); border-color: var(--bad); }
+.od-suppliers { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin: 14px 0; }
+.od-supplier { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; min-width: 0; }
+.od-supplier-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+.od-supplier label { display: flex; gap: 8px; align-items: center; }
+.od-supplier p { margin: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.od-counts { font-weight: 650; }
+.od-toolbar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin: 12px 0; }
+.od-toolbar label { display: grid; gap: 5px; }
+.od-items { display: grid; gap: 8px; }
+.od-item { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.od-item p { margin: 6px 0; overflow-wrap: anywhere; }
+.od-item-top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.od-item-top b { overflow-wrap: anywhere; }
+.od-holds { margin: 6px 0; padding-left: 18px; color: var(--warn); font-size: 13px; }
+.od-item-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.od-item-actions input:not([type]) { min-width: 0; flex: 1 1 160px; }
+.od-item-actions a { color: var(--series); }
+.od-rules { margin: 16px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.od-rules summary { font-weight: 750; color: var(--text); font-size: 15px; }
+.od-rules fieldset { border: 0; padding: 0; margin: 12px 0; display: flex; gap: 14px; flex-wrap: wrap; }
+.od-rules legend { font-weight: 650; margin-bottom: 6px; }
+.od-check { display: flex; gap: 6px; align-items: center; }
+.od-rule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.od-rule-grid label { display: grid; gap: 6px; font-size: 13px; min-width: 0; }
+.od-rule-grid textarea { width: 100%; min-width: 0; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 8px; resize: vertical; }
+#onlineDealsManager h3 { font-size: 15px; margin: 18px 0 8px; }
+#onlineDealsManager button { min-height: 40px; }
+@media (max-width: 600px) { .od-rule-grid { grid-template-columns: 1fr; } }

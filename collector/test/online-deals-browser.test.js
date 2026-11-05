@@ -335,3 +335,39 @@ test('전체 경로: 재확인 기한이 지난 상품은 새 수집 없이 빠�
   assert.deepEqual(errors, []);
 });
 
+test('관리 화면: 승인 대기 표시, 보류 사유, 숨김·규칙 저장이 공개 화면에 반영, 좁은 화면에서도 넘치지 않음', { timeout: 60000 }, async t => {
+  const { gas, admin, page, posts, errors } = await chain(t, { width: 390 });
+  await page.goto(site.base + '/admin.html');
+  await page.locator('#token').fill(admin);
+  await page.getByRole('button', { name: '불러오기', exact: true }).click();
+  const box = page.locator('#onlineDealsManager');
+  await box.locator('#odAdminContent').waitFor();
+  const sup = await box.locator('.od-supplier').allInnerTexts();
+  assert.match(sup[0], /쿠팡[\s\S]*연결됨/, '가짜 공급처로 받은 쿠팡은 연결됨으로 보임 (모의)');
+  assert.match(sup[1], /링크프라이스[\s\S]*실행 기록 없음|링크프라이스[\s\S]*승인 대기/);
+  assert.match(sup[1], /링크 주소 확인 전/);
+  const held = await box.locator('.od-item').allInnerTexts();
+  assert.equal(held.length, 5, '기본 목록은 보류');
+  assert.ok(held.some(x => /테스트 쌀[\s\S]*상품 실구매가가 아님/.test(x)));
+  assert.ok(held.some(x => /테스트 냉동고[\s\S]*분류 규칙에 없는 분류/.test(x)));
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await noOverflow(page), `관리 ${width}px`);
+    if (process.env.AMONG_QA_DIR) { await box.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-admin-held-${width}.png`, fullPage: true }); }
+  }
+  await box.locator('#odFilter').selectOption('published');
+  const water = box.locator('.od-item', { hasText: '테스트 생수 2L' });
+  await water.locator('[data-od-reason]').fill('설명과 다름');
+  await water.getByRole('button', { name: '숨기기', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '숨겼어요' }).waitFor();
+  assert.deepEqual(gas.get({ action: 'online_deals' }).items.map(i => i.title), ['테스트 화장지 30롤']);
+  await box.locator('details.od-rules summary').click();
+  await box.locator('[name="excludeKeywords"]').fill('주류\n화장지');
+  await box.getByRole('button', { name: '규칙 저장', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '규칙을 저장했어요' }).waitFor();
+  assert.equal(gas.get({ action: 'online_deals' }).count, 0);
+  const saved = posts.filter(p => p.op === 'rules').at(-1).rules;
+  assert.deepEqual(saved.excludeKeywords, ['주류', '화장지']);
+  assert.ok(!posts.some(p => p.token && p.action === 'online_deals'), '공개 조회에 토큰 없음');
+  assert.deepEqual(errors, []);
+});
