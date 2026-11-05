@@ -2,7 +2,8 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
-} from './engine.js?v=20261104-4';
+  isSideMenu,
+} from './engine.js?v=20261105-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261104-1';
@@ -80,6 +81,8 @@ const state = {
   following: new Set(Array.isArray(storedBrands) ? storedBrands.filter((x) => typeof x === 'string' && x.length < 80) : []),
   category: CATS.some((c) => c.id === prefs.category) ? prefs.category : '전체',
   kind: KINDS.some((k) => k.id === prefs.kind) ? prefs.kind : '',
+  // 메인 메뉴 / 사이드메뉴 (햄버거·치킨·피자의 사이드·음료·소스·디저트는 따로 본다). 기본은 메인 메뉴
+  menu: prefs.menu === 'side' ? 'side' : 'main',
   sort: ['best', 'price', 'rate', 'deadline'].includes(prefs.sort) ? prefs.sort : 'best',
   filters: { itemType: '', channel: '', everyoneOnly: false, maxPrice: '', ...(prefs.filters || {}) },
   quick: { mine: false, programsOnly: false, fresh: false, endingSoon: false, saved: false, ...(prefs.quick || {}) },
@@ -110,7 +113,7 @@ const visit = (() => {
   store.set('among_visit', { ...v, last: now });
   return { since: v.prev ? new Date(v.prev).toISOString() : null };
 })();
-const savePrefs = () => store.set('among_prefs', { v: 5, category: state.category, kind: state.kind, sort: state.sort, filters: state.filters, quick: { ...state.quick, saved: false } });
+const savePrefs = () => store.set('among_prefs', { v: 5, category: state.category, kind: state.kind, menu: state.menu, sort: state.sort, filters: state.filters, quick: { ...state.quick, saved: false } });
 const profileObj = () => (state.profile ? { programs: [state.profile.telecom, ...(state.profile.pays || [])].filter(Boolean), newMember: state.profile.newMember !== false } : null);
 
 const $ = (s) => document.querySelector(s);
@@ -207,6 +210,8 @@ function demoData() {
       c({ id: 'd8', brand: 'F피자', category: '피자', menu: '모든 피자', item_type: '기타', coupon_price: null, discount_type: 'percent', discount_value: 50, discount_rate: 50, channels: ['픽업'], audience: '멤버십', programs: ['KT'], program_note: '방문포장 · 2만5천원 이상', app_only: false, end_date: plus(2), stackable: 'no', official_link: 'https://membership.kt.com/discount/partner/PartnerList.do', how_to_use: 'KT 멤버십 앱에서 쿠폰 받기 → F피자 앱 포장 주문 때 쿠폰번호 입력' }),
       c({ id: 'd9', brand: 'G베이커리', category: '디저트', menu: '전 제품', item_type: '기타', coupon_price: null, discount_type: 'percent', discount_value: 20, discount_rate: 20, channels: ['매장'], programs: ['해피포인트'], app_only: true, end_date: plus(1), conditions: '해피포인트 앱 바코드 스캔 시', first_seen: now }),
       c({ id: 'd10', brand: 'H치킨', category: '치킨', menu: '오리지널 치킨', item_type: '단품', discount_type: 'free_item', channels: ['픽업'], end_date: plus(2), conditions: '매주 수요일 1+1', first_seen: now }),
+      c({ id: 'd11', brand: 'A버거', category: '햄버거', menu: '감자튀김 (M)', item_type: '단품', regular_price: 2300, coupon_price: 1000, discount_rate: 57, channels: ['매장', '픽업'], end_date: plus(6) }),
+      c({ id: 'd12', brand: 'F피자', category: '피자', menu: '치즈 오븐 스파게티', item_type: '단품', regular_price: 7900, coupon_price: 4900, discount_rate: 38, channels: ['픽업', '배달'], end_date: plus(8) }),
     ],
     news: [
       { id: 'n1', brand: 'F피자', category: '피자', title: 'F피자 화요일 포장 반값', summary: '매주 화요일 F피자 앱에서 포장 주문하면 모든 피자를 반값에 살 수 있어요. KT 멤버십 회원은 쿠폰을 받아 함께 쓸 수 있어요.', discount_label: '50%', start_date: plus(-2), end_date: plus(2), programs: [], image_url: '', related_ids: ['d8'], source_url: 'https://example.com/event', first_seen: now, checked_at: now },
@@ -384,14 +389,14 @@ function changeView(view) {
     }
   }
   state.view = view; state.brand = ''; state.brandQuery = ''; state.q = ''; $('#q').value = '';
-  state.category = '전체'; state.kind = ''; state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
+  state.category = '전체'; state.kind = ''; state.menu = 'main'; state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
   Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
   state.open.clear(); render(); window.scrollTo({ top: 0, behavior: 'auto' });
 }
 function openBrand(brand) {
   if (!brandNames().includes(brand)) return;
   if (state.view !== 'following') state.view = 'brands';
-  state.brand = brand; state.q = ''; $('#q').value = ''; state.category = '전체'; state.kind = '';
+  state.brand = brand; state.q = ''; $('#q').value = ''; state.category = '전체'; state.kind = ''; state.menu = 'main';
   state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
   Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
   state.open.clear(); render(); $('#brandTitle')?.focus({ preventScroll: true });
@@ -434,7 +439,8 @@ function renderGrid() {
   const kinds = KINDS.map((k) => tile('kind', k.id, k.label, ART[k.id], state.kind === k.id, n({ kind: k.id })));
   setHTML($('#grid'), cats.join('') + '<hr>' + kinds.join(''));
   const kl = state.kind ? KIND_LABEL[state.kind] : '';
-  $('#listTitle').textContent = state.category === '전체' && !kl ? '전체 혜택' : `${[state.category === '전체' ? '' : state.category, kl].filter(Boolean).join(' · ')} 혜택`;
+  const parts = [state.category === '전체' ? '' : state.category, kl, state.menu === 'side' ? '사이드메뉴' : ''].filter(Boolean);
+  $('#listTitle').textContent = parts.length ? `${parts.join(' · ')} 혜택` : '전체 혜택';
   $('#clearGrid').hidden = state.category === '전체' && !state.kind;
 }
 
@@ -723,7 +729,7 @@ const QUICK = [
   { key: 'saved', label: '찜' },
 ];
 function baseFilters() {
-  return { category: state.category, kind: state.kind, ...state.filters, q: state.q };
+  return { category: state.category, kind: state.kind, menu: state.menu, ...state.filters, q: state.q };
 }
 /** 지금 조건에서 카테고리·혜택 종류만 바꿔 보면 몇 개인지 (아이콘 숫자용) */
 function visibleWith(over) {
@@ -795,6 +801,24 @@ function renderBudget() {
   if (on.offsetLeft < row.scrollLeft || on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = Math.max(0, on.offsetLeft - 28);
   row.classList.toggle('scrolled', row.scrollLeft > 2);
 }
+/** 메인 메뉴 / 사이드메뉴 전환. 숫자 = 지금 조건에서 그쪽으로 바꾸면 보일 개수. 사이드가 하나도 없으면(카페만 보는 중 등) 줄을 숨긴다 */
+function renderMenuType() {
+  const row = $('#menuType');
+  const count = (menu) => visible({ ...quickFilters(), menu }).length;
+  const n = { main: count('main'), side: count('side') };
+  row.hidden = $('#budget').hidden || (state.menu === 'main' && !n.side);
+  row.querySelectorAll('[data-menu]').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.menu === state.menu));
+    b.querySelector('.n').textContent = n[b.dataset.menu];
+  });
+}
+function setMenu(v, from = 'tab') {
+  const next = v === 'side' ? 'side' : 'main';
+  if (next === state.menu) return;
+  state.menu = next;
+  state.open.clear(); savePrefs(); render();
+  track('filter', { value: `menu:${next}${from === 'tab' ? '' : `:${from}`}` });
+}
 /** 목록 가까이의 짧은 조건 요약: '햄버거 · 5000원 이하 · 세트'. 제목에 이미 보이는 카테고리는 반복하지 않는다 */
 function conditionSummary() {
   const f = state.filters;
@@ -802,6 +826,7 @@ function conditionSummary() {
   return [
     titleShowsGrid || state.category === '전체' ? '' : state.category,
     titleShowsGrid || !state.kind ? '' : KIND_LABEL[state.kind],
+    titleShowsGrid || state.menu !== 'side' ? '' : '사이드메뉴',
     f.maxPrice ? budgetLabel(f.maxPrice) : '',
     f.itemType || '',
     f.channel || '',
@@ -819,7 +844,7 @@ function render() {
   $('#demoNote').hidden = onlineView || !DEMO;
   $('#syncNote').hidden = onlineView || !state.syncing;
   if (onlineView) {
-    for (const el of [$('.intro'), $('#appCoupons'), $('#brandPanel'), $('#hot'), $('#grid'), $('.list-h'), $('#budget'), $('#budgetNote'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar'), $('#errNote')]) el.hidden = true;
+    for (const el of [$('.intro'), $('#appCoupons'), $('#brandPanel'), $('#hot'), $('#grid'), $('.list-h'), $('#menuType'), $('#budget'), $('#budgetNote'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar'), $('#errNote')]) el.hidden = true;
     return;
   }
   for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = false;
@@ -835,10 +860,11 @@ function render() {
   $('.intro').classList.toggle('sr', state.view === 'brands' || state.view === 'following');
   appCouponUI.update(state.appCoupons, { loading: state.loading, failed: state.loadFailed });
   if (appView) {
-    for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('#budgetNote'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar')]) el.hidden = true;
+    for (const el of [$('#grid'), $('.list-h'), $('#menuType'), $('#budget'), $('#budgetNote'), $('.tools'), $('#summary'), $('.list-meta'), $('#list'), $('#meBar')]) el.hidden = true;
     return;
   }
   renderBudget();
+  renderMenuType();
   $('#sortSel').value = state.sort;
   const f = state.filters;
   $('#filterBtn').dataset.on = String(!!(f.itemType || f.channel || f.everyoneOnly || f.maxPrice));
@@ -858,7 +884,7 @@ function render() {
   else if (state.view === 'following') $('#listTitle').textContent = '구독 브랜드 혜택';
   const directory = state.view === 'brands' && !state.brand;
   for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
-  if ($('#budget').hidden) $('#budgetNote').hidden = true;
+  if ($('#budget').hidden) { $('#budgetNote').hidden = true; $('#menuType').hidden = true; }
   const shown = sortCoupons(visible(), state.sort, today, profileObj());
   const brands = new Set(shown.map((c) => c.brand)).size;
   const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;
@@ -872,8 +898,14 @@ function render() {
     const anyQuick = Object.values(state.quick).some(Boolean);
     const popular = Object.entries(state.coupons.reduce((m, c) => { m[c.brand] = (m[c.brand] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([b]) => b);
     // 불러오기 실패(데이터 없음)와 '조건에 맞는 결과 없음'을 구분한다. 결과가 없다고 예산을 넘는 혜택을 섞지 않는다.
+    // 다른 메뉴 종류(메인↔사이드)에는 같은 조건의 혜택이 있으면 그쪽으로 안내한다 (검색어 '콜라'로 메인 메뉴를 보고 있을 때 등)
+    const other = state.menu === 'side' ? 'main' : 'side';
+    const otherN = visible({ ...quickFilters(), menu: other }).length;
+    const otherLabel = other === 'side' ? '사이드메뉴' : '메인 메뉴';
     setHTML(list, state.loadFailed && !state.coupons.length
       ? '<div class="empty" role="alert"><b>혜택을 불러오지 못했어요.</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 시도</button></div>'
+      : otherN
+      ? `<div class="empty"><b>${state.menu === 'side' ? '사이드메뉴' : '메인 메뉴'}에는 맞는 혜택이 없어요.</b>${otherLabel}에 ${otherN}개 있어요.<br><button class="chip-btn" data-menu-go="${other}">${otherLabel} 보기</button></div>`
       : state.filters.maxPrice
       ? `<div class="empty"><b>선택한 조건에 맞는 혜택이 없어요.</b><button class="chip-btn" data-clear-budget>예산만 해제</button></div>`
       : state.q
@@ -950,6 +982,7 @@ async function checkStatusOnLoad() {
 }
 
 // ---------- 이벤트 ----------
+$('#menuType').addEventListener('click', (e) => { const b = e.target.closest('[data-menu]'); if (b) setMenu(b.dataset.menu); });
 $('#grid').addEventListener('click', (e) => {
   const b = e.target.closest('[data-cat],[data-kind]'); if (!b) return;
   if (b.dataset.cat) state.category = state.category === b.dataset.cat ? '전체' : b.dataset.cat;
@@ -981,6 +1014,7 @@ function jumpTo(id) {
   state.view = 'all'; state.brand = '';
   state.category = c.category || '전체';
   state.kind = '';
+  state.menu = isSideMenu(c) ? 'side' : 'main';
   state.q = ''; $('#q').value = '';
   Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
   state.open.add(id);
@@ -1083,6 +1117,8 @@ $('#list').addEventListener('click', async (e) => {
   if (sh) { shareCoupon(sh.dataset.share); return; }
   if (e.target.closest('[data-clear-quick]')) { Object.keys(state.quick).forEach((k) => { state.quick[k] = false; }); state.kind = ''; savePrefs(); render(); return; }
   if (e.target.closest('[data-clear-budget]')) { setBudget('', 'empty'); $('#list').focus({ preventScroll: true }); return; }
+  const go = e.target.closest('[data-menu-go]');
+  if (go) { setMenu(go.dataset.menuGo, 'empty'); $('#list').focus({ preventScroll: true }); return; }
   const tg = e.target.closest('[data-toggle]');
   if (tg) { toggleCard(tg.closest('.card')); return; }
   // 카드의 빈 곳(링크·버튼 밖)을 눌러도 상세가 열린다. 키보드는 '상세 보기' 버튼으로.

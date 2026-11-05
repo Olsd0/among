@@ -865,6 +865,36 @@ export function myPrograms(c, profile = {}) {
   return (c.programs || []).filter((p) => have.has(p));
 }
 
+// ---------- 메인 메뉴 / 사이드메뉴 (11/05 대표 요청: 사이드가 섞여 보기 불편) ----------
+// 햄버거·치킨·피자 브랜드에서 주메뉴가 아닌 사이드·음료·소스·디저트 쿠폰을 따로 모은다.
+// 카페·디저트 브랜드는 음료·디저트가 주메뉴라 나누지 않는다. '전 메뉴' 같은 묶음 할인은 메인 메뉴.
+// 세트·'A + B'는 구성 상품이 모두 사이드일 때만 사이드(버거·피자가 하나라도 있으면 메인).
+export const MENU_TYPES = [{ id: 'main', label: '메인 메뉴' }, { id: 'side', label: '사이드메뉴' }];
+const SIDE_CATEGORIES = ['햄버거', '치킨', '피자'];
+// 이름에 '치킨'이 들어가도 사이드인 것 (스낵랩·너겟·소스·음료 등)
+const SIDE_STRONG = /스낵랩|너겟|해피\s*스낵|소스|디핑|머스타드|케[첩찹]|마요|시즈닝|피클|콜라|코카|펩시|스프라이트|사이다|환타|닥터\s*페퍼|탄산|음료|생수|에이드|주스|[쉐셰]이크|커피|아메리카노|라떼|감자\s*튀김|후렌치\s*후라이|프렌치\s*프라이|포테이토|해[시쉬]\s*브라운|치즈\s*스틱|코울슬로|콘\s*샐러드|비스[켓킷]|에그\s*타르트|닭껍질|어니언\s*링/;
+// 주메뉴 낱말이 없을 때만 사이드로 보는 것
+const SIDE_WEAK = /웨지|치즈\s*볼|텐더|샐러드|파스타|스파게티|리조또|떡볶이|애플\s*파이|파이$|아이스크림|맥플러리|선데|브라우니|쿠키|츄러스|토네이도|와플|타르트|윙|봉$/;
+const MAIN_WORDS = {
+  햄버거: /버거|와퍼|피자|세트|콤보|버킷|치킨|통다리|닭다리|순살|징거|박스/,
+  치킨: /치킨|윙|봉|통다리|닭다리|순살|마리|콤보|세트|버킷|박스|피자|버거/,
+  피자: /피자|세트|콤보|버거/,
+};
+function sidePart(part, category) {
+  const p = clean(part);
+  if (!p) return false;
+  if (SIDE_STRONG.test(p)) return true;
+  return SIDE_WEAK.test(p) && !MAIN_WORDS[category].test(p);
+}
+/** 사이드메뉴 쿠폰인가 (햄버거·치킨·피자 브랜드의 사이드·음료·소스·디저트) */
+export function isSideMenu(c = {}) {
+  if (!SIDE_CATEGORIES.includes(c.category)) return false;
+  const menu = clean(c.menu).replace(/\([^)]*\)/g, ' ').replace(/\s*\d+\s*종\s*중\s*택\s*\d*/g, ' ');
+  if (!menu || /^(?:전|전체|모든)\s*(?:메뉴|상품|제품)/.test(menu)) return false;
+  const parts = menu.split(/\s*(?:\+|(?<!\d),(?!\d)|\/|&|또는|및)\s*/).filter((x) => x.trim());
+  return parts.length > 0 && parts.every((x) => sidePart(x, c.category));
+}
+
 // 홈 아이콘 아래 줄(혜택 종류) — 누르면 목록이 그 조건으로 걸러진다 (v5)
 export const PAY_PROGRAMS = ['네이버페이', '카카오페이', '토스페이', '해피포인트', 'CJ ONE'];
 export const KINDS = [
@@ -902,7 +932,7 @@ export function budgetPrice(c = {}) {
 }
 
 /**
- * 화면 필터. f: { category, kind, itemType, channel, everyoneOnly, q, mine, programsOnly, maxPrice, fresh, endingSoon, ids }
+ * 화면 필터. f: { category, kind, itemType, menu('main'|'side'), channel, everyoneOnly, q, mine, programsOnly, maxPrice, fresh, endingSoon, ids }
  * ctx: { today, profile, since(지난 방문 시각) }
  */
 export function matchesFilters(c, f = {}, ctx = {}) {
@@ -910,6 +940,7 @@ export function matchesFilters(c, f = {}, ctx = {}) {
   if (f.category && f.category !== '전체' && c.category !== f.category) return false;
   if (f.kind && !matchesKind(c, f.kind, today)) return false;
   if (f.itemType && c.item_type !== f.itemType) return false;
+  if ((f.menu === 'main' || f.menu === 'side') && isSideMenu(c) !== (f.menu === 'side')) return false;
   if (f.channel && !(c.channels || []).includes(f.channel)) return false;
   if (f.everyoneOnly && !isOpenToEveryone(c)) return false;
   if (f.mine && !usableBy(c, ctx.profile || {})) return false;
