@@ -320,3 +320,45 @@ test('자동 후보: 수집기 토큰으로만 저장, 같은 기준으로 재�
   b.gas.post({ action: 'online_leads_ingest', token: b.token, leads: [lead(5, { postedAt: new Date(b.gas.clock.now).toISOString() })] });
   assert.deepEqual(b.gas.sheet('online_leads').objects().map(x => x.key), ['ruliweb:5'], '3일 지난 후보는 정리');
 });
+
+// 11/06 08:14 대표 요청: 항목별에서도 상품을 띄워 달라. 대표가 파트너스 HTML 여러 개를 한 번에 올리고, 항목별 상품은 가격만 24시간 뒤 빠진다.
+test('항목별 상품: 여러 개 한 번에 저장(모두 통과해야 저장), 항목→분류 자동, 기본 30일, 24시간 뒤 가격만 빠지고 카드는 남음', () => {
+  const b = boot();
+  const img = n => `https://img5c.coupangcdn.com/image/affiliate/banner/test${n}@2x.jpg`;
+  const one = (n, over = {}) => ({ title: `테스트 생수 2L ${n}`, url: `https://link.coupang.com/a/item${n}`, imageUrl: img(n), item: 'water', category: 'household', price: '9900', ...over });
+  const many = picks => b.adminSet({ op: 'pick_save_many', picks });
+  assert.equal(b.gas.post({ action: 'online_admin_set', token: b.token, op: 'pick_save_many', picks: [one(1)] }).error, 'unauthorized', '수집기 토큰으로는 못 올림');
+  // 하나라도 틀리면 아무것도 저장하지 않음
+  let r = many([one(1), one(2, { item: 'beer' }), one(3, { url: 'https://www.coupang.com/vp/products/3' })]);
+  assert.equal(r.ok, false);
+  assert.match(r.error, /2번: .*항목별 칸/); assert.match(r.error, /3번: .*간편 링크/);
+  assert.equal(b.gas.sheet('online_picks').objects().length, 0, '모두 통과해야 저장');
+  assert.match(many([one(1), one(1)]).error, /2번: 이미 올린 링크/);
+  assert.match(many([]).error, /1~30개/);
+  assert.match(many(Array.from({ length: 31 }, (_, i) => one(i))).error, /1~30개/);
+  r = many([one(1), one(2, { title: '테스트 신라면 5개', item: 'ramen', price: '' }), one(3, { title: '테스트 화장지 30롤', item: 'tissue' })]);
+  assert.equal(r.ok, true, r.error);
+  const rows = b.gas.sheet('online_picks').objects();
+  assert.deepEqual(rows.map(x => [x.item, x.category]), [['water', 'food'], ['ramen', 'food'], ['tissue', 'household']], '분류는 항목에서 정함');
+  assert.equal(new Set(rows.map(x => x.id)).size, 3);
+  assert.equal(rows[0].ends_at, new Date(OD_T0 + 30 * 24 * HOUR).toISOString(), '항목별 상품 기본 노출 30일');
+  assert.match(many([one(1)]).error, /1번: 이미 올린 링크/, '같은 링크를 다시 붙여도 두 번 올라가지 않음');
+  let pub = pub_(b);
+  assert.deepEqual(pub.picks.map(p => [p.item, p.price]).sort(), [['ramen', null], ['tissue', 9900], ['water', 9900]]);
+  later(b, 24 * HOUR + MIN);
+  pub = pub_(b);
+  assert.equal(pub.picks.length, 3, '항목별 상품은 24시간이 지나도 카드는 남음');
+  assert.ok(pub.picks.every(p => p.price === null && !p.priceCheckedAt && !p.priceUntil), '가격만 빠짐');
+  assert.equal(pub.picks.find(p => p.item === 'water').visibleUntil, new Date(OD_T0 + 30 * 24 * HOUR).toISOString());
+  // 특가로 올린 카드는 그대로 24시간 뒤 카드째 내려감
+  b.adminSet({ op: 'pick_save', pick: { title: '테스트 특가', url: 'https://link.coupang.com/a/deal1', category: 'food', price: '5000' } });
+  later(b, 24 * HOUR + MIN);
+  assert.ok(!pub_(b).picks.some(p => p.title === '테스트 특가'));
+  // 다시 확인하면 가격이 다시 24시간
+  const water = b.adminGet().picks.find(p => p.item === 'water');
+  assert.equal(water.live, true); assert.equal(water.price_fresh, false);
+  b.adminSet({ op: 'pick_save', pick: { id: water.id, title: water.title, url: water.url, imageUrl: water.imageUrl, item: 'water', price: '9500', recheck: true } });
+  assert.equal(pub_(b).picks.find(p => p.item === 'water').price, 9500);
+  later(b, 30 * 24 * HOUR);
+  assert.equal(pub_(b).picks.length, 0, '노출 종료일이 지나면 내려감');
+});

@@ -1,7 +1,7 @@
 // 온라인 특가 화면 (선택해서 열 때만 불러옴). 프랜차이즈 쿠폰 데이터와 섞지 않는다.
 // 상품은 승인된 공급처에서 자동으로 확인해 검증을 통과한 것만 Apps Script가 내려 준다.
 // 서버 응답도 그대로 믿지 않고 같은 규칙(online-deals-core.js)으로 다시 검사한다.
-import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink } from './online-deals-core.js?v=20261105-5';
+import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261106-1';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 // 항목별 바로가기 (11/05 대표 요청: 자취에 필요한 물품을 항목별로). 쿠팡 검색 결과 페이지로 보낸다 — AMONG이 고른 상품·가격이 아니다.
@@ -81,15 +81,17 @@ export function onlineDealCard(item, now = Date.now()) {
 
 /** 직접 고른 쿠팡 특가 — 카드 전체가 AMONG 간편 링크. 사진(파트너스 배너)과 확인한 가격을 바로 보이게 */
 export function pickCard(p, now = Date.now()) {
+  const label = p.item ? OD_PICK_ITEMS[p.item].label : OD_PICK_CATEGORIES[p.category];
   const price = p.price ? `<b>${p.price}원</b><span class="what">확인 당시 가격</span>` : '<span class="what">가격은 쿠팡에서 확인</span>';
-  const chip = p.price ? `${when(p.priceCheckedAt, now)} 확인` : `${when(p.visibleUntil, now)}까지`;
+  // 항목별 상품은 가격 확인이 지나도 남아 있으므로 '언제까지' 대신 확인 시각만 (가격이 없으면 칩 없음)
+  const chip = p.price ? `${when(p.priceCheckedAt, now)} 확인` : p.item ? '' : `${when(p.visibleUntil, now)}까지`;
   return `<li class="card"><a class="tk od-pick-card" data-od-pick="${esc(p.id)}" href="${esc(p.url)}" target="_blank" rel="sponsored noopener noreferrer"><span class="ticket od-ticket">
-    ${stubHtml(p.imageUrl, '쿠팡', OD_PICK_CATEGORIES[p.category])}
-    <span class="body"><span class="who"><span class="bn">쿠팡 · ${esc(OD_PICK_CATEGORIES[p.category])}</span><span class="od-ad-label">제휴광고</span></span>
+    ${stubHtml(p.imageUrl, '쿠팡', label)}
+    <span class="body"><span class="who"><span class="bn">쿠팡 · ${esc(label)}</span><span class="od-ad-label">제휴광고</span></span>
     <span class="menu">${esc(p.title)}</span>
     <span class="price">${price}</span>
     ${p.note ? `<span class="conds"><span>${esc(p.note)}</span></span>` : ''}
-    <span class="foot"><span class="chip">${esc(chip)}</span><span class="cta">쿠팡에서 보기${NEW_TAB}</span></span></span>
+    <span class="foot">${chip ? `<span class="chip">${esc(chip)}</span>` : ''}<span class="cta">쿠팡에서 보기${NEW_TAB}</span></span></span>
   </span></a></li>`;
 }
 
@@ -123,7 +125,7 @@ export function createOnlineDealsUI(root, options = {}) {
   const shortcuts = shortcutLinks(options.shortcutLinks);
   const shortcutAffiliate = shortcuts.some(g => g.items.some(i => i.affiliate));
   const rel = affiliate => (affiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer');
-  let payload = { items: [], picks: [] }, active = false, loaded = false, loading = false, failed = false, cat = 'all';
+  let payload = { items: [], picks: [] }, active = false, loaded = false, loading = false, failed = false, cat = 'all', item = '';
   let request = null, expiryTimer = 0, controller = null, destroyed = false;
   root.classList.add('od-view');
   root.setAttribute('aria-labelledby', 'onlineDealsTitle');
@@ -135,29 +137,49 @@ export function createOnlineDealsUI(root, options = {}) {
       <p class="od-pick-note" hidden>가격은 AMONG이 확인한 시각 기준이며, 확인 후 24시간이 지나면 카드가 내려가요. 최종 가격·옵션·배송비는 쿠팡에서 확인하세요.</p></section>
     <section class="od-auto" hidden><div class="od-list-heading"><h3>자동으로 확인한 상품</h3><p class="od-count"></p></div>
     <div class="od-products-list"></div><p class="od-price-note">표시 가격은 확인 당시 기준이에요. 옵션·회원 여부·쿠폰·배송비에 따라 최종 결제 금액이 달라질 수 있어요. 구매 전 판매처에서 꼭 확인해 주세요.</p></section>
+    <section class="od-shortcuts" aria-labelledby="odShortcutsTitle"></section>
     <div class="od-official-entry card"><a class="tk" href="${esc(goldbox)}" target="_blank" rel="${rel(goldboxAffiliate)}"><span class="ticket od-ticket">
       <span class="stub gift"><span class="lbl-w"><span class="big">특가</span><span class="sub">매일 바뀌어요</span></span></span>
       <span class="body"><span class="who"><span class="bn">쿠팡 공식 특가</span>${goldboxAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</span>
       <span class="menu">오늘의 골드박스</span><span class="conds"><span>지금 진행 중인 특가 상품</span><span class="od-membership">와우회원 전용</span></span>
       <span class="foot"><span class="cta">쿠팡에서 특가 보기${NEW_TAB}</span></span></span></span></a></div>
-    <section class="od-shortcuts" aria-labelledby="odShortcutsTitle"><div class="od-shortcuts-head"><h3 id="odShortcutsTitle">항목별로 더 찾아보기</h3>${shortcutAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div>
-      <p>누르면 쿠팡의 해당 항목 검색 결과로 이동해요.</p>
-      ${shortcuts.map(g => `<div class="od-sc-group"><h4>${esc(g.group)}</h4><div class="od-sc-row">${g.items.map(i => `<a class="od-sc" data-od-shortcut="${esc(i.key)}" href="${esc(i.url)}" target="_blank" rel="${rel(i.affiliate)}">${esc(i.label)}<span class="od-sr-only"> 쿠팡에서 보기 (새 탭)</span><span aria-hidden="true" class="od-arrow">↗</span></a>`).join('')}</div></div>`).join('')}
-    </section>
     <p class="od-footnote">주문과 결제는 각 판매처에서 진행돼요. AMONG은 가격을 보장하지 않아요.</p>`;
   const list = root.querySelector('.od-products-list');
   const pickList = root.querySelector('.od-picks-list');
   const status = root.querySelector('.od-status');
+
+  // 항목별: 고른 상품이 하나라도 있으면 항목 탭 + 그 항목의 상품 카드 + '쿠팡에서 더 보기', 없으면 검색 바로가기 칩만
+  function renderItems(itemPicks, now) {
+    const box = root.querySelector('.od-shortcuts');
+    const affiliate = shortcutAffiliate || itemPicks.length > 0;
+    const head = `<div class="od-shortcuts-head"><h3 id="odShortcutsTitle">항목별로 둘러보기</h3>${affiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div>`;
+    const flat = shortcuts.flatMap(g => g.items);
+    if (!itemPicks.length) {
+      box.innerHTML = `${head}<p>누르면 쿠팡의 해당 항목 검색 결과로 이동해요.</p>
+        ${shortcuts.map(g => `<div class="od-sc-group"><h4>${esc(g.group)}</h4><div class="od-sc-row">${g.items.map(i => `<a class="od-sc" data-od-shortcut="${esc(i.key)}" href="${esc(i.url)}" target="_blank" rel="${rel(i.affiliate)}">${esc(i.label)}<span class="od-sr-only"> 쿠팡에서 보기 (새 탭)</span><span aria-hidden="true" class="od-arrow">↗</span></a>`).join('')}</div></div>`).join('')}`;
+      return;
+    }
+    const counts = {};
+    itemPicks.forEach(p => { counts[p.item] = (counts[p.item] || 0) + 1; });
+    if (!flat.some(i => i.key === item)) item = (flat.find(i => counts[i.key]) || flat[0]).key;
+    const sel = flat.find(i => i.key === item);
+    const mine = itemPicks.filter(p => p.item === item);
+    box.innerHTML = `${head}<p>AMONG이 쿠팡에서 고른 자취 필수품이에요. 가격은 확인 후 24시간만 보여 드려요.</p>
+      <div class="od-cats od-item-tabs" role="group" aria-label="항목">${flat.map(i => `<button type="button" class="chip-btn" data-od-item="${esc(i.key)}" aria-pressed="${i.key === item}">${esc(i.label)}${counts[i.key] ? ` <span class="n">${counts[i.key]}</span>` : ''}</button>`).join('')}</div>
+      ${mine.length ? `<ul class="od-picks-list od-item-list" role="list">${mine.map(p => pickCard(p, now)).join('')}</ul>` : `<p class="od-item-empty">${esc(sel.label)}은(는) 아직 고른 상품이 없어요.</p>`}
+      <a class="od-sc od-item-more" data-od-shortcut="${esc(sel.key)}" href="${esc(sel.url)}" target="_blank" rel="${rel(sel.affiliate)}">쿠팡에서 ${esc(sel.label)} 더 보기<span class="od-sr-only"> (새 탭)</span><span aria-hidden="true" class="od-arrow">↗</span></a>`;
+  }
 
   function render() {
     clearTimeout(expiryTimer);
     if (destroyed) return;
     let items = [];
     try { items = normalizeOnlineDeals(payload); } catch { /* 형식이 맞지 않으면 빈 목록 (쿠폰 화면에는 영향 없음) */ }
-    const picks = normalizePicks(payload);
+    const all = normalizePicks(payload);
+    const picks = all.filter(p => !p.item), itemPicks = all.filter(p => p.item);
     root.setAttribute('aria-busy', String(loading));
     // 제휴 링크가 있는 공급처의 고지 문구를 목록보다 먼저 보여 준다 (화면이 가진 목록 기준, 서버 문구를 그대로 쓰지 않음).
-    const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate || picks.length ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
+    const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate || all.length ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
     const disclosure = root.querySelector('.od-disclosure');
     disclosure.hidden = !notes.length;
     disclosure.innerHTML = notes.map(n => `<p>${esc(n)}</p>`).join('');
@@ -179,16 +201,18 @@ export function createOnlineDealsUI(root, options = {}) {
       .map(([k, label, n]) => `<button type="button" class="chip-btn" data-od-cat="${k}" aria-pressed="${k === cat}">${esc(label)} <span class="n">${n}</span></button>`).join('');
     const now = Date.now();
     pickList.innerHTML = picks.filter(p => cat === 'all' || p.category === cat).map(p => pickCard(p, now)).join('');
+    renderItems(itemPicks, now);
     const none = !items.length && !picks.length;
     if (loading) status.innerHTML = '<span>상품 정보를 확인하고 있어요…</span>';
     else if (failed) status.innerHTML = '<strong>상품 정보를 불러오지 못했어요.</strong><span>쿠폰 화면은 그대로 쓸 수 있어요.</span><button type="button" data-od-retry>다시 불러오기</button>';
     else if (none && payload.state === 'live') status.innerHTML = '<strong>지금 기준을 통과한 상품이 없어요.</strong><span>가격과 조건은 몇 시간마다 다시 확인해요.</span>';
     else if (none && payload.state === 'delayed') status.innerHTML = '<strong>상품 정보를 다시 확인하고 있어요.</strong><span>확인한 지 오래된 가격은 보여 드리지 않아요. 확인이 끝나면 다시 표시돼요.</span>';
-    else if (none) status.innerHTML = '<strong>아직 올라온 특가가 없어요.</strong><span>아래 골드박스와 항목별 바로가기로 쿠팡 상품을 먼저 둘러보세요.</span>';
+    else if (none && itemPicks.length) status.innerHTML = '<strong>오늘 올라온 특가는 아직 없어요.</strong><span>아래 항목별 상품을 둘러보세요.</span>';
+    else if (none) status.innerHTML = '<strong>아직 올라온 특가가 없어요.</strong><span>아래 항목별 바로가기와 골드박스로 쿠팡 상품을 먼저 둘러보세요.</span>';
     else status.innerHTML = '';
     status.hidden = !status.innerHTML;
-    if (active && (items.length || picks.length)) {
-      const next = Math.min(...items.map(item => item.visibleUntil), ...picks.map(p => p.visibleUntil), ...picks.filter(p => p.priceUntil).map(p => p.priceUntil));
+    if (active && (items.length || all.length)) {
+      const next = Math.min(...items.map(i => i.visibleUntil), ...all.map(p => p.visibleUntil), ...all.filter(p => p.priceUntil).map(p => p.priceUntil));
       expiryTimer = setTimeout(render, Math.max(1000, Math.min(next - Date.now() + 20, 2 ** 31 - 1)));
     }
   }
@@ -220,7 +244,9 @@ export function createOnlineDealsUI(root, options = {}) {
   function onClick(event) {
     if (event.target.closest('[data-od-retry]')) { void refresh(); return; }
     const c = event.target.closest('[data-od-cat]');
-    if (c) { cat = c.dataset.odCat; render(); root.querySelector(`[data-od-cat="${cat}"]`)?.focus(); }
+    if (c) { cat = c.dataset.odCat; render(); root.querySelector(`[data-od-cat="${cat}"]`)?.focus(); return; }
+    const it = event.target.closest('[data-od-item]');
+    if (it) { item = it.dataset.odItem; render(); root.querySelector(`[data-od-item="${item}"]`)?.focus(); }
   }
   // 사진을 못 불러오면 사진만 빼고 글자 칸(쿠팡 · 항목)으로 바꾼다
   function onImageError(event) {

@@ -1,6 +1,6 @@
 // 온라인 특가 관리: 공급처 연결 상태·모드, 보류 사유, 숨김·분류 지정, 운영 규칙, 실행 기록.
 // 운영자는 예외와 규칙만 다룬다. 상품을 직접 입력하는 기능은 두지 않는다.
-import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage } from './online-deals-core.js?v=20261105-5';
+import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261106-1';
 
 const root = document.querySelector('#onlineDealsManager');
 const API = window.AMONG_CONFIG?.apiUrl || '';
@@ -13,23 +13,36 @@ const kst = iso => {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 };
 const lines = v => String(v || '').split('\n').map(s => s.trim()).filter(Boolean);
-let data = null, busy = false;
+// 올릴 곳: 위쪽 특가 목록(deal:항목) 또는 항목별 칸(item:생수 등). 항목별 상품은 가격만 24시간 뒤 빠지고 카드는 남는다.
+const placeOptions = (blank = false) => `${blank ? '<option value="">올릴 곳 고르기</option>' : ''}<optgroup label="위쪽 특가 목록 (가격 확인 24시간 뒤 카드째 내려감)">${Object.entries(OD_PICK_CATEGORIES).map(([k, v]) => `<option value="deal:${k}">특가 · ${v}</option>`).join('')}</optgroup>
+  <optgroup label="항목별 상품 (24시간 뒤 가격만 빠지고 카드는 남음)">${Object.entries(OD_PICK_ITEMS).map(([k, v]) => `<option value="item:${k}">항목별 · ${v.label}</option>`).join('')}</optgroup>`;
+const placeOf = p => (p.item ? `item:${p.item}` : `deal:${p.category}`);
+const splitPlace = v => { const [kind, key] = String(v || '').split(':'); return kind === 'item' ? { category: OD_PICK_ITEMS[key]?.category || '', item: key } : { category: key || '', item: '' }; };
+const placeLabel = p => (p.item ? `항목별 · ${OD_PICK_ITEMS[p.item]?.label || p.item}` : `특가 · ${OD_PICK_CATEGORIES[p.category] || p.category}`);
+const defaultDays = place => (String(place).startsWith('item:') ? OD_PICK_ITEM_DAYS : OD_PICK_DEFAULT_DAYS);
+let data = null, busy = false, bulk = [];
 
 root.innerHTML = `<div class="od-admin-heading"><div><h2>온라인 특가</h2><p>쿠팡 파트너스 최종 승인 전에는 직접 고른 상품의 간편 링크를 카드로 올리고, 승인 뒤에는 공급처 상품을 자동으로 확인·게시합니다. 시각은 한국 시간입니다.</p></div><a href="./?view=onlineDeals" target="_blank" rel="noopener">공개 화면 ↗</a></div>
   <p id="odAdminMessage" class="od-admin-message" role="status">${DEMO ? '예시 모드에서는 온라인 특가 관리를 불러올 수 없어요.' : '상단 관리 토큰으로 불러오기를 눌러 주세요.'}</p>
   <div id="odAdminContent" hidden>
     <section class="od-picks-admin" aria-labelledby="odPicksAdminTitle"><h3 id="odPicksAdminTitle">직접 고른 쿠팡 특가</h3>
-      <p class="muted">쿠팡 파트너스 '상품 링크'에서 만든 HTML을 붙여 넣으면 상품 사진과 가격이 바로 보이는 쿠폰 카드로 공개 화면에 올라가요('간편 링크'만 넣으면 사진 없이 올라감). 공개 화면에는 사진·상품명·항목·한 줄 설명·확인한 가격만 보이고(가격을 넣은 카드는 확인 후 24시간 뒤 자동으로 내려감, '다시 확인'하면 다시 24시간), 정보 출처 메모는 여기에만 남아요. 최종 승인 뒤에는 쿠팡 API 자동 확인으로 바꿉니다.</p>
+      <p class="muted">쿠팡 파트너스 '상품 링크'에서 만든 HTML을 붙여 넣으면 상품 사진과 가격이 바로 보이는 쿠폰 카드로 공개 화면에 올라가요('간편 링크'만 넣으면 사진 없이 올라감). 올릴 곳은 두 가지예요. <b>위쪽 특가 목록</b>은 가격을 넣으면 확인 후 24시간 뒤 카드째 내려가고, <b>항목별 상품</b>(생수·라면·즉석밥·냉동 간편식·화장지·물티슈·세탁세제·주방세제)은 24시간 뒤 가격만 빠지고 카드는 노출 종료일(기본 30일)까지 남아요. '다시 확인'하면 가격이 다시 24시간 보여요. 정보 출처 메모는 여기에만 남아요.</p>
       <div class="od-leads"><h4>자동으로 찾은 후보 <span id="odLeadCount" class="muted"></span></h4>
         <p class="muted">뽐뿌·루리웹 핫딜 게시판의 공개 RSS에서 쿠팡 상품 글만 1시간마다 찾아 여기에만 보여 줘요(공개 화면에는 안 올라감). 쿠팡 상품을 열어 가격·조건을 직접 확인한 뒤, 파트너스 '상품 링크'에서 같은 상품을 찾아 'HTML 복사'(사진 포함)한 것을 아래 칸에 붙여 넣으세요. 사진 없이 올릴 때는 상품 주소를 '간편 링크'로 바꿔 넣어도 돼요.</p>
         <div id="odLeads" class="od-items"></div></div>
+      <div class="od-bulk"><h4>항목별 상품 여러 개 한 번에 올리기</h4>
+        <p class="muted">파트너스 → 링크 생성 → 상품 링크에서 상품마다 '링크 생성' → 'HTML 복사'한 것을 아래 칸에 이어서 붙여 넣으세요(최대 30개). 상품명으로 항목을 짐작해 두니 확인만 하고, 방금 쿠팡에서 확인한 가격이 있으면 넣으세요.</p>
+        <textarea id="odBulkHtml" rows="4" autocomplete="off" spellcheck="false" aria-label="파트너스 상품 링크 HTML 여러 개" placeholder="&lt;a href=&quot;https://link.coupang.com/a/…&quot;&gt;&lt;img …&gt;&lt;/a&gt;&#10;&lt;a href=&quot;https://link.coupang.com/a/…&quot;&gt;&lt;img …&gt;&lt;/a&gt;"></textarea>
+        <div id="odBulkRows" class="od-bulk-rows"></div>
+        <div class="od-pick-actions" id="odBulkActions" hidden><button type="button" class="primary" id="odBulkSave">모두 등록</button><button type="button" id="odBulkClear">비우기</button></div></div>
+      <h4 class="od-single-title">한 개씩 올리기 · 수정</h4>
       <form id="odPickForm" class="od-pick-form" novalidate><input type="hidden" name="id"><input type="hidden" name="lead"><input type="hidden" name="image">
         <label class="wide">쿠팡 파트너스 상품 링크 HTML (사진 포함 · 추천)<textarea name="html" rows="3" autocomplete="off" spellcheck="false" placeholder="&lt;a href=&quot;https://link.coupang.com/a/…&quot;&gt;&lt;img src=&quot;https://…coupangcdn.com/image/affiliate/…&quot; alt=&quot;상품명&quot;&gt;&lt;/a&gt;"></textarea>
           <span class="muted od-hint">파트너스 → 링크 생성 → 상품 링크 → 상품 고르고 '링크 생성' → 'HTML 복사' 결과를 그대로 붙여 넣으면 링크·사진·상품명이 채워져요.</span></label>
         <div class="wide od-pick-photo" hidden><img alt="카드에 들어갈 사진 미리보기" width="60" height="120" referrerpolicy="no-referrer"><div><p>이 사진이 카드 왼쪽에 자르지 않고 그대로 들어가요.</p><button type="button" id="odPickPhotoRemove">사진 빼기</button></div></div>
         <label class="wide">상품명<input name="title" maxlength="80" autocomplete="off" placeholder="예: 삼다수 2L × 12병"></label>
         <label class="wide">쿠팡 파트너스 링크 (HTML을 붙이면 자동 · 간편 링크도 가능)<input name="url" inputmode="url" autocomplete="off" placeholder="https://link.coupang.com/a/…"></label>
-        <label>항목<select name="category">${Object.entries(OD_PICK_CATEGORIES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+        <label>올릴 곳<select name="place">${placeOptions()}</select></label>
         <label>지금 확인한 가격 (선택)<input name="price" inputmode="numeric" autocomplete="off" placeholder="예: 12900"></label>
         <label class="wide">한 줄 설명 (선택 · 공개)<input name="note" maxlength="60" autocomplete="off" placeholder="예: 와우회원 가격 · 로켓배송"></label>
         <label>노출 종료일<input name="ends" type="date"></label>
@@ -151,17 +164,19 @@ function applyPartnerHtml(text) {
 function resetPickForm() {
   const f = $('#odPickForm');
   f.reset(); f.elements.id.value = ''; f.elements.lead.value = ''; delete f.dataset.autoTitle; setPhoto('');
-  f.elements.ends.value = kstDay(Date.now() + OD_PICK_DEFAULT_DAYS * 864e5);
+  f.elements.ends.value = kstDay(Date.now() + defaultDays(f.elements.place.value) * 864e5);
   $('#odPickSubmit').textContent = '카드 등록'; $('#odPickCancel').hidden = true;
 }
 function pickRows() {
   const now = Date.now();
   $('#odPicks').innerHTML = (data.picks || []).map(p => {
     const state = p.hidden ? '숨김' : p.live ? '공개 중' : Date.parse(p.endsAt) > now && p.price != null ? '가격 다시 확인 필요' : '노출 끝남';
-    const price = p.price == null ? '가격 없음' : p.price_fresh ? `${p.price}원 · ${kst(p.priceCheckedAt)} 확인` : `${p.price}원 (확인 후 24시간 지나 공개 화면에서 내려감 · ${kst(p.priceCheckedAt)} 확인 — '수정·가격 갱신'으로 다시 올리기)`;
+    const price = p.price == null ? '가격 없음' : p.price_fresh ? `${p.price}원 · ${kst(p.priceCheckedAt)} 확인`
+      : p.item ? `${p.price}원 (확인 후 24시간 지나 공개 화면에서는 가격만 빠짐 · ${kst(p.priceCheckedAt)} 확인 — '수정·가격 갱신'으로 다시 보이기)`
+      : `${p.price}원 (확인 후 24시간 지나 공개 화면에서 내려감 · ${kst(p.priceCheckedAt)} 확인 — '수정·가격 갱신'으로 다시 올리기)`;
     const confirm = pendingDelete === p.id;
     return `<article class="od-item${p.imageUrl ? ' has-thumb' : ''}" data-pick-id="${esc(p.id)}">${p.imageUrl ? `<img class="od-pick-thumb" src="${esc(p.imageUrl)}" alt="" width="40" height="80" loading="lazy" referrerpolicy="no-referrer">` : ''}<div class="od-item-top"><span class="pill ${p.live ? 'good' : p.hidden ? '' : 'warn'}">${state}</span><b>${esc(p.title)}</b>${p.imageUrl ? '' : '<span class="muted">사진 없음</span>'}</div>
-      <p>${esc(OD_PICK_CATEGORIES[p.category] || p.category)} · ${esc(price)} · ${esc(kstDay(Date.parse(p.endsAt)))}까지${Date.parse(p.endsAt) <= now ? ' (끝남)' : ''}${p.note ? ` · ${esc(p.note)}` : ''}</p>
+      <p>${esc(placeLabel(p))} · ${esc(price)} · ${esc(kstDay(Date.parse(p.endsAt)))}까지${Date.parse(p.endsAt) <= now ? ' (끝남)' : ''}${p.note ? ` · ${esc(p.note)}` : ''}</p>
       ${p.memo ? `<p class="muted">출처 메모: ${esc(p.memo)}</p>` : ''}
       <div class="od-item-actions"><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer sponsored">링크 확인 ↗</a>
         <button type="button" data-pick-edit>수정·가격 갱신</button><button type="button" data-pick-hide>${p.hidden ? '다시 보이기' : '숨기기'}</button>
@@ -217,7 +232,7 @@ root.addEventListener('click', e => {
       f.elements.memo.value = `${OD_LEAD_SOURCES[l.source]?.name || l.source} 핫딜 ${kst(l.postedAt || l.foundAt)}`;
       $('#odPickSubmit').textContent = '카드 등록 (후보에서)';
       f.scrollIntoView({ block: 'start' }); f.elements.html.focus();
-      message("상품명·가격을 채웠어요. 쿠팡에서 가격을 확인하고 파트너스 상품 링크 HTML(사진 포함)이나 간편 링크를 붙여 넣은 뒤 항목을 고르세요.");
+      message("상품명·가격을 채웠어요. 쿠팡에서 가격을 확인하고 파트너스 상품 링크 HTML(사진 포함)이나 간편 링크를 붙여 넣은 뒤 올릴 곳을 고르세요.");
     } else if (t.matches('[data-lead-dismiss]')) act({ op: 'lead_dismiss', key: l.key }, '후보를 지웠어요.');
     return;
   }
@@ -227,7 +242,7 @@ root.addEventListener('click', e => {
     if (!p) return;
     if (t.matches('[data-pick-edit]')) {
       const f = $('#odPickForm');
-      f.elements.id.value = p.id; f.elements.title.value = p.title; f.elements.url.value = p.url; f.elements.category.value = p.category; f.elements.note.value = p.note || '';
+      f.elements.id.value = p.id; f.elements.title.value = p.title; f.elements.url.value = p.url; f.elements.place.value = placeOf(p); f.elements.note.value = p.note || '';
       f.elements.price.value = p.price ?? ''; f.elements.memo.value = p.memo || ''; f.elements.ends.value = kstDay(Date.parse(p.endsAt)); f.elements.recheck.checked = false;
       f.elements.html.value = ''; delete f.dataset.autoTitle; setPhoto(p.imageUrl || '');
       $('#odPickSubmit').textContent = '수정 저장'; $('#odPickCancel').hidden = false;
@@ -259,7 +274,7 @@ $('#odPickForm').addEventListener('submit', e => {
   const day = f.elements.ends.value;
   const editing = !!f.elements.id.value;
   act({ op: 'pick_save', lead_key: f.elements.lead.value || undefined, pick: {
-    id: f.elements.id.value || undefined, title: f.elements.title.value, url: f.elements.url.value.trim(), imageUrl: f.elements.image.value, category: f.elements.category.value, note: f.elements.note.value,
+    id: f.elements.id.value || undefined, title: f.elements.title.value, url: f.elements.url.value.trim(), imageUrl: f.elements.image.value, ...splitPlace(f.elements.place.value), note: f.elements.note.value,
     price: f.elements.price.value.replace(/[,\s원]/g, ''), memo: f.elements.memo.value, recheck: f.elements.recheck.checked,
     endsAt: day ? new Date(`${day}T23:59:59+09:00`).toISOString() : '',
   } }, editing ? '수정했어요. 공개 화면에는 1분 안에 반영돼요.' : '카드를 올렸어요. 공개 화면에는 1분 안에 반영돼요.').then(() => {
@@ -267,6 +282,67 @@ $('#odPickForm').addEventListener('submit', e => {
   });
 });
 $('#odPickCancel').addEventListener('click', resetPickForm);
+// 새 카드에서 올릴 곳을 바꾸면 노출 종료일 기본값도 바꾼다 (특가 1일, 항목별 30일)
+$('#odPickForm').elements.place.addEventListener('change', e => {
+  const f = $('#odPickForm');
+  if (!f.elements.id.value) f.elements.ends.value = kstDay(Date.now() + defaultDays(e.target.value) * 864e5);
+});
+
+// ---------- 여러 개 한 번에 (항목별 상품) ----------
+function parseBulk(text) {
+  const blocks = String(text || '').slice(0, 60000).match(/<a\b[\s\S]*?<\/a>/gi) || [];
+  const out = [];
+  for (const b of blocks) {
+    const r = odPartnerHtml(b);
+    if (r.url && !out.some(x => x.url === r.url)) out.push(r);
+  }
+  return { found: out, blocks: blocks.length };
+}
+function bulkRows() {
+  $('#odBulkActions').hidden = !bulk.length;
+  $('#odBulkRows').innerHTML = bulk.map((r, i) => `<div class="od-bulk-row" data-bulk="${i}">
+    ${r.imageUrl ? `<img src="${esc(r.imageUrl)}" alt="" width="40" height="80" referrerpolicy="no-referrer">` : '<span class="od-bulk-nophoto">사진 없음</span>'}
+    <div class="od-bulk-fields"><label>상품명<input data-bulk-title maxlength="80" value="${esc(r.title)}"></label>
+      <label>올릴 곳<select data-bulk-place>${placeOptions(true)}</select></label>
+      <label>확인한 가격 (선택)<input data-bulk-price inputmode="numeric" placeholder="예: 12900" value="${esc(r.price || '')}"></label>
+      <button type="button" data-bulk-remove>빼기</button></div></div>`).join('');
+  [...root.querySelectorAll('[data-bulk-place]')].forEach((sel, i) => { sel.value = bulk[i].place; });
+}
+$('#odBulkHtml').addEventListener('input', e => {
+  const { found, blocks } = parseBulk(e.target.value);
+  // 이미 고친 상품명·올릴 곳·가격은 같은 링크면 그대로 둔다
+  bulk = found.slice(0, 30).map(r => bulk.find(b => b.url === r.url) || { ...r, place: odGuessItem(r.title) ? `item:${odGuessItem(r.title)}` : '', price: '' });
+  bulkRows();
+  if (!blocks) return;
+  message(found.length > 30 ? '한 번에 30개까지만 올릴 수 있어요. 앞의 30개만 읽었어요.'
+    : found.length < blocks ? `HTML ${blocks}개 중 ${found.length}개를 읽었어요. 나머지는 쿠팡 파트너스 링크가 아니거나 같은 링크예요.`
+    : `${found.length}개를 읽었어요. 상품명·올릴 곳·가격을 확인하고 '모두 등록'을 누르세요.`, found.length < blocks);
+});
+$('#odBulkRows').addEventListener('input', e => {
+  const row = e.target.closest('[data-bulk]');
+  if (!row) return;
+  const r = bulk[Number(row.dataset.bulk)];
+  if (e.target.matches('[data-bulk-title]')) r.title = e.target.value;
+  else if (e.target.matches('[data-bulk-price]')) r.price = e.target.value;
+});
+$('#odBulkRows').addEventListener('change', e => {
+  const row = e.target.closest('[data-bulk]');
+  if (row && e.target.matches('[data-bulk-place]')) bulk[Number(row.dataset.bulk)].place = e.target.value;
+});
+$('#odBulkRows').addEventListener('click', e => {
+  const row = e.target.closest('[data-bulk]');
+  if (row && e.target.matches('[data-bulk-remove]')) { bulk.splice(Number(row.dataset.bulk), 1); bulkRows(); }
+});
+$('#odBulkClear').addEventListener('click', () => { bulk = []; $('#odBulkHtml').value = ''; bulkRows(); message('비웠어요.'); });
+$('#odBulkSave').addEventListener('click', () => {
+  const missing = bulk.findIndex(r => !r.place);
+  if (missing >= 0) { message(`${missing + 1}번 상품의 올릴 곳을 골라 주세요.`, true); root.querySelectorAll('[data-bulk-place]')[missing]?.focus(); return; }
+  const n = bulk.length;
+  act({ op: 'pick_save_many', picks: bulk.map(r => ({ title: r.title, url: r.url, imageUrl: r.imageUrl, ...splitPlace(r.place), price: String(r.price || '').replace(/[,\s원]/g, ''), endsAt: '' })) },
+    `${n}개를 올렸어요. 공개 화면에는 1분 안에 반영돼요.`).then(() => {
+    if (!$('#odAdminMessage').classList.contains('bad')) { bulk = []; $('#odBulkHtml').value = ''; bulkRows(); }
+  });
+});
 $('#odPickForm').elements.html.addEventListener('input', e => applyPartnerHtml(e.target.value));
 // 링크 칸에 HTML을 통째로 붙여 넣어도 같은 방식으로 읽는다
 $('#odPickForm').elements.url.addEventListener('input', e => {

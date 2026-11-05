@@ -63,7 +63,7 @@ function odCounts_(ev, supplier) {
 function odReadPicks_() {
   return readTable_('online_picks').rows.filter(function (r) { return /^pk_[0-9a-z]{8,24}$/.test(String(r.id)); }).map(function (r) {
     return {
-      id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), note: odUncell_(r.note), memo: odUncell_(r.memo),
+      id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), item: String(r.item || ''), note: odUncell_(r.note), memo: odUncell_(r.memo),
       price: r.price === '' || r.price == null ? null : Number(r.price), priceCheckedAt: String(r.price_checked_at || ''), endsAt: String(r.ends_at || ''),
       hidden: String(r.hidden).toUpperCase() === 'TRUE', createdAt: String(r.created_at || ''), updatedAt: String(r.updated_at || ''),
     };
@@ -78,7 +78,7 @@ function odWritePicks_(picks) {
       id: p.id, status: p.hidden ? 'hidden' : Date.parse(p.endsAt) > now ? 'published' : 'ended',
       title: odCell_(p.title), url: p.url, category: p.category, note: odCell_(p.note), price: p.price == null ? '' : p.price,
       price_checked_at: p.priceCheckedAt || '', ends_at: p.endsAt, hidden: p.hidden ? 'TRUE' : '', memo: odCell_(p.memo),
-      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '',
+      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '', item: p.item || '',
     };
   }));
   CacheService.getScriptCache().remove(OD_CACHE_KEY);
@@ -321,6 +321,28 @@ function odAdminSet_(b) {
       const lead = leads.filter(function (l) { return l.key === String(b.lead_key); })[0];
       if (lead) { lead.status = 'used'; odWriteLeads_(leads); }
     }
+  } else if (op === 'pick_save_many') {
+    // 여러 상품 한 번에 (11/06 항목별 상품): 모두 검사를 통과해야 한꺼번에 저장한다. 이미 올린 링크·같은 링크 두 번은 거절.
+    const list = Array.isArray(b.picks) ? b.picks : [];
+    if (!list.length || list.length > 30) throw new Error('한 번에 1~30개까지 올릴 수 있어요.');
+    const picks = odReadPicks_();
+    if (picks.length + list.length > 200) throw new Error('카드가 너무 많아요. 끝난 카드를 지운 뒤 다시 등록하세요.');
+    const seen = {};
+    picks.forEach(function (p) { seen[p.url] = true; });
+    const errs = [], made = [];
+    list.forEach(function (raw, i) {
+      const input = raw && typeof raw === 'object' ? Object.assign({}, raw, { id: '' }) : raw;
+      const res = odPickInput(input, now, null);
+      if (res.errors.length) errs.push((i + 1) + '번: ' + res.errors.join(' '));
+      else if (seen[res.pick.url]) errs.push((i + 1) + '번: 이미 올린 링크예요.');
+      else {
+        seen[res.pick.url] = true;
+        res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
+        made.push(res.pick);
+      }
+    });
+    if (errs.length) throw new Error(errs.join(' / '));
+    odWritePicks_(picks.concat(made));
   } else if (op === 'lead_dismiss') {
     const leads = odReadLeads_();
     const lead = leads.filter(function (l) { return l.key === String(b.key || ''); })[0];

@@ -74,7 +74,7 @@ const SHEETS = {
     'hidden', 'hidden_reason', 'hidden_at', 'category_override', 'override_until', 'first_seen_at', 'updated_at', 'payload'],
   online_runs: ['run_id', 'trigger', 'started_at', 'finished_at', 'results', 'received', 'published', 'held', 'errors'],
   // 직접 고른 쿠팡 특가 (v8): 최종 승인 전 대표가 관리 화면에서 고른 상품의 파트너스 간편 링크. memo는 관리 화면에만
-  online_picks: ['id', 'status', 'title', 'url', 'category', 'note', 'price', 'price_checked_at', 'ends_at', 'hidden', 'memo', 'created_at', 'updated_at', 'image_url'],
+  online_picks: ['id', 'status', 'title', 'url', 'category', 'note', 'price', 'price_checked_at', 'ends_at', 'hidden', 'memo', 'created_at', 'updated_at', 'image_url', 'item'],
   // 핫딜 게시판에서 자동으로 찾은 쿠팡 상품 후보 (관리 화면 전용, 공개 응답에 싣지 않음). 3일 보관
   online_leads: ['key', 'status', 'source', 'title', 'price_hint', 'free_shipping', 'coupang_url', 'affiliate_only', 'post_url', 'posted_at', 'found_at'],
 };
@@ -84,7 +84,7 @@ const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_
 const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
   'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 9;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진)
+const SCHEMA_VERSION = 10;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진), 10: online_picks.item (항목별 상품)
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
@@ -2204,6 +2204,27 @@ const OD_PICK_PRICE_HOURS = 24;
 const OD_PICK_DEFAULT_DAYS = 1;
 const OD_PICK_MAX_DAYS = 30;
 const OD_PICK_MAX = 60;
+// 항목별 상품 (11/06 08:14 대표 요청: 항목별에서도 상품을 띄워 달라). 위쪽 특가 목록과 따로, 자취 필수품 항목마다 대표가 고른 상품.
+// 가격은 특가와 같이 확인 후 24시간만 보이고, 그 뒤에는 카드를 내리지 않고 가격만 뺀다('가격은 쿠팡에서 확인'). 노출은 기본 30일.
+const OD_PICK_ITEMS = {
+  water: { label: '생수', category: 'food' }, ramen: { label: '라면', category: 'food' }, rice: { label: '즉석밥', category: 'food' }, frozen: { label: '냉동 간편식', category: 'food' },
+  tissue: { label: '화장지', category: 'household' }, wipes: { label: '물티슈', category: 'household' }, laundry: { label: '세탁세제', category: 'household' }, dish: { label: '주방세제', category: 'household' },
+};
+const OD_PICK_ITEM_DAYS = 30;
+const odItem_ = v => (typeof v === 'string' && Object.prototype.hasOwnProperty.call(OD_PICK_ITEMS, v) ? v : '');
+/** 상품명으로 항목 짐작 (관리 화면 '여러 개 한 번에'의 기본값. 대표가 바꿀 수 있다) */
+function odGuessItem(title) {
+  const t = String(title || '');
+  if (/물티슈/.test(t)) return 'wipes';
+  if (/주방\s*세제|식기\s*세척|설거지/.test(t)) return 'dish';
+  if (/세탁\s*세제|섬유\s*유연|캡슐\s*세제|세탁용/.test(t)) return 'laundry';
+  if (/화장지|휴지|두루마리|키친\s*타월/.test(t)) return 'tissue';
+  if (/생수|먹는\s*샘물|삼다수|탄산수|\d+(?:\.\d+)?\s*(?:L|리터)\b.*(?:병|개)/i.test(t)) return 'water';
+  if (/즉석\s*밥|햇반|오뚜기밥|백미밥|컵밥/.test(t)) return 'rice';
+  if (/라면|짜파게티|컵면|봉지면/.test(t)) return 'ramen';
+  if (/냉동|만두|교자|볶음밥|돈까스|피자|핫도그/.test(t)) return 'frozen';
+  return '';
+}
 const OD_PICK_LINK = /^https:\/\/link\.coupang\.com\/[A-Za-z0-9/_-]+$/;
 // 카드 사진 (11/05 17:38 대표 요청: 사진과 가격이 바로 보이게): 쿠팡 파트너스 '상품 링크' → 링크 생성 → HTML(이미지+텍스트)이
 // 주는 쿠팡 배너 사진만 받는다 (예: https://img5c.coupangcdn.com/image/affiliate/banner/…@2x.jpg, 120×240).
@@ -2249,8 +2270,10 @@ function odPickInput(raw, now, prev) {
   if (title.length < 2 || title.length > 80) errors.push('상품명은 2~80자로 입력하세요.');
   const url = odLink(odText(r.url, 301), 'coupang');
   if (!url || !OD_PICK_LINK.test(url)) errors.push('쿠팡 파트너스 간편 링크(https://link.coupang.com/a/…)를 넣으세요.');
-  const category = OD_PICK_CATEGORIES[r.category] ? r.category : '';
-  if (!category) errors.push('항목을 고르세요.');
+  const item = odItem_(r.item);
+  if (r.item && !item) errors.push('항목별 칸을 다시 고르세요.');
+  const category = item ? OD_PICK_ITEMS[item].category : OD_PICK_CATEGORIES[r.category] ? r.category : '';
+  if (!category) errors.push('올릴 곳(특가 항목 또는 항목별 칸)을 고르세요.');
   const note = odText(r.note, 61);
   if (note.length > 60) errors.push('한 줄 설명은 60자 이내로 입력하세요.');
   const memo = odText(r.memo, 200);
@@ -2263,25 +2286,26 @@ function odPickInput(raw, now, prev) {
     if (!Number.isSafeInteger(n) || n < 100 || n > 10000000) errors.push('가격은 100원~1000만원 사이 숫자로 입력하세요.');
     else price = n;
   }
-  const ends = r.endsAt ? odMs_(odIso_(r.endsAt)) : (p.endsAt ? odMs_(p.endsAt) : now + OD_PICK_DEFAULT_DAYS * OD_DAY);
+  const ends = r.endsAt ? odMs_(odIso_(r.endsAt)) : (p.endsAt ? odMs_(p.endsAt) : now + (item ? OD_PICK_ITEM_DAYS : OD_PICK_DEFAULT_DAYS) * OD_DAY);
   if (!Number.isFinite(ends) || ends <= now || ends > now + OD_PICK_MAX_DAYS * OD_DAY) errors.push('노출 종료는 지금부터 30일 안으로 정하세요.');
   if (errors.length) return { errors, pick: null };
   const at = new Date(now).toISOString();
   // 가격을 새로 넣거나 바꾸거나 '다시 확인'을 누르면 지금 확인한 것으로 본다. 같은 가격으로 다른 칸만 고치면 처음 확인 시각을 유지한다.
   const priceCheckedAt = price === null ? '' : (r.recheck === true || price !== p.price || !p.priceCheckedAt ? at : p.priceCheckedAt);
-  return { errors, pick: { id: p.id || '', title, url, imageUrl, category, note, memo, price, priceCheckedAt, endsAt: new Date(ends).toISOString(),
+  return { errors, pick: { id: p.id || '', title, url, imageUrl, category, item, note, memo, price, priceCheckedAt, endsAt: new Date(ends).toISOString(),
     hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
 }
 
-/** 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료·가격 확인 24시간 지남이면 null */
+/** 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료면 null. 가격 확인 24시간이 지나면 특가는 null, 항목별 상품은 가격만 뺀다 */
 function odPickPublic(p, now) {
   if (!p || p.hidden || !(odMs_(p.endsAt) > now)) return null;
-  const priced = !!odPosInt_(p.price);
+  const item = odItem_(p.item);
   const until = odMs_(p.priceCheckedAt) + OD_PICK_PRICE_HOURS * OD_HOUR;
-  if (priced && !(until > now)) return null;
-  const visible = priced ? Math.min(odMs_(p.endsAt), until) : odMs_(p.endsAt);
-  return { id: p.id, title: p.title, url: p.url, imageUrl: odPickImage(p.imageUrl), category: p.category, note: p.note || '',
-    price: priced ? p.price : null, priceCheckedAt: priced ? p.priceCheckedAt : '', priceUntil: priced ? new Date(until).toISOString() : '',
+  const priced = !!odPosInt_(p.price), fresh = priced && until > now;
+  if (priced && !fresh && !item) return null;
+  const visible = fresh && !item ? Math.min(odMs_(p.endsAt), until) : odMs_(p.endsAt);
+  return { id: p.id, title: p.title, url: p.url, imageUrl: odPickImage(p.imageUrl), category: item ? OD_PICK_ITEMS[item].category : p.category, item, note: p.note || '',
+    price: fresh ? p.price : null, priceCheckedAt: fresh ? p.priceCheckedAt : '', priceUntil: fresh ? new Date(until).toISOString() : '',
     visibleUntil: new Date(visible).toISOString() };
 }
 
@@ -2292,19 +2316,21 @@ function odClientPick(raw, now) {
   const title = odText(raw.title, 81), note = odText(raw.note, 61);
   const url = odLink(raw.url, 'coupang');
   const until = odMs_(odIso_(raw.visibleUntil));
+  const item = odItem_(raw.item);
   if (!id || title.length < 2 || title.length > 80 || note.length > 60 || !url || !OD_PICK_LINK.test(url) || !OD_PICK_CATEGORIES[raw.category]) return null;
+  if (raw.item && (!item || OD_PICK_ITEMS[item].category !== raw.category)) return null;
   if (!Number.isFinite(until) || until <= now || until > now + (OD_PICK_MAX_DAYS + 1) * OD_DAY) return null;
   let price = null, checked = NaN, priceUntil = 0;
   if (raw.price !== null && raw.price !== undefined && raw.price !== '') {
-    // 가격이 있는 카드는 확인 시각부터 24시간 안이어야 보인다 (기한이 맞지 않으면 카드째 뺀다)
+    // 가격이 있는 카드는 확인 시각부터 24시간 안이어야 보인다 (기한이 맞지 않으면 특가는 카드째, 항목별 상품은 가격만 뺀다)
     checked = odMs_(odIso_(raw.priceCheckedAt)); priceUntil = odMs_(odIso_(raw.priceUntil));
     const fresh = odPosInt_(raw.price) && Number.isFinite(checked) && checked <= now + 5 * 60000 && Number.isFinite(priceUntil)
       && priceUntil > now && priceUntil <= checked + OD_PICK_PRICE_HOURS * OD_HOUR;
-    if (!fresh) return null;
-    price = raw.price;
+    if (fresh) price = raw.price;
+    else if (!item) return null;
   }
-  return { id, title, url, imageUrl: odPickImage(raw.imageUrl), category: raw.category, note, affiliate: true,
-    price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price ? Math.min(until, priceUntil) : until };
+  return { id, title, url, imageUrl: odPickImage(raw.imageUrl), category: raw.category, item, note, affiliate: true,
+    price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price && !item ? Math.min(until, priceUntil) : until };
 }
 
 // ---------- 자동으로 찾은 후보 (11/05 14:56 대표 결정) ----------
@@ -2415,7 +2441,7 @@ function odCounts_(ev, supplier) {
 function odReadPicks_() {
   return readTable_('online_picks').rows.filter(function (r) { return /^pk_[0-9a-z]{8,24}$/.test(String(r.id)); }).map(function (r) {
     return {
-      id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), note: odUncell_(r.note), memo: odUncell_(r.memo),
+      id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), item: String(r.item || ''), note: odUncell_(r.note), memo: odUncell_(r.memo),
       price: r.price === '' || r.price == null ? null : Number(r.price), priceCheckedAt: String(r.price_checked_at || ''), endsAt: String(r.ends_at || ''),
       hidden: String(r.hidden).toUpperCase() === 'TRUE', createdAt: String(r.created_at || ''), updatedAt: String(r.updated_at || ''),
     };
@@ -2430,7 +2456,7 @@ function odWritePicks_(picks) {
       id: p.id, status: p.hidden ? 'hidden' : Date.parse(p.endsAt) > now ? 'published' : 'ended',
       title: odCell_(p.title), url: p.url, category: p.category, note: odCell_(p.note), price: p.price == null ? '' : p.price,
       price_checked_at: p.priceCheckedAt || '', ends_at: p.endsAt, hidden: p.hidden ? 'TRUE' : '', memo: odCell_(p.memo),
-      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '',
+      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '', item: p.item || '',
     };
   }));
   CacheService.getScriptCache().remove(OD_CACHE_KEY);
@@ -2673,6 +2699,28 @@ function odAdminSet_(b) {
       const lead = leads.filter(function (l) { return l.key === String(b.lead_key); })[0];
       if (lead) { lead.status = 'used'; odWriteLeads_(leads); }
     }
+  } else if (op === 'pick_save_many') {
+    // 여러 상품 한 번에 (11/06 항목별 상품): 모두 검사를 통과해야 한꺼번에 저장한다. 이미 올린 링크·같은 링크 두 번은 거절.
+    const list = Array.isArray(b.picks) ? b.picks : [];
+    if (!list.length || list.length > 30) throw new Error('한 번에 1~30개까지 올릴 수 있어요.');
+    const picks = odReadPicks_();
+    if (picks.length + list.length > 200) throw new Error('카드가 너무 많아요. 끝난 카드를 지운 뒤 다시 등록하세요.');
+    const seen = {};
+    picks.forEach(function (p) { seen[p.url] = true; });
+    const errs = [], made = [];
+    list.forEach(function (raw, i) {
+      const input = raw && typeof raw === 'object' ? Object.assign({}, raw, { id: '' }) : raw;
+      const res = odPickInput(input, now, null);
+      if (res.errors.length) errs.push((i + 1) + '번: ' + res.errors.join(' '));
+      else if (seen[res.pick.url]) errs.push((i + 1) + '번: 이미 올린 링크예요.');
+      else {
+        seen[res.pick.url] = true;
+        res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
+        made.push(res.pick);
+      }
+    });
+    if (errs.length) throw new Error(errs.join(' / '));
+    odWritePicks_(picks.concat(made));
   } else if (op === 'lead_dismiss') {
     const leads = odReadLeads_();
     const lead = leads.filter(function (l) { return l.key === String(b.key || ''); })[0];

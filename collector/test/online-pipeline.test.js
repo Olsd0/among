@@ -344,7 +344,7 @@ test('워크플로: 읽기 권한만, 겹침 방지, 외부 액션 고정, 비�
 });
 
 // ---------- 직접 고른 쿠팡 특가 (최종 승인 전) ----------
-import { odPickInput, odPickPublic, odClientPick, odPickImage, odPartnerHtml, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
+import { odPickInput, odPickPublic, odClientPick, odPickImage, odPartnerHtml, odGuessItem, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
 const pickRaw = (over = {}) => ({ title: '테스트 생수 2L × 12병', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', note: '와우회원 가격', price: '7900', memo: '에펨코리아 핫딜', ...over });
 
 test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노출 기간 검사, 가격 확인 시각은 서버 시각', () => {
@@ -376,7 +376,7 @@ test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노�
 test('직접 고른 카드 공개: 메모·숨김 없음, 가격 카드는 확인 후 24시간만, 노출 종료 뒤에는 빠짐', () => {
   const pick = { ...odPickInput(pickRaw(), OD_T0).pick, id: 'pk_0123456789abcdef' };
   const pub = odPickPublic(pick, OD_T0 + HOUR);
-  assert.deepEqual(Object.keys(pub).sort(), ['category', 'id', 'imageUrl', 'note', 'price', 'priceCheckedAt', 'priceUntil', 'title', 'url', 'visibleUntil']);
+  assert.deepEqual(Object.keys(pub).sort(), ['category', 'id', 'imageUrl', 'item', 'note', 'price', 'priceCheckedAt', 'priceUntil', 'title', 'url', 'visibleUntil']);
   assert.ok(!JSON.stringify(pub).includes('에펨코리아'), '출처 메모는 공개하지 않음');
   assert.equal(pub.price, 7900);
   assert.equal(odPickPublic(pick, OD_T0 + 24 * HOUR - 1).price, 7900);
@@ -431,4 +431,23 @@ test('직접 고른 카드 사진: 저장·공개·화면 재검사 모두 같�
   const tampered = odClientPick({ ...pub, imageUrl: 'https://evil.test/a.jpg' }, OD_T0 + HOUR);
   assert.equal(tampered.imageUrl, '', '응답이 바뀌어도 화면은 사진만 빼고 카드는 유지');
   assert.equal(tampered.price, 7900);
+});
+
+test('항목별 상품 규칙: 항목이 분류를 정하고, 화면 재검사에서도 가격만 빼며, 항목과 분류가 어긋나면 버림', () => {
+  const saved = odPickInput(pickRaw({ item: 'laundry', category: 'food' }), OD_T0).pick;
+  assert.deepEqual([saved.item, saved.category], ['laundry', 'household']);
+  assert.equal(Date.parse(saved.endsAt), OD_T0 + 30 * 24 * HOUR);
+  assert.match(odPickInput(pickRaw({ item: 'toString' }), OD_T0).errors.join(' '), /항목별 칸/, '객체 기본 속성 이름은 항목이 아님');
+  const pub = odPickPublic({ ...saved, id: 'pk_0123456789abcdef' }, OD_T0 + HOUR);
+  assert.equal(pub.item, 'laundry'); assert.equal(pub.price, 7900);
+  const later = OD_T0 + 25 * HOUR;
+  const stale = odClientPick(pub, later);
+  assert.equal(stale.price, null, '화면에 남아 있던 응답도 24시간 지나면 가격만 뺌');
+  assert.equal(stale.visibleUntil, Date.parse(pub.visibleUntil));
+  assert.equal(odClientPick({ ...pub, item: 'laundry', category: 'food' }, OD_T0 + HOUR), null, '항목과 분류가 어긋나면 버림');
+  assert.equal(odClientPick({ ...pub, item: 'beer' }, OD_T0 + HOUR), null);
+  assert.equal(odClientPick({ ...pub, item: '' }, later), null, '특가 카드는 그대로 카드째 뺌');
+  const g = n => odGuessItem(n);
+  assert.deepEqual(['제주 삼다수 2L, 12개', '농심 신라면 120g, 5개', '햇반 210g, 24개', '비비고 왕교자 1.05kg', '깨끗한나라 3겹 화장지 30m 30롤', '베베숲 물티슈 캡형 100매', '퍼실 액체 세탁세제 2.7L', '자연퐁 주방세제 1L', '농심 새우깡 90g'].map(g),
+    ['water', 'ramen', 'rice', 'frozen', 'tissue', 'wipes', 'laundry', 'dish', '']);
 });

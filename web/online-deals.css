@@ -75,3 +75,9 @@ article.od-card .body { cursor: auto; }
   .od-cats { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; }
   .od-ticket { --stub: 88px; }
 }
+/* 항목별 상품 (11/06): 항목 탭 + 그 항목의 상품 카드 + 쿠팡에서 더 보기 */
+.od-item-tabs { margin-top: 12px; }
+.od-item-list { margin-top: 2px; }
+.od-item-empty { margin: 2px 2px 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.od-sc.od-item-more { display: flex; justify-content: center; width: 100%; margin-top: 12px; }
+.od-shortcuts + .od-official-entry { margin-top: 24px; }
