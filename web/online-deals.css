@@ -7,6 +7,18 @@
 .od-disclosure { margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface-2); color: var(--text-2); font-size: 13px; line-height: 1.65; }
 .od-disclosure p { margin: 0; }
 .od-disclosure p + p { margin-top: 6px; }
+.od-shortcuts { margin: 0 0 22px; }
+.od-shortcuts-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.od-shortcuts-head h3 { margin: 0; font-size: 17px; letter-spacing: -.025em; }
+.od-shortcuts-head .od-ad-label { font-size: 10.5px; color: var(--muted); }
+.od-shortcuts > p { margin: 5px 0 0; color: var(--text-2); font-size: 12.5px; line-height: 1.6; }
+.od-sc-group { margin-top: 14px; }
+.od-sc-group h4 { margin: 0 0 8px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.od-sc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.od-sc { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 50px; padding: 0 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--text); font-size: 14.5px; font-weight: 700; letter-spacing: -.02em; text-decoration: none; }
+.od-sc > span[aria-hidden] { color: var(--primary); font-size: 13px; }
+.od-sc:hover { border-color: var(--primary); }
+@media (min-width: 700px) { .od-sc-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .od-official-entry { margin-top: 22px; padding: 19px 18px 17px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
 .od-entry-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .od-entry-label { font-size: 12px; font-weight: 700; color: var(--text-2); }

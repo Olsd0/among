@@ -4,6 +4,20 @@
 import { OD_CATEGORIES, OD_SUPPLIERS, odClientItem, odShippingText, odLink, odIsAffiliateLink } from './online-deals-core.js?v=20261105-2';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
+// 항목별 바로가기 (11/05 대표 요청: 자취에 필요한 물품을 항목별로). 쿠팡 검색 결과 페이지로 보낸다 — AMONG이 고른 상품·가격이 아니다.
+// config.onlineDeals.shortcutLinks[key]에 파트너스 '간편 링크'로 바꾼 링크가 있으면 그 링크, 없으면 일반 검색 링크.
+export const OD_SHORTCUTS = [
+  { group: '먹거리', items: [['water', '생수'], ['ramen', '라면'], ['rice', '즉석밥'], ['frozen', '냉동 간편식']] },
+  { group: '생활용품', items: [['tissue', '화장지'], ['wipes', '물티슈'], ['laundry', '세탁세제'], ['dish', '주방세제']] },
+];
+export const shortcutSearchUrl = label => `https://www.coupang.com/np/search?q=${encodeURIComponent(label)}`;
+export function shortcutLinks(overrides = {}) {
+  return OD_SHORTCUTS.map(g => ({ group: g.group, items: g.items.map(([key, label]) => {
+    const own = overrides && typeof overrides === 'object' ? odLink(overrides[key] || '', 'coupang') : '';
+    const url = own || shortcutSearchUrl(label);
+    return { key, label, url, affiliate: odIsAffiliateLink(url) };
+  }) }));
+}
 const API_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -63,15 +77,22 @@ export function createOnlineDealsUI(root, options = {}) {
   // 다른 파트너스 ID가 붙은 링크는 odLink가 거절한다.
   const goldbox = odLink(options.goldboxUrl || '', 'coupang') || GOLDBOX;
   const goldboxAffiliate = odIsAffiliateLink(goldbox);
+  const shortcuts = shortcutLinks(options.shortcutLinks);
+  const shortcutAffiliate = shortcuts.some(g => g.items.some(i => i.affiliate));
+  const rel = affiliate => (affiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer');
   let payload = { items: [] }, active = false, loaded = false, loading = false, failed = false;
   let request = null, expiryTimer = 0, controller = null, destroyed = false;
   root.classList.add('od-view');
   root.setAttribute('aria-labelledby', 'onlineDealsTitle');
   root.innerHTML = `<div class="od-heading"><p class="od-eyebrow">필요한 장보기도, 한곳에서</p><h2 id="onlineDealsTitle">온라인 특가</h2><p>식품·생활용품 혜택을 가볍게 둘러보세요.</p></div>
     <div class="od-disclosure" hidden></div>
+    <section class="od-shortcuts" aria-labelledby="odShortcutsTitle"><div class="od-shortcuts-head"><h3 id="odShortcutsTitle">자취 필수품, 항목별로</h3>${shortcutAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div>
+      <p>누르면 쿠팡의 해당 항목 검색 결과로 이동해요. 가격과 배송 조건은 쿠팡에서 확인하세요.</p>
+      ${shortcuts.map(g => `<div class="od-sc-group"><h4>${esc(g.group)}</h4><div class="od-sc-grid">${g.items.map(i => `<a class="od-sc" data-od-shortcut="${esc(i.key)}" href="${esc(i.url)}" target="_blank" rel="${rel(i.affiliate)}">${esc(i.label)}<span aria-hidden="true">↗</span><span class="od-sr-only"> 쿠팡에서 보기 (새 탭)</span></a>`).join('')}</div></div>`).join('')}
+    </section>
+    <article class="od-official-entry"><div class="od-entry-top"><span class="od-entry-label">쿠팡 공식 특가 바로가기</span><span class="od-membership">와우회원 전용</span>${goldboxAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div><h3>오늘의 골드박스</h3><p>지금 진행 중인 특가 상품과<br>회원 혜택을 쿠팡에서 확인하세요.</p><a href="${esc(goldbox)}" target="_blank" rel="${rel(goldboxAffiliate)}">쿠팡에서 특가 보기 <span aria-hidden="true">↗</span><span class="od-sr-only"> (새 탭)</span></a></article>
     <div class="od-list-heading"><h3>확인한 상품</h3><p class="od-count"></p></div><div class="od-status" role="status" aria-live="polite"></div>
     <div class="od-products-list"></div><p class="od-price-note" hidden>표시 가격은 확인 당시 기준이에요. 옵션·회원 여부·쿠폰·배송비에 따라 최종 결제 금액이 달라질 수 있어요. 구매 전 판매처에서 꼭 확인해 주세요.</p>
-    <article class="od-official-entry"><div class="od-entry-top"><span class="od-entry-label">쿠팡 공식 특가 바로가기</span><span class="od-membership">와우회원 전용</span>${goldboxAffiliate ? '<span class="od-ad-label">제휴광고</span>' : ''}</div><h3>오늘의 골드박스</h3><p>지금 진행 중인 특가 상품과<br>회원 혜택을 쿠팡에서 확인하세요.</p><a href="${esc(goldbox)}" target="_blank" rel="${goldboxAffiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer'}">쿠팡에서 특가 보기 <span aria-hidden="true">↗</span><span class="od-sr-only"> (새 탭)</span></a></article>
     <p class="od-footnote">주문과 결제는 각 판매처에서 진행돼요. AMONG은 가격을 보장하지 않아요.</p>`;
   const list = root.querySelector('.od-products-list');
   const status = root.querySelector('.od-status');
@@ -83,7 +104,7 @@ export function createOnlineDealsUI(root, options = {}) {
     try { items = normalizeOnlineDeals(payload); } catch { /* 형식이 맞지 않으면 빈 목록 (쿠폰 화면에는 영향 없음) */ }
     root.setAttribute('aria-busy', String(loading));
     // 제휴 링크가 있는 공급처의 고지 문구를 목록보다 먼저 보여 준다 (화면이 가진 목록 기준, 서버 문구를 그대로 쓰지 않음).
-    const notes = [...new Set([...(goldboxAffiliate ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
+    const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
     const disclosure = root.querySelector('.od-disclosure');
     disclosure.hidden = !notes.length;
     disclosure.innerHTML = notes.map(n => `<p>${esc(n)}</p>`).join('');

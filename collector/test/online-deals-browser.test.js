@@ -56,7 +56,7 @@ async function setup(t, options = {}) {
     if (url.origin === site.base && url.pathname.endsWith('/config.js')) {
       return route.fulfill({ contentType: 'text/javascript', body: `window.AMONG_CONFIG = ${JSON.stringify({
         apiUrl: 'https://script.google.com/macros/s/test/exec', contactEmail: '',
-        onlineDeals: { enabled: options.enabled !== false, dataUrl: './online-deals.json', goldboxUrl: options.goldboxUrl || '' },
+        onlineDeals: { enabled: options.enabled !== false, dataUrl: './online-deals.json', goldboxUrl: options.goldboxUrl || '', shortcutLinks: options.shortcutLinks || {} },
       })};` });
     }
     if (options.delayModule && url.origin === site.base && url.pathname.endsWith('/online-deals.js')) {
@@ -266,6 +266,39 @@ test('파트너스 골드박스 링크: AMONG ID 링크면 제휴 고지를 맨 
   assert.equal(await other.page.locator('#onlineDeals .od-disclosure').isVisible(), false);
   assert.deepEqual(ours.errors, []);
   assert.deepEqual(other.errors, []);
+});
+
+test('자취 필수품 항목별 바로가기: 골드박스보다 먼저, 기본은 일반 검색 링크(고지 없음), 제휴 링크가 생기면 고지·sponsored', { timeout: 40000 }, async t => {
+  const plain = await setup(t, { width: 320 });
+  await plain.page.goto(site.base + '/index.html?view=onlineDeals');
+  const panel = plain.page.locator('#onlineDeals');
+  await panel.locator('.od-shortcuts').waitFor();
+  const links = panel.locator('.od-sc');
+  assert.deepEqual((await links.allInnerTexts()).map(x => x.replace(/\s*↗.*$/s, '')), ['생수', '라면', '즉석밥', '냉동 간편식', '화장지', '물티슈', '세탁세제', '주방세제']);
+  assert.equal(await links.first().getAttribute('href'), 'https://www.coupang.com/np/search?q=%EC%83%9D%EC%88%98');
+  assert.equal(await links.first().getAttribute('rel'), 'noopener noreferrer');
+  assert.equal(await links.first().getAttribute('target'), '_blank');
+  assert.ok(await panel.locator('.od-shortcuts').evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-official-entry')) & Node.DOCUMENT_POSITION_FOLLOWING)), '항목별 바로가기가 골드박스보다 먼저');
+  assert.equal(await panel.locator('.od-disclosure').isVisible(), false);
+  const heights = await links.evaluateAll(els => els.map(e => e.getBoundingClientRect().height));
+  assert.ok(heights.every(h => h >= 44), '누르기 쉬운 높이');
+  assert.ok(await plain.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '320px 넘침 없음');
+  const own = await setup(t, { shortcutLinks: { water: 'https://link.coupang.com/a/among-water' } });
+  await own.page.goto(site.base + '/index.html?view=onlineDeals');
+  await own.page.locator('#onlineDeals .od-shortcuts').waitFor();
+  const water = own.page.locator('#onlineDeals [data-od-shortcut="water"]');
+  assert.equal(await water.getAttribute('href'), 'https://link.coupang.com/a/among-water');
+  assert.match(await water.getAttribute('rel'), /sponsored/);
+  assert.equal(await own.page.locator('#onlineDeals [data-od-shortcut="ramen"]').getAttribute('rel'), 'noopener noreferrer');
+  assert.match(await own.page.locator('#onlineDeals .od-shortcuts-head').innerText(), /제휴광고/);
+  assert.equal(await own.page.locator('#onlineDeals .od-disclosure').isVisible(), true);
+  for (const width of [390, 430, 1280]) {
+    await own.page.setViewportSize({ width, height: 900 });
+    assert.ok(await own.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}px 넘침 없음`);
+    if (process.env.AMONG_QA_DIR) await own.page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-shortcuts-${width}.png`, fullPage: true });
+  }
+  assert.deepEqual(plain.errors, []);
+  assert.deepEqual(own.errors, []);
 });
 
 // ---------- 전체 경로 모의 검증: 가짜 공급처 → 실행기 → Apps Script(가짜 환경) → 공개 화면·관리 화면 ----------

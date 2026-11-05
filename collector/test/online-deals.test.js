@@ -1,7 +1,8 @@
 // 온라인 특가 화면 모듈 (web/online-deals.js) — 서버 응답 재검사와 카드 문구
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeOnlineDeals, onlineDealCard } from '../../web/online-deals.js';
+import { normalizeOnlineDeals, onlineDealCard, shortcutLinks, shortcutSearchUrl, OD_SHORTCUTS } from '../../web/online-deals.js';
+import { odLink } from '../../web/online-deals-core.js?v=20261105-2';
 
 const now = Date.parse('2026-11-05T12:00:00+09:00');
 const iso = t => new Date(t).toISOString();
@@ -43,4 +44,26 @@ test('카드: 사실만 표시 (확인 당시 가격·배송비·조건·판매�
   assert.doesNotMatch(onlineDealCard(free), /제휴광고|sponsored/);
   const [conditional] = normalizeOnlineDeals({ items: [item({ shipping: 'conditional', shippingThreshold: 19800 })] }, now);
   assert.match(onlineDealCard(conditional), /19800원 이상 구매 시 무료배송/);
+});
+
+test('항목별 바로가기: 쿠팡 검색 결과 일반 링크가 기본, AMONG 파트너스 링크만 덮어쓸 수 있다', () => {
+  const flat = groups => groups.flatMap(g => g.items);
+  const plain = flat(shortcutLinks());
+  assert.deepEqual(OD_SHORTCUTS.map(g => g.group), ['먹거리', '생활용품']);
+  assert.deepEqual(plain.map(i => i.label), ['생수', '라면', '즉석밥', '냉동 간편식', '화장지', '물티슈', '세탁세제', '주방세제']);
+  for (const i of plain) {
+    assert.equal(i.url, shortcutSearchUrl(i.label));
+    assert.equal(odLink(i.url, 'coupang'), i.url, '허용 링크 형식');
+    assert.equal(i.affiliate, false);
+  }
+  assert.equal(shortcutSearchUrl('냉동 간편식'), 'https://www.coupang.com/np/search?q=%EB%83%89%EB%8F%99%20%EA%B0%84%ED%8E%B8%EC%8B%9D');
+  const own = flat(shortcutLinks({ water: 'https://link.coupang.com/a/among-water', ramen: 'https://www.coupang.com/np/search?q=x&lptag=AF0000001', rice: 'https://evil.test/a', tissue: 42 }));
+  assert.deepEqual(own.slice(0, 5).map(i => [i.key, i.affiliate, i.url]), [
+    ['water', true, 'https://link.coupang.com/a/among-water'],
+    ['ramen', false, shortcutSearchUrl('라면')],
+    ['rice', false, shortcutSearchUrl('즉석밥')],
+    ['frozen', false, shortcutSearchUrl('냉동 간편식')],
+    ['tissue', false, shortcutSearchUrl('화장지')],
+  ]);
+  assert.equal(flat(shortcutLinks(null)).length, 8);
 });
