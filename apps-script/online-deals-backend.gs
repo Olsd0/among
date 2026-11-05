@@ -85,6 +85,45 @@ function odWritePicks_(picks) {
 }
 const odNewest_ = function (a, b) { return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0; };
 
+// ============ 자동으로 찾은 후보 (online_leads, 관리 화면 전용) ============
+
+function odReadLeads_() {
+  return readTable_('online_leads').rows.filter(function (r) { return /^[a-z]+:\d{1,12}$/.test(String(r.key)); }).map(function (r) {
+    return {
+      key: String(r.key), status: ['new', 'used', 'dismissed'].indexOf(r.status) >= 0 ? r.status : 'new', source: String(r.source), title: odUncell_(r.title),
+      priceHint: r.price_hint === '' || r.price_hint == null ? null : Number(r.price_hint), freeShipping: String(r.free_shipping).toUpperCase() === 'TRUE',
+      coupangUrl: String(r.coupang_url || ''), affiliateOnly: String(r.affiliate_only).toUpperCase() === 'TRUE', postUrl: String(r.post_url || ''),
+      postedAt: String(r.posted_at || ''), foundAt: String(r.found_at || ''),
+    };
+  });
+}
+function odWriteLeads_(leads) {
+  const from = Date.now() - OD_LEAD_KEEP_DAYS * OD_DAY;
+  const keep = leads.filter(function (l) { return Date.parse(l.foundAt) > from; })
+    .sort(function (a, b) { return a.foundAt < b.foundAt ? 1 : a.foundAt > b.foundAt ? -1 : 0; }).slice(0, OD_LEAD_MAX);
+  writeTable_(sheet_('online_leads'), SHEETS.online_leads, keep.map(function (l) {
+    return { key: l.key, status: l.status, source: l.source, title: odCell_(l.title), price_hint: l.priceHint == null ? '' : l.priceHint,
+      free_shipping: l.freeShipping ? 'TRUE' : '', coupang_url: l.coupangUrl, affiliate_only: l.affiliateOnly ? 'TRUE' : '', post_url: l.postUrl,
+      posted_at: l.postedAt, found_at: l.foundAt };
+  }));
+}
+/** 수집기가 찾은 후보를 같은 기준(odLeadInput)으로 다시 검사해 새 것만 더한다 */
+function odLeadsIngest_(b) {
+  if (!Array.isArray(b.leads) || b.leads.length > 50) throw new Error('bad leads');
+  const now = Date.now();
+  const leads = odReadLeads_();
+  const have = {};
+  leads.forEach(function (l) { have[l.key] = true; });
+  let added = 0;
+  b.leads.forEach(function (raw) {
+    const l = odLeadInput(raw, now);
+    if (!l || have[l.key]) return;
+    l.status = 'new'; leads.push(l); have[l.key] = true; added++;
+  });
+  odWriteLeads_(leads);
+  return { ok: true, added: added, total: leads.length };
+}
+
 // ============ 공개 ============
 
 /** 게시 중인 상품만. 상태는 읽을 때 다시 계산하므로 기한이 지난 상품은 새 수집 없이도 빠진다. */
@@ -226,6 +265,8 @@ function odAdmin_() {
       const pub = odPickPublic(p, ctx.now);
       return Object.assign({}, p, { live: !!pub, price_fresh: !!(pub && pub.price) });
     }),
+    leads: odReadLeads_().filter(function (l) { return l.status === 'new'; })
+      .sort(function (a, b) { return a.foundAt < b.foundAt ? 1 : a.foundAt > b.foundAt ? -1 : 0; }).slice(0, 60),
   };
 }
 
@@ -274,6 +315,18 @@ function odAdminSet_(b) {
       picks.push(res.pick);
     } else picks[picks.indexOf(prev)] = res.pick;
     odWritePicks_(picks);
+    // 자동 후보로 만든 카드면 그 후보를 '사용함'으로 (목록에서 빠짐)
+    if (b.lead_key) {
+      const leads = odReadLeads_();
+      const lead = leads.filter(function (l) { return l.key === String(b.lead_key); })[0];
+      if (lead) { lead.status = 'used'; odWriteLeads_(leads); }
+    }
+  } else if (op === 'lead_dismiss') {
+    const leads = odReadLeads_();
+    const lead = leads.filter(function (l) { return l.key === String(b.key || ''); })[0];
+    if (!lead) throw new Error('후보를 찾을 수 없어요. 목록을 새로고침해 주세요.');
+    lead.status = 'dismissed';
+    odWriteLeads_(leads);
   } else if (op === 'pick_hide' || op === 'pick_delete') {
     const picks = odReadPicks_();
     const prev = picks.filter(function (p) { return p.id === b.id; })[0];

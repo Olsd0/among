@@ -1,6 +1,6 @@
 // 온라인 특가 관리: 공급처 연결 상태·모드, 보류 사유, 숨김·분류 지정, 운영 규칙, 실행 기록.
 // 운영자는 예외와 규칙만 다룬다. 상품을 직접 입력하는 기능은 두지 않는다.
-import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS } from './online-deals-core.js?v=20261105-3';
+import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS, OD_LEAD_SOURCES, odLeadName } from './online-deals-core.js?v=20261105-4';
 
 const root = document.querySelector('#onlineDealsManager');
 const API = window.AMONG_CONFIG?.apiUrl || '';
@@ -20,7 +20,10 @@ root.innerHTML = `<div class="od-admin-heading"><div><h2>온라인 특가</h2><p
   <div id="odAdminContent" hidden>
     <section class="od-picks-admin" aria-labelledby="odPicksAdminTitle"><h3 id="odPicksAdminTitle">직접 고른 쿠팡 특가</h3>
       <p class="muted">게시판 등에서 찾은 상품을 쿠팡 파트너스 '간편 링크'로 만들어 붙여 넣으면 공개 화면에 쿠폰 모양 카드로 올라가요. 공개 화면에는 상품명·항목·한 줄 설명·확인한 가격만 보이고(가격을 넣은 카드는 확인 후 24시간 뒤 자동으로 내려감, '다시 확인'하면 다시 24시간), 정보 출처 메모는 여기에만 남아요. 최종 승인 뒤에는 쿠팡 API 자동 확인으로 바꿉니다.</p>
-      <form id="odPickForm" class="od-pick-form" novalidate><input type="hidden" name="id">
+      <div class="od-leads"><h4>자동으로 찾은 후보 <span id="odLeadCount" class="muted"></span></h4>
+        <p class="muted">뽐뿌·루리웹 핫딜 게시판의 공개 RSS에서 쿠팡 상품 글만 1시간마다 찾아 여기에만 보여 줘요(공개 화면에는 안 올라감). 쿠팡 상품을 열어 가격·조건을 직접 확인한 뒤, 상품 주소를 파트너스 '간편 링크'로 바꿔 아래 칸에 붙여 넣으세요.</p>
+        <div id="odLeads" class="od-items"></div></div>
+      <form id="odPickForm" class="od-pick-form" novalidate><input type="hidden" name="id"><input type="hidden" name="lead">
         <label class="wide">상품명<input name="title" maxlength="80" autocomplete="off" placeholder="예: 삼다수 2L × 12병"></label>
         <label class="wide">쿠팡 파트너스 간편 링크<input name="url" inputmode="url" autocomplete="off" placeholder="https://link.coupang.com/a/…"></label>
         <label>항목<select name="category">${Object.entries(OD_PICK_CATEGORIES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
@@ -121,7 +124,7 @@ function runs() {
 const kstDay = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10);
 function resetPickForm() {
   const f = $('#odPickForm');
-  f.reset(); f.elements.id.value = '';
+  f.reset(); f.elements.id.value = ''; f.elements.lead.value = '';
   f.elements.ends.value = kstDay(Date.now() + OD_PICK_DEFAULT_DAYS * 864e5);
   $('#odPickSubmit').textContent = '카드 등록'; $('#odPickCancel').hidden = true;
 }
@@ -139,13 +142,25 @@ function pickRows() {
         <button type="button" data-pick-delete class="${confirm ? 'danger' : ''}">${confirm ? '정말 삭제' : '삭제'}</button></div></article>`;
   }).join('') || '<p class="muted">아직 올린 카드가 없어요.</p>';
 }
+function leadRows() {
+  const leads = data.leads || [];
+  $('#odLeadCount').textContent = leads.length ? `${leads.length}개` : '';
+  $('#odLeads').innerHTML = leads.map(l => `<article class="od-item od-lead" data-lead-key="${esc(l.key)}">
+    <div class="od-item-top"><span class="pill">${esc(OD_LEAD_SOURCES[l.source]?.name || l.source)}</span><b>${esc(l.title)}</b></div>
+    <p class="muted">${esc(kst(l.postedAt || l.foundAt))} 글${l.priceHint ? ` · 제목 속 가격 ${l.priceHint}원` : ''}${l.freeShipping ? ' · 무료배송 표시' : ''} — 게시글 정보라 쿠팡에서 다시 확인하세요</p>
+    <div class="od-item-actions">${l.coupangUrl ? `<a href="${esc(l.coupangUrl)}" target="_blank" rel="noopener noreferrer">쿠팡 상품 열기 ↗</a><button type="button" data-lead-copy>상품 주소 복사</button>`
+      : `<span class="err-text">${l.affiliateOnly ? '게시글 링크가 다른 사람의 제휴 링크라 쿠팡에서 상품을 직접 찾아 주세요' : '쿠팡 상품 주소를 찾지 못했어요 — 게시글에서 확인'}</span>`}
+      <a href="${esc(l.postUrl)}" target="_blank" rel="noopener noreferrer">게시글 보기 ↗</a>
+      <button type="button" data-lead-use class="primary">이 후보로 카드 만들기</button><button type="button" data-lead-dismiss>지우기</button></div></article>`).join('')
+    || '<p class="muted">새 후보가 없어요. 1시간마다 다시 찾아요.</p>';
+}
 let pendingDelete = '';
 function render(j, note) {
   data = j;
   $('#odAdminContent').hidden = false;
   pendingDelete = '';
   if (!$('#odPickForm').elements.id.value) resetPickForm();
-  pickRows(); suppliers(); items(); rules(); runs();
+  leadRows(); pickRows(); suppliers(); items(); rules(); runs();
   message(note || `불러왔어요. ${data.lock ? `실행 중 (${kst(data.lock.until)}까지 잠금)` : ''}`);
 }
 
@@ -161,6 +176,23 @@ const load = () => { if (!DEMO) act(null); };
 
 root.addEventListener('click', e => {
   const t = e.target;
+  const leadEl = t.closest('[data-lead-key]');
+  if (leadEl) {
+    const l = (data?.leads || []).find(x => x.key === leadEl.dataset.leadKey);
+    if (!l) return;
+    if (t.matches('[data-lead-copy]')) {
+      navigator.clipboard?.writeText(l.coupangUrl).then(() => message('쿠팡 상품 주소를 복사했어요. 파트너스 간편 링크 만들기에 붙여 넣으세요.'), () => message('복사하지 못했어요. 주소를 직접 열어 주세요.', true));
+    } else if (t.matches('[data-lead-use]')) {
+      const f = $('#odPickForm');
+      resetPickForm();
+      f.elements.lead.value = l.key; f.elements.title.value = odLeadName(l.title); f.elements.price.value = l.priceHint ?? '';
+      f.elements.memo.value = `${OD_LEAD_SOURCES[l.source]?.name || l.source} 핫딜 ${kst(l.postedAt || l.foundAt)}`;
+      $('#odPickSubmit').textContent = '카드 등록 (후보에서)';
+      f.scrollIntoView({ block: 'start' }); f.elements.url.focus();
+      message('상품명·가격을 채웠어요. 쿠팡에서 가격을 확인하고 간편 링크를 붙여 넣은 뒤 항목을 고르세요.');
+    } else if (t.matches('[data-lead-dismiss]')) act({ op: 'lead_dismiss', key: l.key }, '후보를 지웠어요.');
+    return;
+  }
   const pick = t.closest('[data-pick-id]');
   if (pick) {
     const p = (data?.picks || []).find(x => x.id === pick.dataset.pickId);
@@ -197,7 +229,7 @@ $('#odPickForm').addEventListener('submit', e => {
   const f = e.target;
   const day = f.elements.ends.value;
   const editing = !!f.elements.id.value;
-  act({ op: 'pick_save', pick: {
+  act({ op: 'pick_save', lead_key: f.elements.lead.value || undefined, pick: {
     id: f.elements.id.value || undefined, title: f.elements.title.value, url: f.elements.url.value.trim(), category: f.elements.category.value, note: f.elements.note.value,
     price: f.elements.price.value.replace(/[,\s원]/g, ''), memo: f.elements.memo.value, recheck: f.elements.recheck.checked,
     endsAt: day ? new Date(`${day}T23:59:59+09:00`).toISOString() : '',

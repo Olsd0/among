@@ -1,0 +1,50 @@
+name: online-leads
+
+# 쿠팡 특가 후보 찾기 (1시간마다): 뽐뿌·루리웹 핫딜 게시판의 공개 RSS에서 쿠팡 상품 글만 골라
+# 관리 화면 '자동으로 찾은 후보'에 올린다. 공개 화면에는 올라가지 않는다 (대표가 확인하고 간편 링크로 카드를 만든다).
+# robots.txt를 확인하고(AI 수집 거부도 따름), 같은 사이트 요청 사이 1.5초, 게시글 페이지는 한 번에 최대 6개.
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'run = 관리 화면에 저장 / dry = 결과만 출력'
+        required: false
+        default: run
+        type: choice
+        options: [run, dry]
+
+concurrency:
+  group: online-leads
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  online-leads:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: 후보 찾기 규칙 테스트
+        run: node --test test/online-leads.test.js
+
+      - name: 후보 찾기 · 관리 화면 저장
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
+          LEADS_MODE: ${{ inputs.mode || 'run' }}
+        run: node src/online/leads.js

@@ -26,13 +26,21 @@ export function safeError(err) {
   return /^(timeout|network_error|host_not_allowed|response_too_large|bad_json|not_https)$/.test(m) ? m : 'adapter_error';
 }
 
+/** 응답 글자 해석: Content-Type의 charset → 문서 앞부분의 encoding/charset 선언 → UTF-8 (국내 게시판은 EUC-KR이 많다) */
+export function decodeBody(buf, contentType = '') {
+  const head = buf.subarray(0, 2048).toString('latin1');
+  const label = (/charset\s*=\s*["']?([\w-]+)/i.exec(contentType || '') || /<\?xml[^>]*encoding\s*=\s*["']([\w-]+)/i.exec(head)
+    || /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i.exec(head) || [])[1] || 'utf-8';
+  try { return new TextDecoder(label.toLowerCase()).decode(buf); } catch { return new TextDecoder('utf-8').decode(buf); }
+}
+
 async function readCapped(res, maxBytes) {
   const declared = Number(res.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > maxBytes) throw new Error('response_too_large');
   if (!res.body || typeof res.body.getReader !== 'function') {
-    const text = await res.text();
-    if (Buffer.byteLength(text) > maxBytes) throw new Error('response_too_large');
-    return text;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > maxBytes) throw new Error('response_too_large');
+    return buf;
   }
   const reader = res.body.getReader();
   const chunks = [];
@@ -44,7 +52,7 @@ async function readCapped(res, maxBytes) {
     if (size > maxBytes) { try { await reader.cancel(); } catch { /* 무시 */ } throw new Error('response_too_large'); }
     chunks.push(value);
   }
-  return Buffer.concat(chunks.map(c => Buffer.from(c))).toString('utf8');
+  return Buffer.concat(chunks.map(c => Buffer.from(c)));
 }
 
 export function createHttpClient({
@@ -85,7 +93,7 @@ export function createHttpClient({
         if (res.status >= 500 && attempt < maxRetries) { await sleep(backoff(attempt)); continue; }
         if (!res.ok) throw new HttpError(res.status);
         let text;
-        try { text = await readCapped(res, maxBytes); } catch (e) {
+        try { text = decodeBody(await readCapped(res, maxBytes), res.headers.get('content-type')); } catch (e) {
           if (e.message === 'response_too_large') throw e;
           throw new Error(ctrl.signal.aborted ? 'timeout' : 'network_error');
         }

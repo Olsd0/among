@@ -501,3 +501,46 @@ export function odClientPick(raw, now) {
   return { id, title, url, category: raw.category, note, affiliate: true,
     price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price ? Math.min(until, priceUntil) : until };
 }
+
+// ---------- 자동으로 찾은 후보 (11/05 14:56 대표 결정) ----------
+// 핫딜 게시판의 공개 RSS에서 쿠팡 상품 글만 골라 관리 화면에만 보여 준다. 게시글 내용은 공개 화면에 싣지 않는다.
+// 대표가 쿠팡에서 직접 확인하고 파트너스 간편 링크를 만들어 '직접 고른 쿠팡 특가'로 올린다.
+// robots.txt가 허용하는 게시판만 쓴다 (에펨코리아는 robots.txt가 막아 제외, 클리앙은 AI·콘텐츠 수집기를 막아 제외).
+export const OD_LEAD_SOURCES = {
+  ppomppu: { name: '뽐뿌', hosts: ['www.ppomppu.co.kr', 'm.ppomppu.co.kr'] },
+  ruliweb: { name: '루리웹', hosts: ['bbs.ruliweb.com', 'm.ruliweb.com'] },
+};
+export const OD_LEAD_KEEP_DAYS = 3;
+export const OD_LEAD_MAX = 300;
+const OD_LEAD_PRODUCT = /^https:\/\/www\.coupang\.com\/vp\/products\/\d{1,15}(?:\?itemId=\d{1,15}(?:&vendorItemId=\d{1,15})?)?$/;
+
+/** 제목 속 가격 단서 (예: '(9,370원/무료)', '12900원') — 후보 정리용, 공개 가격이 아니다 */
+export function odLeadPrice(title) {
+  const t = String(title || '');
+  const m = /(\d{1,3}(?:,\d{3})+|\d{3,8})\s*원/.exec(t) || /\(\s*(\d{1,3}(?:,\d{3})+)\s*[\/)]/.exec(t);
+  const n = m ? Number(m[1].replace(/,/g, '')) : NaN;
+  return Number.isSafeInteger(n) && n >= 100 && n <= 10000000 ? n : null;
+}
+/** 카드 상품명 제안: 앞의 [쿠팡]·뒤의 (가격/배송) 묶음을 뺀다 */
+export function odLeadName(title) {
+  return odText(String(title || '').replace(/^\s*[[(（【]?\s*쿠팡\s*[\])）】]?\s*[:\-·)]?\s*/, '')
+    .replace(/\s*[(（][^()（）]*(?:원|무료|무배|배송)[^()（）]*[)）]\s*$/, '').replace(/\s+\d{1,3}(?:,\d{3})+\s*원.*$/, ''), 80);
+}
+/** 수집기·Apps Script가 같은 기준으로 후보를 정리한다. 맞지 않으면 null */
+export function odLeadInput(raw, now) {
+  if (!raw || typeof raw !== 'object' || !OD_LEAD_SOURCES[raw.source]) return null;
+  const src = OD_LEAD_SOURCES[raw.source];
+  const key = odText(raw.key, 61);
+  if (!/^[a-z]+:\d{1,12}$/.test(key) || key.split(':')[0] !== raw.source) return null;
+  const postUrl = odUrlFor_(odText(raw.postUrl, 401), src.hosts);
+  const title = odText(raw.title, 121);
+  if (!postUrl || title.length < 2) return null;
+  const coupangUrl = typeof raw.coupangUrl === 'string' && OD_LEAD_PRODUCT.test(raw.coupangUrl) ? raw.coupangUrl : '';
+  const priceHint = Number.isSafeInteger(raw.priceHint) && raw.priceHint >= 100 && raw.priceHint <= 10000000 ? raw.priceHint : null;
+  const posted = odIso_(raw.postedAt);
+  return {
+    key, source: raw.source, title: title.slice(0, 120), postUrl, coupangUrl,
+    affiliateOnly: raw.affiliateOnly === true && !coupangUrl, priceHint, freeShipping: raw.freeShipping === true,
+    postedAt: posted && odMs_(posted) <= now + 10 * 60000 ? posted : '', foundAt: new Date(now).toISOString(),
+  };
+}

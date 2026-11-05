@@ -293,3 +293,30 @@ test('직접 고른 쿠팡 특가: 관리 토큰으로 등록·수정·숨김·�
   assert.equal(b.adminSet({ op: 'pick_save', pick: { id: 'pk_ffffffffffffffff', title: '없는 카드', url: 'https://link.coupang.com/a/x', category: 'food' } }).ok, false);
 });
 function pub_(b) { b.gas.cache.clear(); return b.gas.get({ action: 'online_deals' }); }
+
+test('자동 후보: 수집기 토큰으로만 저장, 같은 기준으로 재검사, 관리 화면에만 보이고 카드로 만들면 사용함, 3일 보관', () => {
+  const b = boot();
+  const lead = (n, over = {}) => ({ key: `ruliweb:${n}`, source: 'ruliweb', title: `[쿠팡] 테스트 상품 ${n} (9,900원/무료)`, postUrl: `https://bbs.ruliweb.com/market/board/1020/read/${n}`,
+    coupangUrl: `https://www.coupang.com/vp/products/${n}`, priceHint: 9900, freeShipping: true, postedAt: new Date(OD_T0 - HOUR).toISOString(), ...over });
+  assert.equal(b.gas.post({ action: 'online_leads_ingest', leads: [lead(1)] }).error, 'unauthorized');
+  assert.equal(b.gas.post({ action: 'online_leads_ingest', token: b.admin, leads: [lead(1)] }).error, 'unauthorized', '관리 토큰으로는 저장 못 함');
+  const r = b.gas.post({ action: 'online_leads_ingest', token: b.token, leads: [lead(1), lead(1), lead(2, { postUrl: 'https://www.fmkorea.com/2' }), lead(3, { coupangUrl: 'https://link.coupang.com/a/other' }), lead(4, { title: '=IMPORTXML("x") 상품' })] });
+  assert.deepEqual([r.ok, r.added], [true, 3], '중복·허용 안 된 게시판은 버림');
+  assert.equal(b.gas.sheet('online_leads').objects().find(x => x.key === 'ruliweb:3').coupang_url, '', '남의 제휴 링크는 저장 안 함');
+  assert.ok(b.gas.sheet('online_leads').objects().find(x => x.key === 'ruliweb:4').title.startsWith("'="), '시트 수식 무력화');
+  assert.deepEqual(b.gas.post({ action: 'online_leads_known', token: b.token }).keys.sort(), ['ruliweb:1', 'ruliweb:3', 'ruliweb:4']);
+  assert.equal(b.gas.post({ action: 'online_leads_ingest', token: b.token, leads: [lead(1)] }).added, 0, '이미 있는 후보는 다시 넣지 않음');
+  let adm = b.adminGet();
+  assert.equal(adm.leads.length, 3);
+  const pub = pub_(b);
+  assert.ok(!JSON.stringify(pub).includes('테스트 상품') && !('leads' in pub), '공개 응답에 후보 없음');
+  assert.equal(b.adminSet({ op: 'lead_dismiss', key: 'ruliweb:4' }).leads.length, 2);
+  const made = b.adminSet({ op: 'pick_save', lead_key: 'ruliweb:1', pick: { title: '테스트 상품 1', url: 'https://link.coupang.com/a/among1', category: 'food', price: '9900' } });
+  assert.equal(made.ok, true, made.error);
+  assert.deepEqual(made.leads.map(l => l.key), ['ruliweb:3'], '카드로 만든 후보는 목록에서 빠짐');
+  assert.equal(b.gas.sheet('online_leads').objects().find(x => x.key === 'ruliweb:1').status, 'used');
+  assert.equal(b.adminSet({ op: 'lead_dismiss', key: 'ruliweb:999' }).ok, false);
+  later(b, 3 * 24 * HOUR + MIN);
+  b.gas.post({ action: 'online_leads_ingest', token: b.token, leads: [lead(5, { postedAt: new Date(b.gas.clock.now).toISOString() })] });
+  assert.deepEqual(b.gas.sheet('online_leads').objects().map(x => x.key), ['ruliweb:5'], '3일 지난 후보는 정리');
+});

@@ -518,3 +518,48 @@ test('직접 고른 쿠팡 특가: 관리 화면에서 올리면 공개 화면�
   assert.match(await box.locator('#odPicks').innerText(), /아직 올린 카드가 없어요/);
   assert.deepEqual(errors, []);
 });
+
+test('자동 후보 → 카드: 관리 화면에서 후보를 골라 간편 링크만 붙이면 카드가 되고, 후보 목록에서 빠짐', { timeout: 90000 }, async t => {
+  const { gas, admin, page, errors } = await chain(t, { width: 390, batch: [], publish: false });
+  const token = gas.props.get('COLLECTOR_TOKEN');
+  gas.post({ action: 'online_leads_ingest', token, leads: [
+    { key: 'ruliweb:108726', source: 'ruliweb', title: '[쿠팡]테스트 새우깡 90g 10개 (9,370원/무료)', postUrl: 'https://bbs.ruliweb.com/market/board/1020/read/108726',
+      coupangUrl: 'https://www.coupang.com/vp/products/987654', priceHint: 9370, freeShipping: true, postedAt: new Date(OD_T0 - 30 * 60000).toISOString() },
+    { key: 'ppomppu:600001', source: 'ppomppu', title: '[쿠팡] 테스트 휴지 (15,900원)', postUrl: 'https://www.ppomppu.co.kr/zboard/view.php?id=ppomppu&no=600001', affiliateOnly: true },
+  ] });
+  await page.goto(site.base + '/admin.html');
+  await page.locator('#token').fill(admin);
+  await page.getByRole('button', { name: '불러오기', exact: true }).click();
+  const box = page.locator('#onlineDealsManager');
+  const leads = box.locator('#odLeads [data-lead-key]');
+  await leads.first().waitFor();
+  assert.equal(await leads.count(), 2);
+  assert.match(await box.locator('#odLeadCount').innerText(), /2개/);
+  const shrimp = leads.filter({ hasText: '새우깡' });
+  assert.match(await shrimp.innerText(), /루리웹[\s\S]*제목 속 가격 9370원[\s\S]*무료배송 표시/);
+  assert.equal(await shrimp.getByRole('link', { name: '쿠팡 상품 열기 ↗' }).getAttribute('href'), 'https://www.coupang.com/vp/products/987654');
+  assert.match(await leads.filter({ hasText: '휴지' }).innerText(), /다른 사람의 제휴 링크라 쿠팡에서 상품을 직접 찾아 주세요/);
+  if (process.env.AMONG_QA_DIR) { await box.locator('.od-leads').scrollIntoViewIfNeeded(); await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-leads-admin-390.png`, fullPage: true }); }
+  await shrimp.getByRole('button', { name: '이 후보로 카드 만들기', exact: true }).click();
+  const form = box.locator('#odPickForm');
+  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 새우깡 90g 10개');
+  assert.equal(await form.locator('[name="price"]').inputValue(), '9370');
+  assert.match(await form.locator('[name="memo"]').inputValue(), /^루리웹 핫딜 /);
+  assert.equal(await page.evaluate(() => document.activeElement?.name), 'url', '간편 링크 칸으로 이동');
+  await form.locator('[name="url"]').fill('https://link.coupang.com/a/amongShrimp1');
+  await box.getByRole('button', { name: '카드 등록 (후보에서)', exact: true }).click();
+  await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
+  assert.equal(await leads.count(), 1, '카드로 만든 후보는 빠짐');
+  assert.equal(gas.sheet('online_leads').objects().find(x => x.key === 'ruliweb:108726').status, 'used');
+  assert.match(await box.locator('#odPicks').innerText(), /테스트 새우깡 90g 10개[\s\S]*9370원/);
+  await leads.first().getByRole('button', { name: '지우기', exact: true }).click();
+  await box.locator('#odLeads').filter({ hasText: '새 후보가 없어요' }).waitFor();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  const card = page.locator('#onlineDeals .od-pick-card');
+  await card.waitFor();
+  assert.equal(await card.getAttribute('href'), 'https://link.coupang.com/a/amongShrimp1');
+  const text = await page.locator('#onlineDeals').innerText();
+  assert.doesNotMatch(text, /루리웹|뽐뿌|게시글/, '후보 출처는 공개 화면에 없음');
+  assert.deepEqual(errors, []);
+});

@@ -41,6 +41,10 @@
 .od-pick-form input:not([type=checkbox]), .od-pick-form select { width: 100%; min-width: 0; }
 .od-pick-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 #onlineDealsManager button.danger { color: var(--bad); border-color: var(--bad); font-weight: 700; }
+.od-leads { margin: 10px 0 16px; padding: 12px; border: 1px dashed var(--line-strong, var(--line)); border-radius: 12px; }
+.od-leads h4 { margin: 0 0 4px; font-size: 14px; }
+.od-leads > p { margin: 0 0 10px; font-size: 12.5px; }
+.od-lead .od-item-top b { font-weight: 650; }
 @media (max-width: 600px) { .od-pick-form { grid-template-columns: 1fr; } }
 #onlineDealsManager button { min-height: 40px; }
 @media (max-width: 600px) { .od-rule-grid { grid-template-columns: 1fr; } }
