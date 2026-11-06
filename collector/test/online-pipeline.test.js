@@ -99,7 +99,10 @@ test('분류·판매자·키워드 규칙: 경로 단계가 정확히 같아야 
   const appliance = evalOne(rec({ categoryPath: '가전디지털 > 냉장고/냉동고 > 식품 보관' }));
   assert.equal(appliance.category, '', '부분 일치(식품 보관)로 식품이 되지 않음');
   assert.ok(appliance.holds.includes('CATEGORY_UNMAPPED'));
-  const override = rec({ categoryPath: '가전디지털' }, { categoryOverride: 'household', overrideUntil: iso(OD_T0 + HOUR) });
+  assert.ok(evalOne(rec({ categoryPath: '생활용품 > 세제' })).holds.includes('CATEGORY_EXCLUDED'), '11/06 대표 결정: 먹거리만 게시');
+  assert.deepEqual(OD_DEFAULT_RULES.includeCategories, ['food']);
+  assert.deepEqual(odRules({ includeCategories: ['food', 'household'] }).includeCategories, ['food'], '관리 화면에서 생활용품을 켜도 먹거리만');
+  const override = rec({ categoryPath: '가전디지털' }, { categoryOverride: 'food', overrideUntil: iso(OD_T0 + HOUR) });
   assert.equal(evalOne(override).status, 'published');
   assert.ok(evalOne(override, { now: OD_T0 + 2 * HOUR }).holds.includes('CATEGORY_UNMAPPED'), '기한이 지나면 규칙으로 돌아감');
   assert.ok(evalOne(rec({}, { categoryOverride: 'excluded' })).holds.includes('CATEGORY_EXCLUDED'));
@@ -358,7 +361,7 @@ test('가격 확인 워크플로: 수동 실행만, 입력은 환경변수로만
 });
 
 // ---------- 직접 고른 쿠팡 특가 (최종 승인 전) ----------
-import { odPickInput, odPickPublic, odClientPick, odPickImage, odPartnerHtml, odGuessItem, odPriceStats, odPriceObservations, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
+import { odPickInput, odPickPublic, odClientPick, odPickImage, odPartnerHtml, odGuessItem, odPriceStats, odPriceObservations, OD_PICK_CATEGORIES, OD_PICK_ITEMS, OD_DEFAULT_RULES } from '../src/online-deals-core.js';
 const pickRaw = (over = {}) => ({ title: '테스트 생수 2L × 12병', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', note: '와우회원 가격', price: '7900', memo: '에펨코리아 핫딜', ...over });
 
 test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노출 기간 검사, 가격 확인 시각은 서버 시각', () => {
@@ -448,25 +451,39 @@ test('직접 고른 카드 사진: 저장·공개·화면 재검사 모두 같�
 });
 
 test('항목별 상품 규칙: 항목이 분류를 정하고, 화면 재검사에서도 가격만 빼며, 항목과 분류가 어긋나면 버림', () => {
-  const saved = odPickInput(pickRaw({ item: 'laundry', category: 'food' }), OD_T0).pick;
-  assert.deepEqual([saved.item, saved.category], ['laundry', 'household']);
+  const saved = odPickInput(pickRaw({ item: 'protein', category: 'household' }), OD_T0).pick;
+  assert.deepEqual([saved.item, saved.category], ['protein', 'food']);
   assert.equal(Date.parse(saved.endsAt), OD_T0 + 30 * 24 * HOUR);
   assert.match(odPickInput(pickRaw({ item: 'toString' }), OD_T0).errors.join(' '), /항목별 칸/, '객체 기본 속성 이름은 항목이 아님');
   const pub = odPickPublic({ ...saved, id: 'pk_0123456789abcdef' }, OD_T0 + HOUR);
-  assert.equal(pub.item, 'laundry'); assert.equal(pub.price, 7900);
+  assert.equal(pub.item, 'protein'); assert.equal(pub.price, 7900);
   const later = OD_T0 + 25 * HOUR;
   const stale = odClientPick(pub, later);
   assert.equal(stale.price, null, '화면에 남아 있던 응답도 24시간 지나면 가격만 뺌');
   assert.equal(stale.visibleUntil, Date.parse(pub.visibleUntil));
-  assert.equal(odClientPick({ ...pub, item: 'laundry', category: 'food' }, OD_T0 + HOUR), null, '항목과 분류가 어긋나면 버림');
+  assert.equal(odClientPick({ ...pub, item: 'protein', category: 'household' }, OD_T0 + HOUR), null, '항목과 분류가 어긋나면 버림');
   assert.equal(odClientPick({ ...pub, item: 'beer' }, OD_T0 + HOUR), null);
   assert.equal(odClientPick({ ...pub, item: '' }, later), null, '특가 카드는 그대로 카드째 뺌');
+  // 11/06 21:08 대표 결정: 먹거리만 ("마스크 이런 거 말고 … 단백질 파우더, 자취 음식, 레토르트 등 먹거리 관련으로")
+  assert.deepEqual(Object.entries(OD_PICK_ITEMS).map(([k, v]) => [k, v.label]), [['water', '생수'], ['ramen', '라면'], ['rice', '즉석밥'], ['frozen', '냉동 간편식'],
+    ['retort', '레토르트'], ['chicken', '닭가슴살'], ['protein', '단백질'], ['canned', '통조림']]);
+  assert.ok(Object.values(OD_PICK_ITEMS).every(v => v.category === 'food'));
+  assert.match(odPickInput(pickRaw({ item: 'tissue' }), OD_T0).errors.join(' '), /항목별 칸/, '생활용품 칸은 없어짐');
+  for (const category of ['household', 'etc']) assert.match(odPickInput(pickRaw({ category }), OD_T0).errors.join(' '), /먹거리만/, category);
+  const oldTissue = { ...saved, id: 'pk_00000000000000aa', item: 'tissue', category: 'household' };
+  assert.equal(odPickPublic(oldTissue, OD_T0 + HOUR), null, '전에 올린 생활용품 칸 카드는 공개하지 않음 (시트에는 남음)');
+  assert.equal(odPickPublic({ ...oldTissue, item: '', category: 'etc' }, OD_T0 + HOUR), null, '기타 특가도');
+  assert.equal(odClientPick({ ...pub, item: '', category: 'household' }, OD_T0 + HOUR), null, '화면에서도 먹거리만');
+  assert.deepEqual(OD_DEFAULT_RULES.includeCategories, ['food']);
   const g = n => odGuessItem(n);
-  assert.deepEqual(['제주 삼다수 2L, 12개', '농심 신라면 120g, 5개', '햇반 210g, 24개', '비비고 왕교자 1.05kg', '깨끗한나라 3겹 화장지 30m 30롤', '베베숲 물티슈 캡형 100매', '퍼실 액체 세탁세제 2.7L', '자연퐁 주방세제 1L', '농심 새우깡 90g'].map(g),
-    ['water', 'ramen', 'rice', 'frozen', 'tissue', 'wipes', 'laundry', 'dish', '']);
+  assert.deepEqual(['제주 삼다수 2L, 12개', '농심 신라면 120g, 5개', '햇반 210g, 24개', '비비고 왕교자 1.05kg', '오뚜기 3분 카레 약간매운맛 200g, 24개', '하림 닭가슴살 블랙페퍼 100g, 10개',
+    '마이프로틴 임팩트 웨이 프로틴 1kg', '동원 라이트 스탠다드 참치 135g, 10개', '농심 새우깡 90g'].map(g),
+    ['water', 'ramen', 'rice', 'frozen', 'retort', 'chicken', 'protein', 'canned', '']);
+  assert.deepEqual(['깨끗한나라 3겹 화장지 30m 30롤', '베베숲 물티슈 캡형 100매', '퍼실 액체 세탁세제 2.7L', '플리터스 겨울 방한 마스크 자외선차단 남녀공용', '탄소열선 전기요'].map(g),
+    ['', '', '', '', ''], '먹거리가 아니면 짐작하지 않음');
   // 11/06 실제로 올린 상품명 (파트너스 상품 링크): 첫 버전에서 못 맞춘 이름들
-  assert.deepEqual(['오뚜기 흰밥, 210g, 12개', '탐사 파워워시 액체세제 본품, 2.5L, 4개', '퍼플리 프리미엄 액체세제 본품, 4개, 2.5L', '프릴 시크릿오브 베이킹소다 퓨어레몬향 리필, 1L, 2개',
-    '탐사 샘물, 2L, 12개', '곰곰 김치볶음밥 (냉동), 300g, 6개', '쿠팡 베이직 천연펄프 3겹 롤 화장지, 30m, 30개입, 1개'].map(g), ['rice', 'laundry', 'laundry', 'dish', 'water', 'frozen', 'tissue']);
+  assert.deepEqual(['오뚜기 흰밥, 210g, 12개', '탐사 샘물, 2L, 12개', '곰곰 김치볶음밥 (냉동), 300g, 6개', '오뚜기 스낵면 108g, 40개', '곰곰 우리쌀 밥, 200g, 24개', '양반 쇠고기죽, 287.5g, 6개'].map(g),
+    ['rice', 'water', 'frozen', 'ramen', 'rice', 'retort']);
 });
 
 

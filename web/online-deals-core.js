@@ -66,7 +66,8 @@ export const OD_SUPPLIERS = {
 };
 
 export const OD_DEFAULT_RULES = {
-  includeCategories: ['food', 'household'],
+  // 11/06 21:08 대표 결정: 먹거리만. 생활용품 분류 연결은 남겨 두어 생활용품으로 분류된 상품이 '분류 제외'로 보류되게 한다.
+  includeCategories: ['food'],
   // 공급처 분류 경로의 한 단계와 정확히 같을 때만 연결한다 (부분 일치로 가전 '냉동고'가 식품이 되는 일을 막음).
   categoryKeywords: { food: ['식품'], household: ['생활용품'] },
   excludeKeywords: ['주류', '담배', '전자담배', '의약품', '성인용품'],
@@ -194,7 +195,7 @@ export function odRules(input) {
   const int = (v, lo, hi, fallback) => (Number.isSafeInteger(v) && v >= lo && v <= hi ? v : fallback);
   const ck = r.categoryKeywords && typeof r.categoryKeywords === 'object' ? r.categoryKeywords : {};
   return {
-    includeCategories: words(r.includeCategories, 2, 20, d.includeCategories).filter(c => OD_CATEGORIES[c]),
+    includeCategories: words(r.includeCategories, 2, 20, d.includeCategories).filter(c => c === 'food'),
     categoryKeywords: { food: words(ck.food, 50, 30, d.categoryKeywords.food), household: words(ck.household, 50, 30, d.categoryKeywords.household) },
     excludeKeywords: words(r.excludeKeywords, 100, 30, d.excludeKeywords),
     excludeSellers: words(r.excludeSellers, 100, 60, d.excludeSellers),
@@ -431,29 +432,34 @@ export function odShippingText(it) {
 // 가격을 넣은 카드는 운영자가 확인한 시각과 함께 24시간만 보이고 그 뒤 자동으로 내려간다 (11/05 14:56 대표 결정, '다시 확인'하면 다시 24시간).
 // 가격 없이 올린 카드는 '쿠팡에서 가격 확인'으로 노출 종료일까지 보인다.
 export const OD_PICK_CATEGORIES = { food: '먹거리', household: '생활용품', etc: '기타' };
+// 먹거리만 (11/06 21:08 대표 결정: "마스크 이런 거 말고 먹거리와 관련된 것만. 어몽은 자사앱 쿠폰이랑 자취생 기반의 가성비 앱이니까").
+// 새로 올리는 카드는 먹거리만 받고, 전에 올린 생활용품·기타 카드는 시트에 그대로 두되 공개 화면에 내보내지 않는다(관리 화면에서 숨김·삭제).
+export const OD_PICK_PUBLIC_CATEGORY = 'food';
 export const OD_PICK_PRICE_HOURS = 24;
 export const OD_PICK_DEFAULT_DAYS = 1;
 export const OD_PICK_MAX_DAYS = 30;
 export const OD_PICK_MAX = 120;
-// 항목별 상품 (11/06 08:14 대표 요청: 항목별에서도 상품을 띄워 달라). 위쪽 특가 목록과 따로, 자취 필수품 항목마다 대표가 고른 상품.
+// 항목별 상품 (11/06 08:14 대표 요청: 항목별에서도 상품을 띄워 달라). 위쪽 특가 목록과 따로, 자취 먹거리 항목마다 고른 상품.
+// 11/06 21:08 먹거리만: 화장지·물티슈·세탁세제·주방세제 칸을 빼고 레토르트·닭가슴살·단백질·통조림 칸을 더했다(대표 예시: 단백질 파우더, 자취 음식, 레토르트).
 // 가격은 특가와 같이 확인 후 24시간만 보이고, 그 뒤에는 카드를 내리지 않고 가격만 뺀다('가격은 쿠팡에서 확인'). 노출은 기본 30일.
 export const OD_PICK_ITEMS = {
   water: { label: '생수', category: 'food' }, ramen: { label: '라면', category: 'food' }, rice: { label: '즉석밥', category: 'food' }, frozen: { label: '냉동 간편식', category: 'food' },
-  tissue: { label: '화장지', category: 'household' }, wipes: { label: '물티슈', category: 'household' }, laundry: { label: '세탁세제', category: 'household' }, dish: { label: '주방세제', category: 'household' },
+  retort: { label: '레토르트', category: 'food' }, chicken: { label: '닭가슴살', category: 'food' }, protein: { label: '단백질', category: 'food' }, canned: { label: '통조림', category: 'food' },
 };
 export const OD_PICK_ITEM_DAYS = 30;
 const odItem_ = v => (typeof v === 'string' && Object.prototype.hasOwnProperty.call(OD_PICK_ITEMS, v) ? v : '');
-/** 상품명으로 항목 짐작 (관리 화면 '여러 개 한 번에'의 기본값. 대표가 바꿀 수 있다) */
+/** 상품명으로 항목 짐작 (관리 화면 '여러 개 한 번에'의 기본값. 대표가 바꿀 수 있다). 먹거리가 아니면 '' */
 export function odGuessItem(title) {
   const t = String(title || '');
-  if (/물티슈/.test(t)) return 'wipes';
-  if (/주방\s*세제|식기\s*세척|설거지|퐁퐁|프릴|트리오|순샘/.test(t)) return 'dish';
-  if (/세탁|섬유\s*유연|(?:액체|캡슐|가루|드럼)\s*세제/.test(t)) return 'laundry';
-  if (/화장지|휴지|두루마리|키친\s*타월/.test(t)) return 'tissue';
-  if (/생수|먹는\s*샘물|삼다수|탄산수|\d+(?:\.\d+)?\s*(?:L|리터)\b.*(?:병|개)/i.test(t)) return 'water';
-  if (/즉석\s*밥|햇반|오뚜기밥|백미밥|흰밥|쌀밥|잡곡밥|현미밥|컵밥/.test(t)) return 'rice';
-  if (/라면|짜파게티|컵면|봉지면/.test(t)) return 'ramen';
+  if (/마스크|세제|화장지|휴지|물티슈|샴푸|치약|칫솔|섬유\s*유연|생리대|기저귀|건전지|전기요|사료/.test(t)) return '';
+  if (/닭\s*가슴살|닭\s*안심|훈제\s*닭|가슴살\s*(?:스테이크|소시지|큐브)/.test(t)) return 'chicken';
+  if (/단백질|프로틴|protein|웨이\s*(?:프로틴|파우더)|\bWP[IC]\b|게이너|쉐이크/i.test(t)) return 'protein';
+  if (/참치|스팸|통조림|리챔|런천\s*미트|캔\s*햄|꽁치|골뱅이|황도|스위트\s*콘/.test(t)) return 'canned';
+  if (/즉석\s*밥|햇반|오뚜기밥|백미밥|흰밥|쌀\s*밥|잡곡밥|현미밥|컵밥|컵반/.test(t)) return 'rice';
+  if (/레토르트|카레|짜장|3분|국밥|육개장|미역국|곰탕|설렁탕|갈비탕|북엇국|사골|덮밥\s*소스|[가-힣]죽(?=[\s,(]|$)/.test(t)) return 'retort';
+  if (/라면|짜파게티|컵면|봉지면|스낵면|우동|쌀국수/.test(t)) return 'ramen';
   if (/냉동|만두|교자|볶음밥|돈까스|피자|핫도그/.test(t)) return 'frozen';
+  if (/생수|먹는\s*샘물|삼다수|탄산수|\d+(?:\.\d+)?\s*(?:L|리터)\b.*(?:병|개)/i.test(t)) return 'water';
   return '';
 }
 const OD_PICK_LINK = /^https:\/\/link\.coupang\.com\/[A-Za-z0-9/_-]+$/;
@@ -537,6 +543,7 @@ export function odPickInput(raw, now, prev) {
   if (r.item && !item) errors.push('항목별 칸을 다시 고르세요.');
   const category = item ? OD_PICK_ITEMS[item].category : OD_PICK_CATEGORIES[r.category] ? r.category : '';
   if (!category) errors.push('올릴 곳(특가 항목 또는 항목별 칸)을 고르세요.');
+  else if (category !== OD_PICK_PUBLIC_CATEGORY) errors.push('AMONG 온라인 특가는 먹거리만 올려요. 올릴 곳을 먹거리로 고르세요.');
   const note = odText(r.note, 61);
   if (note.length > 60) errors.push('한 줄 설명은 60자 이내로 입력하세요.');
   const memo = odText(r.memo, 200);
@@ -566,6 +573,7 @@ export function odPickInput(raw, now, prev) {
 export function odPickPublic(p, now, stats) {
   if (!p || p.hidden || !(odMs_(p.endsAt) > now)) return null;
   const item = odItem_(p.item);
+  if ((item ? OD_PICK_ITEMS[item].category : p.category) !== OD_PICK_PUBLIC_CATEGORY) return null;
   const until = odMs_(p.priceCheckedAt) + OD_PICK_PRICE_HOURS * OD_HOUR;
   const priced = !!odPosInt_(p.price), fresh = priced && until > now;
   if (priced && !fresh && !item) return null;
@@ -584,7 +592,7 @@ export function odClientPick(raw, now) {
   const url = odLink(raw.url, 'coupang');
   const until = odMs_(odIso_(raw.visibleUntil));
   const item = odItem_(raw.item);
-  if (!id || title.length < 2 || title.length > 80 || note.length > 60 || !url || !OD_PICK_LINK.test(url) || !OD_PICK_CATEGORIES[raw.category]) return null;
+  if (!id || title.length < 2 || title.length > 80 || note.length > 60 || !url || !OD_PICK_LINK.test(url) || raw.category !== OD_PICK_PUBLIC_CATEGORY) return null;
   if (raw.item && (!item || OD_PICK_ITEMS[item].category !== raw.category)) return null;
   if (!Number.isFinite(until) || until <= now || until > now + (OD_PICK_MAX_DAYS + 1) * OD_DAY) return null;
   let price = null, checked = NaN, priceUntil = 0;

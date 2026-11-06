@@ -90,7 +90,7 @@ test('관찰 모드 → 자동 게시: 처음엔 비공개로 모으고, 운영�
   assert.equal(r.ok, true);
   const p = pub(b);
   assert.equal(p.state, 'live');
-  assert.deepEqual(p.items.map(i => i.title).sort(), ['테스트 생수 2L', '테스트 화장지 30롤']);
+  assert.deepEqual(p.items.map(i => i.title).sort(), ['테스트 생수 2L', '테스트 참치 100g 10캔']);
   assert.deepEqual(p.disclosures, ['이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.']);
   const water = p.items.find(i => i.title === '테스트 생수 2L');
   assert.equal(water.shipping, 'unknown');
@@ -179,10 +179,12 @@ test('운영자: 숨김은 다시 받아도 유지, 규칙 변경은 다음 조�
   assert.equal(pub(b).items.some(i => i.id === water.id), false, '다시 받아도 숨김 유지');
   b.adminSet({ op: 'unhide', id: water.id });
   assert.equal(pub(b).count, 2);
-  b.adminSet({ op: 'rules', rules: { ...b.adminGet().rules, excludeKeywords: ['화장지'] } });
+  b.adminSet({ op: 'rules', rules: { ...b.adminGet().rules, excludeKeywords: ['참치'] } });
   assert.deepEqual(pub(b).items.map(i => i.title), ['테스트 생수 2L']);
   const freezer = b.adminGet().items.find(i => i.title === '테스트 냉동고');
   b.adminSet({ op: 'category', id: freezer.id, category: 'household', until: new Date(b.gas.clock.now + HOUR).toISOString() });
+  assert.ok(!pub(b).items.some(i => i.title === '테스트 냉동고'), '생활용품으로 지정해도 먹거리만 게시 (11/06 대표 결정)');
+  b.adminSet({ op: 'category', id: freezer.id, category: 'food', until: new Date(b.gas.clock.now + HOUR).toISOString() });
   assert.ok(pub(b).items.some(i => i.title === '테스트 냉동고'));
   later(b, HOUR);
   assert.ok(!pub(b).items.some(i => i.title === '테스트 냉동고'), '지정 기한이 지나면 규칙으로 돌아감');
@@ -337,15 +339,17 @@ test('항목별 상품: 여러 개 한 번에 저장(모두 통과해야 저장)
   assert.match(many([one(1), one(1)]).error, /2번: 이미 올린 링크/);
   assert.match(many([]).error, /1~30개/);
   assert.match(many(Array.from({ length: 31 }, (_, i) => one(i))).error, /1~30개/);
-  r = many([one(1), one(2, { title: '테스트 신라면 5개', item: 'ramen', price: '' }), one(3, { title: '테스트 화장지 30롤', item: 'tissue' })]);
+  assert.match(many([one(1), one(2, { title: '테스트 화장지 30롤', item: 'tissue' })]).error, /2번: .*항목별 칸/, '11/06부터 먹거리만');
+  assert.match(many([one(1), one(2, { title: '테스트 방한 마스크', item: '', category: 'etc' })]).error, /2번: .*먹거리만/);
+  r = many([one(1), one(2, { title: '테스트 신라면 5개', item: 'ramen', price: '' }), one(3, { title: '테스트 참치 100g 10캔', item: 'canned' })]);
   assert.equal(r.ok, true, r.error);
   const rows = b.gas.sheet('online_picks').objects();
-  assert.deepEqual(rows.map(x => [x.item, x.category]), [['water', 'food'], ['ramen', 'food'], ['tissue', 'household']], '분류는 항목에서 정함');
+  assert.deepEqual(rows.map(x => [x.item, x.category]), [['water', 'food'], ['ramen', 'food'], ['canned', 'food']], '분류는 항목에서 정함');
   assert.equal(new Set(rows.map(x => x.id)).size, 3);
   assert.equal(rows[0].ends_at, new Date(OD_T0 + 30 * 24 * HOUR).toISOString(), '항목별 상품 기본 노출 30일');
   assert.match(many([one(1)]).error, /1번: 이미 올린 링크/, '같은 링크를 다시 붙여도 두 번 올라가지 않음');
   let pub = pub_(b);
-  assert.deepEqual(pub.picks.map(p => [p.item, p.price]).sort(), [['ramen', null], ['tissue', 9900], ['water', 9900]]);
+  assert.deepEqual(pub.picks.map(p => [p.item, p.price]).sort(), [['canned', 9900], ['ramen', null], ['water', 9900]]);
   later(b, 24 * HOUR + MIN);
   pub = pub_(b);
   assert.equal(pub.picks.length, 3, '항목별 상품은 24시간이 지나도 카드는 남음');
@@ -360,6 +364,13 @@ test('항목별 상품: 여러 개 한 번에 저장(모두 통과해야 저장)
   assert.equal(water.live, true); assert.equal(water.price_fresh, false);
   b.adminSet({ op: 'pick_save', pick: { id: water.id, title: water.title, url: water.url, imageUrl: water.imageUrl, item: 'water', price: '9500', recheck: true } });
   assert.equal(pub_(b).picks.find(p => p.item === 'water').price, 9500);
+  // 11/06 21:08 먹거리만: 그 전에 올린 생활용품 칸 카드는 시트·관리 화면에 남고(숨김·삭제는 대표가) 공개 응답에서만 빠짐
+  const sh = b.gas.sheet('online_picks'), h = sh.data[0], at = sh.data.findIndex(r => r[h.indexOf('item')] === 'canned');
+  sh.data[at][h.indexOf('item')] = 'tissue'; sh.data[at][h.indexOf('category')] = 'household'; b.gas.cache.clear();
+  assert.ok(!pub_(b).picks.some(p => p.title === '테스트 참치 100g 10캔'), '생활용품 칸 카드는 공개 안 함');
+  const old = b.adminGet().picks.find(p => p.title === '테스트 참치 100g 10캔');
+  assert.deepEqual([old.item, old.category, old.live], ['tissue', 'household', false], '관리 화면에는 남음');
+  assert.equal(b.adminSet({ op: 'pick_hide', id: old.id }).ok, true, '숨길 수 있음');
   later(b, 30 * 24 * HOUR);
   assert.equal(pub_(b).picks.length, 0, '노출 종료일이 지나면 내려감');
 });

@@ -1,6 +1,6 @@
 // 온라인 특가 관리: 공급처 연결 상태·모드, 보류 사유, 숨김·분류 지정, 운영 규칙, 실행 기록.
 // 운영자는 예외와 규칙만 다룬다. 상품을 직접 입력하는 기능은 두지 않는다.
-import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261106-3';
+import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_PUBLIC_CATEGORY, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261106-4';
 
 const root = document.querySelector('#onlineDealsManager');
 const API = window.AMONG_CONFIG?.apiUrl || '';
@@ -14,11 +14,14 @@ const kst = iso => {
 };
 const lines = v => String(v || '').split('\n').map(s => s.trim()).filter(Boolean);
 // 올릴 곳: 위쪽 특가 목록(deal:항목) 또는 항목별 칸(item:생수 등). 항목별 상품은 가격만 24시간 뒤 빠지고 카드는 남는다.
-const placeOptions = (blank = false) => `${blank ? '<option value="">올릴 곳 고르기</option>' : ''}<optgroup label="위쪽 특가 목록 (가격 확인 24시간 뒤 카드째 내려감)">${Object.entries(OD_PICK_CATEGORIES).map(([k, v]) => `<option value="deal:${k}">특가 · ${v}</option>`).join('')}</optgroup>
+// 11/06 21:08 대표 결정: 먹거리만. 올릴 곳은 먹거리 특가와 먹거리 항목 칸뿐이고, 전에 올린 생활용품·기타 카드는 '먹거리 아님 · 공개 안 함'으로 보인다.
+const RETIRED_ITEMS = { tissue: '화장지', wipes: '물티슈', laundry: '세탁세제', dish: '주방세제' };
+const isFood = p => (p.item ? !!OD_PICK_ITEMS[p.item] : p.category === OD_PICK_PUBLIC_CATEGORY);
+const placeOptions = (blank = false) => `${blank ? '<option value="">올릴 곳 고르기</option>' : ''}<optgroup label="위쪽 특가 목록 (가격 확인 24시간 뒤 카드째 내려감)"><option value="deal:${OD_PICK_PUBLIC_CATEGORY}">특가 · ${OD_PICK_CATEGORIES[OD_PICK_PUBLIC_CATEGORY]}</option></optgroup>
   <optgroup label="항목별 상품 (24시간 뒤 가격만 빠지고 카드는 남음)">${Object.entries(OD_PICK_ITEMS).map(([k, v]) => `<option value="item:${k}">항목별 · ${v.label}</option>`).join('')}</optgroup>`;
 const placeOf = p => (p.item ? `item:${p.item}` : `deal:${p.category}`);
 const splitPlace = v => { const [kind, key] = String(v || '').split(':'); return kind === 'item' ? { category: OD_PICK_ITEMS[key]?.category || '', item: key } : { category: key || '', item: '' }; };
-const placeLabel = p => (p.item ? `항목별 · ${OD_PICK_ITEMS[p.item]?.label || p.item}` : `특가 · ${OD_PICK_CATEGORIES[p.category] || p.category}`);
+const placeLabel = p => (p.item ? `항목별 · ${OD_PICK_ITEMS[p.item]?.label || RETIRED_ITEMS[p.item] || p.item}` : `특가 · ${OD_PICK_CATEGORIES[p.category] || p.category}`);
 const defaultDays = place => (String(place).startsWith('item:') ? OD_PICK_ITEM_DAYS : OD_PICK_DEFAULT_DAYS);
 let data = null, busy = false, bulk = [];
 
@@ -125,7 +128,7 @@ function items() {
 
 function rules() {
   const r = data.rules;
-  $('#odRulesForm').innerHTML = `<fieldset><legend>게시할 분류</legend>${Object.entries(OD_CATEGORIES).map(([k, v]) => `<label class="od-check"><input type="checkbox" name="include" value="${k}"${r.includeCategories.includes(k) ? ' checked' : ''}>${esc(v)}</label>`).join('')}</fieldset>
+  $('#odRulesForm').innerHTML = `<fieldset><legend>게시할 분류</legend>${Object.entries(OD_CATEGORIES).map(([k, v]) => k === 'food' ? `<label class="od-check"><input type="checkbox" name="include" value="${k}"${r.includeCategories.includes(k) ? ' checked' : ''}>${esc(v)}</label>` : `<label class="od-check"><input type="checkbox" disabled>${esc(v)} (먹거리만 다루기로 해서 게시 안 함)</label>`).join('')}</fieldset>
     <div class="od-rule-grid">
     <label>식품으로 연결할 공급처 분류 (한 줄에 하나, 경로의 한 단계와 정확히 같아야 함)<textarea name="food" rows="4">${esc(r.categoryKeywords.food.join('\n'))}</textarea></label>
     <label>생활용품으로 연결할 공급처 분류<textarea name="household" rows="4">${esc(r.categoryKeywords.household.join('\n'))}</textarea></label>
@@ -174,7 +177,7 @@ function resetPickForm() {
 function pickRows() {
   const now = Date.now();
   $('#odPicks').innerHTML = (data.picks || []).map(p => {
-    const state = p.hidden ? '숨김' : p.live ? '공개 중' : Date.parse(p.endsAt) > now && p.price != null ? '가격 다시 확인 필요' : '노출 끝남';
+    const state = p.hidden ? '숨김' : !isFood(p) ? '먹거리 아님 · 공개 안 함' : p.live ? '공개 중' : Date.parse(p.endsAt) > now && p.price != null ? '가격 다시 확인 필요' : '노출 끝남';
     const price = p.price == null ? '가격 없음' : p.price_fresh ? `${p.price}원 · ${kst(p.priceCheckedAt)} 확인`
       : p.item ? `${p.price}원 (확인 후 24시간 지나 공개 화면에서는 가격만 빠짐 · ${kst(p.priceCheckedAt)} 확인 — '수정·가격 갱신'으로 다시 보이기)`
       : `${p.price}원 (확인 후 24시간 지나 공개 화면에서 내려감 · ${kst(p.priceCheckedAt)} 확인 — '수정·가격 갱신'으로 다시 올리기)`;

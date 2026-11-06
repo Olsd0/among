@@ -12,7 +12,7 @@ window.AMONG_CONFIG = {
   // 공급처 키·제휴 비밀값은 여기에 넣지 않는다 (GitHub Secrets에만).
   // goldboxUrl: 쿠팡 파트너스(AF1327603) '간편 링크'로 골드박스 주소(https://www.coupang.com/np/goldbox)를 바꾼 링크 (11/05 대표 생성).
   //             제휴 링크가 있으면 화면 맨 위에 파트너스 고지 문구가 보인다. 비우면 일반 링크(고지 없음).
-  // shortcutLinks: '자취 필수품, 항목별로' 바로가기의 제휴 링크. 키는 water·ramen·rice·frozen·tissue·wipes·laundry·dish.
+  // shortcutLinks: '자취 필수품, 항목별로' 바로가기의 제휴 링크. 키는 water·ramen·rice·frozen·retort·chicken·protein·canned (11/06 먹거리만).
   //             값이 없으면 쿠팡 일반 검색 링크(수수료 없음). 다른 파트너스 ID가 붙은 링크는 화면이 거절한다.
   onlineDeals: { enabled: true, dataUrl: './online-deals.json', goldboxUrl: 'https://link.coupang.com/a/ip9MqvCNie', shortcutLinks: {} },
 };

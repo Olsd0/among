@@ -201,6 +201,11 @@ Apps Script 스크립트 속성에 `GITHUB_TOKEN`(토큰), `GITHUB_REPO`(`owner/
   - 알림: 카드마다 '최저 알림' 버튼. 켠 상품은 이 기기에만 저장(`localStorage among_price_watch`: 카드 번호·상품명·켠 시각, 계정·서버 저장 없음)하고, 온라인 특가 화면 맨 위 '내 최저 알림'에 모아 보여 준다. AMONG을 열 때 켠 상품이 30일 최저면 첫 화면 위에 배너('보기'·'×'), 본 최저(같은 가격)는 다시 알리지 않는다. 휴대폰 푸시는 다음 단계.
   - 매일 아침 확인: 작업자가 쿠팡 파트너스 화면에서 카드별 가격을 확인해 `online-prices.yml`(수동 실행, 입력 `prices` = `[{"id":"pk_…","price":12900}]`)로 보낸다 → Apps Script `online_prices_ingest`(수집기 토큰). 관리 화면에도 '가격 일괄 기록'(관리 토큰, `pick_prices`)이 있다. 있는 카드만 기록하고, 항목별 상품은 확인할 때마다 노출을 30일 뒤까지 늘린다(특가·숨긴 카드는 그대로). 관리 토큰을 브라우저에 오래 저장하는 방식은 보안상 쓰지 않는다.
 - 바뀐 파일 버전(11/06 30일 최저 후): `app.js?v=20261106-3`, `online-deals.js`·`online-deals-core.js`·`online-admin.js` `?v=20261106-3`, 서비스 워커 캐시 `among-shell-v49`, Apps Script `SCHEMA_VERSION` 11(`online_price_log`).
+- **먹거리만 (11/06 21:08 대표 결정: "마스크 이런 거 말고 먹거리와 관련된 것만. 어몽은 자사앱 쿠폰이랑 자취생 기반의 가성비 앱이니까. 단백질 파우더, 자취 음식, 레토르트 등 먹거리 관련으로")**
+  - 공개 화면에는 먹거리 카드만(`OD_PICK_PUBLIC_CATEGORY = 'food'`: `odPickPublic`·`odClientPick`, 자동 확인 상품도 `normalizeOnlineDeals`에서 먹거리만). 새로 올리는 카드도 먹거리만 받는다(`odPickInput`이 생활용품·기타 거절). 전에 올린 생활용품·기타 카드는 시트에 그대로 두고 관리 화면에 '먹거리 아님 · 공개 안 함'으로 보인다(숨김·삭제는 대표).
+  - 항목 칸 8개: 생수·라면·즉석밥·냉동 간편식·**레토르트·닭가슴살·단백질·통조림**(화장지·물티슈·세탁세제·주방세제 칸은 뺌). 상품명 짐작(`odGuessItem`)도 먹거리만, 마스크·세제·휴지 같은 이름은 짐작하지 않음.
+  - 자동 공급처 규칙도 먹거리만 게시(`OD_DEFAULT_RULES.includeCategories = ['food']`, 관리 화면 생활용품 칸은 끔).
+  - 버전: `app.js?v=20261106-4`, `online-deals.js`·`online-deals-core.js`·`online-admin.js` `?v=20261106-4`, 서비스 워커 `among-shell-v50`.
 
 ## 운영
 

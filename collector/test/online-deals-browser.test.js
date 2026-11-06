@@ -274,7 +274,8 @@ test('항목별로 둘러보기: 골드박스 카드보다 먼저, 고른 상품
   const panel = plain.page.locator('#onlineDeals');
   await panel.locator('.od-shortcuts').waitFor();
   const links = panel.locator('.od-sc');
-  assert.deepEqual((await links.allInnerTexts()).map(x => x.replace(/\s*(쿠팡에서 보기|↗).*$/s, '')), ['생수', '라면', '즉석밥', '냉동 간편식', '화장지', '물티슈', '세탁세제', '주방세제']);
+  assert.deepEqual((await links.allInnerTexts()).map(x => x.replace(/\s*(쿠팡에서 보기|↗).*$/s, '')), ['생수', '라면', '즉석밥', '냉동 간편식', '레토르트', '닭가슴살', '단백질', '통조림']);
+  assert.equal(await panel.locator('.od-sc-group h4').count(), 0, '먹거리 한 묶음뿐이라 묶음 제목 없음');
   assert.equal(await links.first().getAttribute('href'), 'https://www.coupang.com/np/search?q=%EC%83%9D%EC%88%98');
   assert.equal(await links.first().getAttribute('rel'), 'noopener noreferrer');
   assert.equal(await links.first().getAttribute('target'), '_blank');
@@ -351,13 +352,13 @@ test('전체 경로: 검증을 통과한 상품만 공개 화면에, 제휴 고�
   await page.goto(site.base + '/index.html?view=onlineDeals');
   const cards = page.locator('#onlineDeals .od-card');
   await cards.first().waitFor();
-  assert.deepEqual((await cards.locator('h3').allInnerTexts()).sort(), ['테스트 생수 2L', '테스트 화장지 30롤']);
-  const waterCard = cards.filter({ hasText: '테스트 생수 2L' }), tissueCard = cards.filter({ hasText: '테스트 화장지 30롤' });
+  assert.deepEqual((await cards.locator('h3').allInnerTexts()).sort(), ['테스트 생수 2L', '테스트 참치 100g 10캔']);
+  const waterCard = cards.filter({ hasText: '테스트 생수 2L' }), tunaCard = cards.filter({ hasText: '테스트 참치 100g 10캔' });
   const text = await page.locator('#onlineDeals').innerText();
   for (const held of ['테스트 쌀', '테스트 라면', '테스트 커피', '테스트 냉동고', '테스트 우유']) assert.ok(!text.includes(held), `보류 상품 비공개: ${held}`);
   assert.match(await waterCard.innerText(), /배송비 확인 필요/);
   assert.doesNotMatch(await waterCard.innerText(), /무료배송/);
-  assert.match(await tissueCard.innerText(), /무료배송/);
+  assert.match(await tunaCard.innerText(), /무료배송/);
   assert.equal(await page.locator('#onlineDeals .od-card img').count(), 0, '사진 이용 범위 확인 전');
   const disclosure = page.locator('#onlineDeals .od-disclosure');
   assert.match(await disclosure.innerText(), /쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다/);
@@ -421,14 +422,16 @@ test('관리 화면: 승인 대기 표시, 보류 사유, 숨김·규칙 저장�
   await water.locator('[data-od-reason]').fill('설명과 다름');
   await water.getByRole('button', { name: '숨기기', exact: true }).click();
   await box.locator('#odAdminMessage').filter({ hasText: '숨겼어요' }).waitFor();
-  assert.deepEqual(gas.get({ action: 'online_deals' }).items.map(i => i.title), ['테스트 화장지 30롤']);
+  assert.deepEqual(gas.get({ action: 'online_deals' }).items.map(i => i.title), ['테스트 참치 100g 10캔']);
   await box.locator('details.od-rules summary').click();
-  await box.locator('[name="excludeKeywords"]').fill('주류\n화장지');
+  assert.equal(await box.locator('#odRulesForm input[type=checkbox][disabled]').count(), 1, '생활용품 게시는 끔 (11/06 먹거리만)');
+  await box.locator('[name="excludeKeywords"]').fill('주류\n참치');
   await box.getByRole('button', { name: '규칙 저장', exact: true }).click();
   await box.locator('#odAdminMessage').filter({ hasText: '규칙을 저장했어요' }).waitFor();
   assert.equal(gas.get({ action: 'online_deals' }).count, 0);
   const saved = posts.filter(p => p.op === 'rules').at(-1).rules;
-  assert.deepEqual(saved.excludeKeywords, ['주류', '화장지']);
+  assert.deepEqual(saved.excludeKeywords, ['주류', '참치']);
+  assert.deepEqual(saved.includeCategories, ['food']);
   assert.ok(!posts.some(p => p.token && p.action === 'online_deals'), '공개 조회에 토큰 없음');
   assert.deepEqual(errors, []);
 });
@@ -441,21 +444,23 @@ test('직접 고른 쿠팡 특가: 관리 화면에서 올리면 공개 화면�
   const box = page.locator('#onlineDealsManager');
   await box.locator('#odAdminContent').waitFor();
   const form = box.locator('#odPickForm');
-  await form.locator('[name="title"]').fill('테스트 화장지 30롤 × 2팩');
+  assert.deepEqual(await form.locator('[name="place"] option').evaluateAll(o => o.map(x => x.value)),
+    ['deal:food', 'item:water', 'item:ramen', 'item:rice', 'item:frozen', 'item:retort', 'item:chicken', 'item:protein', 'item:canned'], '11/06 대표 결정: 먹거리만 올릴 곳');
+  await form.locator('[name="title"]').fill('테스트 참치 100g 10캔 × 2팩');
   await form.locator('[name="url"]').fill('https://www.coupang.com/vp/products/1');
-  await form.locator('[name="place"]').selectOption('deal:household');
+  await form.locator('[name="place"]').selectOption('deal:food');
   await form.locator('[name="price"]').fill('15,900원');
   await form.locator('[name="note"]').fill('와우회원 가격 · 로켓배송');
   await form.locator('[name="memo"]').fill('에펨코리아 핫딜 11/5');
   await box.getByRole('button', { name: '카드 등록', exact: true }).click();
   await box.locator('#odAdminMessage.bad').filter({ hasText: '간편 링크' }).waitFor();
-  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 화장지 30롤 × 2팩', '오류면 입력 유지');
+  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 참치 100g 10캔 × 2팩', '오류면 입력 유지');
   await form.locator('[name="url"]').fill('https://link.coupang.com/a/testTissue01');
   await box.getByRole('button', { name: '카드 등록', exact: true }).click();
   await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
   assert.equal(await form.locator('[name="title"]').inputValue(), '', '등록하면 입력 칸 비움');
   const row = box.locator('#odPicks [data-pick-id]');
-  assert.match(await row.innerText(), /공개 중[\s\S]*테스트 화장지[\s\S]*15900원[\s\S]*출처 메모: 에펨코리아 핫딜/);
+  assert.match(await row.innerText(), /공개 중[\s\S]*테스트 참치[\s\S]*15900원[\s\S]*출처 메모: 에펨코리아 핫딜/);
   assert.equal(posts.filter(p => p.op === 'pick_save').at(-1).pick.price, '15900', '쉼표·원 제거');
   for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
@@ -473,7 +478,7 @@ test('직접 고른 쿠팡 특가: 관리 화면에서 올리면 공개 화면�
   const text = await card.innerText();
   assert.match(text, /15900원/);
   assert.match(text, /확인/);
-  assert.match(text, /쿠팡 · 생활용품/);
+  assert.match(text, /쿠팡 · 먹거리/);
   assert.match(text, /제휴광고/);
   assert.match(text, /와우회원 가격 · 로켓배송/);
   assert.doesNotMatch(await page.locator('#onlineDeals').innerText(), /에펨코리아|최저가/);
@@ -506,7 +511,7 @@ test('직접 고른 쿠팡 특가: 관리 화면에서 올리면 공개 화면�
   await box.locator('#odPicks [data-pick-id]').waitFor();
   assert.match(await box.locator('#odPicks').innerText(), /가격 다시 확인 필요[\s\S]*24시간 지나 공개 화면에서 내려감/);
   await box.getByRole('button', { name: '수정·가격 갱신', exact: true }).click();
-  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 화장지 30롤 × 2팩');
+  assert.equal(await form.locator('[name="title"]').inputValue(), '테스트 참치 100g 10캔 × 2팩');
   await form.locator('[name="recheck"]').check();
   await box.getByRole('button', { name: '수정 저장', exact: true }).click();
   await box.locator('#odAdminMessage').filter({ hasText: '수정했어요' }).waitFor();
@@ -599,11 +604,11 @@ test('카드 사진: 파트너스 HTML을 붙이면 링크·사진·상품명이
   assert.equal(await photo.isVisible(), false, '등록하면 사진 미리보기도 비움');
   assert.equal(gas.sheet('online_picks').objects()[0].image_url, banner('shrimp'), '시트에는 사진 주소만 (파일 저장 안 함)');
   // 2) 상품 페이지 사진이 든 HTML은 링크만 받고 사진은 거절 — 링크 칸에 통째로 붙여 넣어도 같은 방식
-  await form.locator('[name="url"]').fill(html('testTissue02', 'https://thumbnail6.coupangcdn.com/thumbnails/remote/230x230ex/image/retail/a.jpg', '테스트 화장지 30롤'));
+  await form.locator('[name="url"]').fill(html('testTuna0002', 'https://thumbnail6.coupangcdn.com/thumbnails/remote/230x230ex/image/retail/a.jpg', '테스트 참치 100g 10캔'));
   await box.locator('#odAdminMessage').filter({ hasText: '사진은 넣지 않았어요' }).waitFor();
-  assert.equal(await form.locator('[name="url"]').inputValue(), 'https://link.coupang.com/a/testTissue02');
+  assert.equal(await form.locator('[name="url"]').inputValue(), 'https://link.coupang.com/a/testTuna0002');
   assert.equal(await photo.isVisible(), false);
-  await form.locator('[name="place"]').selectOption('deal:household');
+  await form.locator('[name="place"]').selectOption('deal:food');
   await form.locator('[name="price"]').fill('15900');
   await box.getByRole('button', { name: '카드 등록', exact: true }).click();
   await box.locator('#odAdminMessage').filter({ hasText: '카드를 올렸어요' }).waitFor();
@@ -635,17 +640,12 @@ test('카드 사진: 파트너스 HTML을 붙이면 링크·사진·상품명이
   assert.ok(firstBox.y + firstBox.height <= 844, '첫 카드(사진·가격)가 첫 화면 안에 보임');
   assert.equal(await shrimp.locator('.ticket').count(), 1, '메인 쿠폰과 같은 티켓');
   // 사진 거절된 카드·사진 실패 카드는 글자 칸 (사진 대신 '쿠팡 · 항목')
-  assert.equal(await cards.filter({ hasText: '테스트 화장지' }).locator('img').count(), 0);
+  assert.equal(await cards.filter({ hasText: '테스트 참치' }).locator('img').count(), 0);
   const rice = cards.filter({ hasText: '테스트 즉석밥' });
   await page.waitForFunction(() => [...document.querySelectorAll('#onlineDeals .od-pick-card')].find(c => c.textContent.includes('테스트 즉석밥'))?.querySelector('img') === null);
   assert.match(await rice.locator('.stub').innerText(), /쿠팡\s*먹거리/);
-  // 항목별 칩
-  const chips = page.locator('#onlineDeals .od-cats [data-od-cat]');
-  assert.deepEqual((await chips.allInnerTexts()).map(x => x.replace(/\s+/g, ' ')), ['전체 3', '먹거리 2', '생활용품 1']);
-  await page.locator('#onlineDeals [data-od-cat="household"]').click();
-  assert.equal(await cards.count(), 1);
-  assert.equal(await page.locator('#onlineDeals [data-od-cat="household"]').getAttribute('aria-pressed'), 'true');
-  await page.locator('#onlineDeals [data-od-cat="all"]').click();
+  // 분류 칩: 11/06부터 먹거리만 공개라 분류가 하나뿐 → 칩 없음
+  assert.equal(await page.locator('#onlineDeals .od-cats [data-od-cat]').count(), 0);
   assert.equal(await cards.count(), 3);
   for (const width of [320, 390, 430, 1280]) {
     await page.setViewportSize({ width, height: 900 });
@@ -671,13 +671,13 @@ test('항목별 상품: 파트너스 HTML 여러 개를 한 번에 붙여 올리
   await page.getByRole('button', { name: '불러오기', exact: true }).click();
   const box = page.locator('#onlineDealsManager');
   await box.locator('#odAdminContent').waitFor();
-  const pasted = [html('itemWater01', '테스트 삼다수 2L, 12개'), html('itemRamen01', '테스트 신라면 120g, 5개'), html('itemTissue1', '테스트 3겹 화장지 30롤'),
+  const pasted = [html('itemWater01', '테스트 삼다수 2L, 12개'), html('itemRamen01', '테스트 신라면 120g, 5개'), html('itemChick01', '테스트 닭가슴살 100g, 10팩'),
     html('itemSnack01', '테스트 간식 모음'), html('itemWater01', '같은 링크 두 번'), '<a href="https://example.com/x"><img src="https://example.com/a.jpg" alt="다른 사이트"></a>'].join('\n');
   await box.locator('#odBulkHtml').fill(pasted);
   await box.locator('#odAdminMessage').filter({ hasText: 'HTML 6개 중 4개를 읽었어요' }).waitFor();
   const rows = box.locator('.od-bulk-row');
   assert.equal(await rows.count(), 4);
-  assert.deepEqual(await rows.locator('[data-bulk-place]').evaluateAll(els => els.map(e => e.value)), ['item:water', 'item:ramen', 'item:tissue', ''], '상품명으로 항목 짐작');
+  assert.deepEqual(await rows.locator('[data-bulk-place]').evaluateAll(els => els.map(e => e.value)), ['item:water', 'item:ramen', 'item:chicken', ''], '상품명으로 항목 짐작');
   await box.getByRole('button', { name: '모두 등록', exact: true }).click();
   await box.locator('#odAdminMessage').filter({ hasText: '4번 상품의 올릴 곳을 골라 주세요' }).waitFor();
   assert.equal(gas.sheet('online_picks').objects().length, 0);
@@ -703,7 +703,7 @@ test('항목별 상품: 파트너스 HTML 여러 개를 한 번에 붙여 올리
   assert.match(await section.locator('h3').innerText(), /항목별로 둘러보기/);
   assert.match(await section.locator('.od-shortcuts-head').innerText(), /제휴광고/);
   const tabs = section.locator('[data-od-item]');
-  assert.deepEqual((await tabs.allInnerTexts()).map(x => x.replace(/\s+/g, ' ')), ['생수 1', '라면 1', '즉석밥', '냉동 간편식', '화장지', '물티슈', '세탁세제', '주방세제']);
+  assert.deepEqual((await tabs.allInnerTexts()).map(x => x.replace(/\s+/g, ' ')), ['생수 1', '라면 1', '즉석밥', '냉동 간편식', '레토르트', '닭가슴살', '단백질', '통조림']);
   assert.equal(await section.locator('[data-od-item="water"]').getAttribute('aria-pressed'), 'true', '상품이 있는 첫 항목을 먼저');
   const card = section.locator('.od-item-list .od-pick-card');
   assert.equal(await card.count(), 1);

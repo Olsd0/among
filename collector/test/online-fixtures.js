@@ -23,7 +23,7 @@ export function mixedBatch(observedAt = new Date(OD_T0).toISOString()) {
   const c = over => candidate({ observedAt, ...over });
   return [
     c({ supplierItemId: 'OK-WATER' }),
-    c({ supplierItemId: 'OK-TISSUE', title: '테스트 화장지 30롤', option: '30m × 30롤', categoryPath: '생활용품 > 화장지/물티슈', price: 15900, shipping: 'free', url: 'https://link.coupang.com/a/mocktissue' }),
+    c({ supplierItemId: 'OK-TUNA', title: '테스트 참치 100g 10캔', option: '100g × 10캔', categoryPath: '식품 > 통조림/캔', price: 15900, shipping: 'free', url: 'https://link.coupang.com/a/mocktuna' }),
     c({ supplierItemId: 'UNIT-PRICE', title: '테스트 쌀', priceBasis: 'unit', price: 390 }),
     c({ supplierItemId: 'NO-SELLER', title: '테스트 라면', seller: '' }),
     c({ supplierItemId: 'BAD-LINK', title: '테스트 커피', url: 'https://attacker.test/a/1' }),
