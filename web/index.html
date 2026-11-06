@@ -110,6 +110,14 @@
   .notice.demo { background: var(--warn-soft); color: var(--warn); }
   .notice.sync { background: var(--info-soft); color: var(--info); }
   .notice.err { background: var(--sale-soft); color: var(--sale); }
+  /* 30일 최저 알림 (11/06): 알림을 켠 상품이 AMONG 확인 30일 최저가 되면 앱을 열 때 맨 위에 */
+  .notice.watch { align-items: center; background: var(--primary-soft); color: var(--text); }
+  .notice.watch svg { flex: none; margin: 0; color: var(--primary); }
+  .notice.watch p { flex: 1; min-width: 0; margin: 0; display: grid; gap: 1px; }
+  .notice.watch p b { font-size: 14px; }
+  .notice.watch p span { color: var(--text-2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .notice.watch .wb-go { flex: none; height: 34px; padding: 0 12px; border-radius: 10px; background: var(--primary); color: #fff; font-size: 13px; font-weight: 750; }
+  .notice.watch .wb-close { flex: none; width: 34px; height: 34px; margin-right: -6px; border-radius: 10px; color: var(--muted); font-size: 20px; line-height: 1; }
   .notice .note-retry { flex: none; margin-left: auto; min-height: 28px; padding: 0 4px; font-size: 13px; font-weight: 750; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
   .me { margin: 14px 0 0; padding: 12px 10px 12px 14px; border-radius: 14px; background: var(--surface-2); color: var(--text-2); display: flex; gap: 8px; align-items: center; font-size: 13.5px; line-height: 1.45; }
   .me b { color: var(--text); font-weight: 700; }
@@ -500,6 +508,7 @@
   <h1 class="intro">좋아하는 브랜드의 혜택을, 한곳에.</h1>
   <div class="intro-detail" id="introDetail"><p>쿠폰 가격부터 통신사·페이 조건까지 같은 기준으로 비교해요. <a href="guide.html">할인 비교 가이드</a></p></div>
 
+  <div class="notice watch" id="watchBanner" role="status" hidden></div>
   <div class="notice demo" id="demoNote" hidden>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
     <span>예시 데이터로 보는 중이에요. 가상의 브랜드이며 실제 쿠폰이 아닙니다.</span>
@@ -637,7 +646,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261106-2"></script>
+<script type="module" src="app.js?v=20261106-3"></script>
 <script type="module" src="sponsor.js?v=20261031-1"></script>
 </body>
 </html>

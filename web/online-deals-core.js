@@ -434,7 +434,7 @@ export const OD_PICK_CATEGORIES = { food: '먹거리', household: '생활용품'
 export const OD_PICK_PRICE_HOURS = 24;
 export const OD_PICK_DEFAULT_DAYS = 1;
 export const OD_PICK_MAX_DAYS = 30;
-export const OD_PICK_MAX = 60;
+export const OD_PICK_MAX = 120;
 // 항목별 상품 (11/06 08:14 대표 요청: 항목별에서도 상품을 띄워 달라). 위쪽 특가 목록과 따로, 자취 필수품 항목마다 대표가 고른 상품.
 // 가격은 특가와 같이 확인 후 24시간만 보이고, 그 뒤에는 카드를 내리지 않고 가격만 뺀다('가격은 쿠팡에서 확인'). 노출은 기본 30일.
 export const OD_PICK_ITEMS = {
@@ -492,6 +492,38 @@ export function odPartnerHtml(html) {
   return { url: link && OD_PICK_LINK.test(link) ? link : '', imageUrl, title: odText(odAttr_(img ? img[0] : '', 'alt'), 80), imageRejected: !!src && !imageUrl };
 }
 
+// ---------- 최근 30일 최저 (11/06 10:19 대표 요청: 최근 30일 최저를 쿠폰에 표시하고 알림을 설정할 수 있게) ----------
+// AMONG이 확인한 가격 기록(관리 화면 저장·매일 아침 확인)만으로 계산한다. 쿠팡 가격 이력·다른 가격비교 사이트의 기록은 쓰지 않는다.
+// 확인한 날이 3일 이상 쌓인 상품만 표시하고, 화면 문구는 'AMONG 확인 30일 최저'로 기준을 밝힌다 (가격 보장·쿠팡 전체 비교처럼 들리는 표현 없음).
+export const OD_LOW_DAYS = 30;
+export const OD_LOW_MIN_DAYS = 3;
+const odKstDay_ = ms => new Date(ms + 9 * OD_HOUR).toISOString().slice(0, 10);
+/** 가격 기록 [{price, at(ISO 또는 ms)}] → 최근 30일 { low, high, days(확인한 한국 날짜 수), since } 또는 null */
+export function odPriceStats(records, now) {
+  const from = now - OD_LOW_DAYS * OD_DAY, days = {};
+  let low = Infinity, high = 0, since = Infinity;
+  (records || []).forEach(function (r) {
+    const at = typeof r.at === 'number' ? r.at : odMs_(r.at), price = odPosInt_(r.price);
+    if (!price || !(at >= from) || at > now + 5 * 60000) return;
+    if (price < low) low = price;
+    if (price > high) high = price;
+    if (at < since) since = at;
+    days[odKstDay_(at)] = true;
+  });
+  const n = Object.keys(days).length;
+  return n ? { low: low, high: high, days: n, since: new Date(since).toISOString() } : null;
+}
+/** 매일 확인한 가격 [{id, price}] 검사 (관리 화면 '가격 일괄 기록'). 형식이 맞는 것만, 같은 카드는 한 번 */
+export function odPriceObservations(list) {
+  const out = [], seen = {};
+  (Array.isArray(list) ? list : []).slice(0, 200).forEach(function (o) {
+    const id = o && typeof o.id === 'string' && /^pk_[0-9a-z]{8,24}$/.test(o.id) ? o.id : '';
+    const price = o && Number.isSafeInteger(o.price) && o.price >= 100 && o.price <= 10000000 ? o.price : 0;
+    if (id && price && !seen[id]) { seen[id] = true; out.push({ id: id, price: price }); }
+  });
+  return out;
+}
+
 /** 관리 화면 입력 → 저장 형식. 잘못된 값은 고치지 않고 오류로 돌려준다 */
 export function odPickInput(raw, now, prev) {
   const r = raw && typeof raw === 'object' ? raw : {};
@@ -527,17 +559,21 @@ export function odPickInput(raw, now, prev) {
     hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
 }
 
-/** 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료면 null. 가격 확인 24시간이 지나면 특가는 null, 항목별 상품은 가격만 뺀다 */
-export function odPickPublic(p, now) {
+/**
+ * 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료면 null. 가격 확인 24시간이 지나면 특가는 null, 항목별 상품은 가격만 뺀다.
+ * stats(odPriceStats): 확인한 날이 3일 이상이면 30일 최저(low30)·기록 일수(lowDays), 지금 가격이 그 최저이고 기간 중 더 비싼 날이 있었으면 atLow.
+ */
+export function odPickPublic(p, now, stats) {
   if (!p || p.hidden || !(odMs_(p.endsAt) > now)) return null;
   const item = odItem_(p.item);
   const until = odMs_(p.priceCheckedAt) + OD_PICK_PRICE_HOURS * OD_HOUR;
   const priced = !!odPosInt_(p.price), fresh = priced && until > now;
   if (priced && !fresh && !item) return null;
+  const st = stats && stats.days >= OD_LOW_MIN_DAYS && odPosInt_(stats.low) ? stats : null;
   const visible = fresh && !item ? Math.min(odMs_(p.endsAt), until) : odMs_(p.endsAt);
   return { id: p.id, title: p.title, url: p.url, imageUrl: odPickImage(p.imageUrl), category: item ? OD_PICK_ITEMS[item].category : p.category, item, note: p.note || '',
     price: fresh ? p.price : null, priceCheckedAt: fresh ? p.priceCheckedAt : '', priceUntil: fresh ? new Date(until).toISOString() : '',
-    visibleUntil: new Date(visible).toISOString() };
+    visibleUntil: new Date(visible).toISOString(), low30: st ? st.low : null, lowDays: st ? st.days : 0, atLow: !!(st && fresh && p.price <= st.low && st.high > st.low) };
 }
 
 /** 화면에서 다시 검사. 통과하지 못하면 null, 가격 기한이 지났거나 맞지 않으면 가격만 뺀다 */
@@ -560,8 +596,12 @@ export function odClientPick(raw, now) {
     if (fresh) price = raw.price;
     else if (!item) return null;
   }
+  // 30일 최저: 기록 일수가 기준 이상일 때만, 최저 표시는 지금 보이는 가격이 그 최저 이하일 때만
+  const lowDays = Number.isInteger(raw.lowDays) && raw.lowDays >= OD_LOW_MIN_DAYS && raw.lowDays <= OD_LOW_DAYS + 1 ? raw.lowDays : 0;
+  const low30 = lowDays ? odPosInt_(raw.low30) : null;
   return { id, title, url, imageUrl: odPickImage(raw.imageUrl), category: raw.category, item, note, affiliate: true,
-    price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price && !item ? Math.min(until, priceUntil) : until };
+    price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price && !item ? Math.min(until, priceUntil) : until,
+    low30: low30 || null, lowDays: low30 ? lowDays : 0, atLow: !!(low30 && raw.atLow === true && price && price <= low30) };
 }
 
 // ---------- 자동으로 찾은 후보 (11/05 14:56 대표 결정) ----------

@@ -72,3 +72,9 @@
 .od-bulk-fields button { align-self: end; min-height: 38px; }
 .od-bulk-fields input, .od-bulk-fields select { width: 100%; min-width: 0; }
 .od-bulk-fields button { justify-self: start; }
+/* 30일 최저 · 가격 일괄 기록 (11/06) */
+.od-price-batch { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.od-price-batch summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.od-price-batch textarea { width: 100%; min-width: 0; margin: 6px 0 8px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 8px; resize: vertical; }
+.od-low-line { color: var(--primary); font-weight: 700; }
+.od-pick-id { font-size: 11.5px; }

@@ -3,7 +3,7 @@
  * ------------------------------------------------------------
  * 탭: coupons · news · sources · run_log · events · reports · nutrition · app_coupons · online_items · online_runs · online_picks · online_leads
  * 공개 API (토큰 없음): GET coupons(+ 소식 news 포함) · status · nutrition · online_deals / POST refresh · event · report
- * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish · nutrition_ingest
+ * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish · nutrition_ingest · online_prices_ingest
  *                               · online_run_start · online_ingest · online_run_finish (온라인 특가 — 쿠폰과 분리)
  *
  * 코드를 새 버전으로 배포하면 첫 요청 때 migrate_()가 새 열·탭·출처를 자동으로 추가한다 (SCHEMA_VERSION).
@@ -75,6 +75,7 @@ const SHEETS = {
   online_runs: ['run_id', 'trigger', 'started_at', 'finished_at', 'results', 'received', 'published', 'held', 'errors'],
   // 직접 고른 쿠팡 특가 (v8): 최종 승인 전 대표가 관리 화면에서 고른 상품의 파트너스 간편 링크. memo는 관리 화면에만
   online_picks: ['id', 'status', 'title', 'url', 'category', 'note', 'price', 'price_checked_at', 'ends_at', 'hidden', 'memo', 'created_at', 'updated_at', 'image_url', 'item'],
+  online_price_log: ['pick_id', 'price', 'checked_at'],
   // 핫딜 게시판에서 자동으로 찾은 쿠팡 상품 후보 (관리 화면 전용, 공개 응답에 싣지 않음). 3일 보관
   online_leads: ['key', 'status', 'source', 'title', 'price_hint', 'free_shipping', 'coupang_url', 'affiliate_only', 'post_url', 'posted_at', 'found_at'],
 };
@@ -84,7 +85,7 @@ const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_
 const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
   'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 10;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진), 10: online_picks.item (항목별 상품)
+const SCHEMA_VERSION = 11;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진), 10: online_picks.item (항목별 상품), 11: online_price_log (30일 최저)
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
@@ -170,6 +171,10 @@ function doPost(e) {
         authed = auth_(body, 'COLLECTOR_TOKEN');
         if (raw.length > 200000) throw new Error('입력이 너무 커요.');
         return json_(withLock_(() => odLeadsIngest_(body)));
+      case 'online_prices_ingest':
+        authed = auth_(body, 'COLLECTOR_TOKEN');
+        if (raw.length > 50000) throw new Error('입력이 너무 커요.');
+        return json_(withLock_(() => odPricesIngest_(body)));
       case 'online_admin': authed = auth_(body, 'ADMIN_TOKEN'); return json_(odAdmin_());
       case 'online_admin_set':
         authed = auth_(body, 'ADMIN_TOKEN');
@@ -772,6 +777,7 @@ function migrate_() {
     Object.keys(NEW_SOURCES).forEach((v) => { if (Number(v) > from) NEW_SOURCES[v].forEach((id) => add.push(id)); });
     SAMPLE_SOURCES_.filter((x) => add.indexOf(x.id) >= 0 && !have[x.id]).forEach((x) => appendRow_('sources', x));
     seedAppCouponDrafts_();
+    odSeedPriceLog_();
     CacheService.getScriptCache().remove(CACHE_KEY);
     p.setProperty('SCHEMA_VERSION', String(SCHEMA_VERSION));
   });
@@ -2203,7 +2209,7 @@ const OD_PICK_CATEGORIES = { food: '먹거리', household: '생활용품', etc: 
 const OD_PICK_PRICE_HOURS = 24;
 const OD_PICK_DEFAULT_DAYS = 1;
 const OD_PICK_MAX_DAYS = 30;
-const OD_PICK_MAX = 60;
+const OD_PICK_MAX = 120;
 // 항목별 상품 (11/06 08:14 대표 요청: 항목별에서도 상품을 띄워 달라). 위쪽 특가 목록과 따로, 자취 필수품 항목마다 대표가 고른 상품.
 // 가격은 특가와 같이 확인 후 24시간만 보이고, 그 뒤에는 카드를 내리지 않고 가격만 뺀다('가격은 쿠팡에서 확인'). 노출은 기본 30일.
 const OD_PICK_ITEMS = {
@@ -2261,6 +2267,38 @@ function odPartnerHtml(html) {
   return { url: link && OD_PICK_LINK.test(link) ? link : '', imageUrl, title: odText(odAttr_(img ? img[0] : '', 'alt'), 80), imageRejected: !!src && !imageUrl };
 }
 
+// ---------- 최근 30일 최저 (11/06 10:19 대표 요청: 최근 30일 최저를 쿠폰에 표시하고 알림을 설정할 수 있게) ----------
+// AMONG이 확인한 가격 기록(관리 화면 저장·매일 아침 확인)만으로 계산한다. 쿠팡 가격 이력·다른 가격비교 사이트의 기록은 쓰지 않는다.
+// 확인한 날이 3일 이상 쌓인 상품만 표시하고, 화면 문구는 'AMONG 확인 30일 최저'로 기준을 밝힌다 (가격 보장·쿠팡 전체 비교처럼 들리는 표현 없음).
+const OD_LOW_DAYS = 30;
+const OD_LOW_MIN_DAYS = 3;
+const odKstDay_ = ms => new Date(ms + 9 * OD_HOUR).toISOString().slice(0, 10);
+/** 가격 기록 [{price, at(ISO 또는 ms)}] → 최근 30일 { low, high, days(확인한 한국 날짜 수), since } 또는 null */
+function odPriceStats(records, now) {
+  const from = now - OD_LOW_DAYS * OD_DAY, days = {};
+  let low = Infinity, high = 0, since = Infinity;
+  (records || []).forEach(function (r) {
+    const at = typeof r.at === 'number' ? r.at : odMs_(r.at), price = odPosInt_(r.price);
+    if (!price || !(at >= from) || at > now + 5 * 60000) return;
+    if (price < low) low = price;
+    if (price > high) high = price;
+    if (at < since) since = at;
+    days[odKstDay_(at)] = true;
+  });
+  const n = Object.keys(days).length;
+  return n ? { low: low, high: high, days: n, since: new Date(since).toISOString() } : null;
+}
+/** 매일 확인한 가격 [{id, price}] 검사 (관리 화면 '가격 일괄 기록'). 형식이 맞는 것만, 같은 카드는 한 번 */
+function odPriceObservations(list) {
+  const out = [], seen = {};
+  (Array.isArray(list) ? list : []).slice(0, 200).forEach(function (o) {
+    const id = o && typeof o.id === 'string' && /^pk_[0-9a-z]{8,24}$/.test(o.id) ? o.id : '';
+    const price = o && Number.isSafeInteger(o.price) && o.price >= 100 && o.price <= 10000000 ? o.price : 0;
+    if (id && price && !seen[id]) { seen[id] = true; out.push({ id: id, price: price }); }
+  });
+  return out;
+}
+
 /** 관리 화면 입력 → 저장 형식. 잘못된 값은 고치지 않고 오류로 돌려준다 */
 function odPickInput(raw, now, prev) {
   const r = raw && typeof raw === 'object' ? raw : {};
@@ -2296,17 +2334,21 @@ function odPickInput(raw, now, prev) {
     hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
 }
 
-/** 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료면 null. 가격 확인 24시간이 지나면 특가는 null, 항목별 상품은 가격만 뺀다 */
-function odPickPublic(p, now) {
+/**
+ * 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료면 null. 가격 확인 24시간이 지나면 특가는 null, 항목별 상품은 가격만 뺀다.
+ * stats(odPriceStats): 확인한 날이 3일 이상이면 30일 최저(low30)·기록 일수(lowDays), 지금 가격이 그 최저이고 기간 중 더 비싼 날이 있었으면 atLow.
+ */
+function odPickPublic(p, now, stats) {
   if (!p || p.hidden || !(odMs_(p.endsAt) > now)) return null;
   const item = odItem_(p.item);
   const until = odMs_(p.priceCheckedAt) + OD_PICK_PRICE_HOURS * OD_HOUR;
   const priced = !!odPosInt_(p.price), fresh = priced && until > now;
   if (priced && !fresh && !item) return null;
+  const st = stats && stats.days >= OD_LOW_MIN_DAYS && odPosInt_(stats.low) ? stats : null;
   const visible = fresh && !item ? Math.min(odMs_(p.endsAt), until) : odMs_(p.endsAt);
   return { id: p.id, title: p.title, url: p.url, imageUrl: odPickImage(p.imageUrl), category: item ? OD_PICK_ITEMS[item].category : p.category, item, note: p.note || '',
     price: fresh ? p.price : null, priceCheckedAt: fresh ? p.priceCheckedAt : '', priceUntil: fresh ? new Date(until).toISOString() : '',
-    visibleUntil: new Date(visible).toISOString() };
+    visibleUntil: new Date(visible).toISOString(), low30: st ? st.low : null, lowDays: st ? st.days : 0, atLow: !!(st && fresh && p.price <= st.low && st.high > st.low) };
 }
 
 /** 화면에서 다시 검사. 통과하지 못하면 null, 가격 기한이 지났거나 맞지 않으면 가격만 뺀다 */
@@ -2329,8 +2371,12 @@ function odClientPick(raw, now) {
     if (fresh) price = raw.price;
     else if (!item) return null;
   }
+  // 30일 최저: 기록 일수가 기준 이상일 때만, 최저 표시는 지금 보이는 가격이 그 최저 이하일 때만
+  const lowDays = Number.isInteger(raw.lowDays) && raw.lowDays >= OD_LOW_MIN_DAYS && raw.lowDays <= OD_LOW_DAYS + 1 ? raw.lowDays : 0;
+  const low30 = lowDays ? odPosInt_(raw.low30) : null;
   return { id, title, url, imageUrl: odPickImage(raw.imageUrl), category: raw.category, item, note, affiliate: true,
-    price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price && !item ? Math.min(until, priceUntil) : until };
+    price, priceCheckedAt: price ? new Date(checked).toISOString() : '', priceUntil: price ? priceUntil : 0, visibleUntil: price && !item ? Math.min(until, priceUntil) : until,
+    low30: low30 || null, lowDays: low30 ? lowDays : 0, atLow: !!(low30 && raw.atLow === true && price && price <= low30) };
 }
 
 // ---------- 자동으로 찾은 후보 (11/05 14:56 대표 결정) ----------
@@ -2485,6 +2531,64 @@ function odWriteLeads_(leads) {
       posted_at: l.postedAt, found_at: l.foundAt };
   }));
 }
+// ---------- 가격 기록 (11/06: AMONG이 확인한 가격으로 최근 30일 최저 계산) ----------
+// 카드에 가격을 새로 확인해 저장할 때마다(관리 화면 저장·여러 개 한 번에·매일 아침 가격 일괄 기록) 한 줄씩 남긴다. 35일 지나면 정리.
+const OD_PRICE_LOG_KEEP_DAYS = 35;
+function odReadPriceLog_() {
+  return readTable_('online_price_log').rows.map(function (r) {
+    return { pickId: String(r.pick_id), price: Number(r.price), at: String(r.checked_at) };
+  }).filter(function (r) { return /^pk_[0-9a-z]{8,24}$/.test(r.pickId) && Number.isSafeInteger(r.price) && r.price > 0 && Number.isFinite(Date.parse(r.at)); });
+}
+function odAppendPriceLog_(entries) {
+  if (!entries.length) return;
+  const from = Date.now() - OD_PRICE_LOG_KEEP_DAYS * OD_DAY;
+  const rows = odReadPriceLog_().concat(entries).filter(function (r) { return Date.parse(r.at) > from; }).slice(-20000);
+  writeTable_(sheet_('online_price_log'), SHEETS.online_price_log, rows.map(function (r) { return { pick_id: r.pickId, price: r.price, checked_at: r.at }; }));
+}
+/** 처음 배포 때 한 번: 기록이 비어 있으면 지금 카드에 있는 확인 가격을 첫 기록으로 (migrate_에서 잠금 안에서 부름) */
+function odSeedPriceLog_() {
+  if (odReadPriceLog_().length) return;
+  const from = Date.now() - OD_LOW_DAYS * OD_DAY;
+  odAppendPriceLog_(odReadPicks_().filter(function (p) { return odPosInt_(p.price) && Date.parse(p.priceCheckedAt) > from; })
+    .map(function (p) { return { pickId: p.id, price: p.price, at: p.priceCheckedAt }; }));
+}
+/** 카드별 최근 30일 기록 통계 { pk_…: {low, high, days, since} } */
+function odPriceStatsMap_(now) {
+  const by = {}, out = {};
+  odReadPriceLog_().forEach(function (r) { (by[r.pickId] = by[r.pickId] || []).push(r); });
+  Object.keys(by).forEach(function (id) { out[id] = odPriceStats(by[id], now); });
+  return out;
+}
+/**
+ * 가격 일괄 기록 (관리 화면 '가격 일괄 기록' · 매일 아침 확인 워크플로 online-prices.yml).
+ * 있는 카드만 바꾸고 가격·확인 시각을 지금으로, 항목별 상품은 노출을 30일 뒤까지 늘린다(계속 파는 상품). 특가·숨긴 카드는 그대로.
+ */
+function odApplyPrices_(list, now) {
+  const obs = odPriceObservations(list);
+  if (!obs.length) throw new Error('기록할 가격이 없어요. [{"id":"pk_…","price":12900}] 형식으로 넣으세요.');
+  const picks = odReadPicks_();
+  const at = new Date(now).toISOString();
+  const done = [], missing = [];
+  obs.forEach(function (o) {
+    const p = picks.filter(function (x) { return x.id === o.id; })[0];
+    if (!p || p.hidden) { missing.push(o.id); return; }
+    p.price = o.price; p.priceCheckedAt = at; p.updatedAt = at;
+    if (p.item) p.endsAt = new Date(Math.max(Date.parse(p.endsAt) || 0, now + OD_PICK_ITEM_DAYS * OD_DAY)).toISOString();
+    done.push(p);
+  });
+  if (done.length) { odWritePicks_(picks); odAppendPriceLog_(odFreshLog_(done, at)); }
+  return { recorded: done.length, missing: missing };
+}
+/** 매일 아침 확인 워크플로(COLLECTOR_TOKEN)가 부르는 입구. 카드 목록(공개 정보)과 기록 결과만 돌려준다 */
+function odPricesIngest_(b) {
+  const r = odApplyPrices_(b.prices, Date.now());
+  return { ok: true, recorded: r.recorded, missing: r.missing };
+}
+/** 저장한 카드 중 지금 가격을 확인한 것(확인 시각 = 지금)을 기록 줄로 */
+function odFreshLog_(picks, at) {
+  return picks.filter(function (p) { return odPosInt_(p.price) && p.priceCheckedAt === at; }).map(function (p) { return { pickId: p.id, price: p.price, at: at }; });
+}
+
 /** 수집기가 찾은 후보를 같은 기준(odLeadInput)으로 다시 검사해 새 것만 더한다 */
 function odLeadsIngest_(b) {
   if (!Array.isArray(b.leads) || b.leads.length > 50) throw new Error('bad leads');
@@ -2521,7 +2625,8 @@ function getOnlineDeals_() {
   const pubs = Object.keys(ctx.suppliers).map(function (id) { return ctx.suppliers[id]; }).filter(function (s) { return s.mode === 'publish' && s.lastSuccessAt; });
   const recent = pubs.some(function (s) { return Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR; });
   const state = items.length || recent ? 'live' : pubs.length ? 'delayed' : 'preparing';
-  const picks = odReadPicks_().sort(odNewest_).map(function (p) { return odPickPublic(p, ctx.now); }).filter(Boolean).slice(0, OD_PICK_MAX);
+  const stats = odPriceStatsMap_(ctx.now);
+  const picks = odReadPicks_().sort(odNewest_).map(function (p) { return odPickPublic(p, ctx.now, stats[p.id]); }).filter(Boolean).slice(0, OD_PICK_MAX);
   if (picks.length && disclosures.indexOf(OD_SUPPLIERS.coupang.disclosure) < 0) disclosures.unshift(OD_SUPPLIERS.coupang.disclosure);
   const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, picks: picks, disclosures: disclosures };
   try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
@@ -2639,10 +2744,13 @@ function odAdmin_() {
       };
     }),
     runs: runs,
-    picks: odReadPicks_().sort(odNewest_).map(function (p) {
-      const pub = odPickPublic(p, ctx.now);
-      return Object.assign({}, p, { live: !!pub, price_fresh: !!(pub && pub.price) });
-    }),
+    picks: (function () {
+      const stats = odPriceStatsMap_(ctx.now);
+      return odReadPicks_().sort(odNewest_).map(function (p) {
+        const pub = odPickPublic(p, ctx.now, stats[p.id]);
+        return Object.assign({}, p, { live: !!pub, price_fresh: !!(pub && pub.price), price_stats: stats[p.id] || null, at_low: !!(pub && pub.atLow) });
+      });
+    })(),
     leads: odReadLeads_().filter(function (l) { return l.status === 'new'; })
       .sort(function (a, b) { return a.foundAt < b.foundAt ? 1 : a.foundAt > b.foundAt ? -1 : 0; }).slice(0, 60),
   };
@@ -2693,6 +2801,7 @@ function odAdminSet_(b) {
       picks.push(res.pick);
     } else picks[picks.indexOf(prev)] = res.pick;
     odWritePicks_(picks);
+    odAppendPriceLog_(odFreshLog_([res.pick], new Date(now).toISOString()));
     // 자동 후보로 만든 카드면 그 후보를 '사용함'으로 (목록에서 빠짐)
     if (b.lead_key) {
       const leads = odReadLeads_();
@@ -2721,6 +2830,10 @@ function odAdminSet_(b) {
     });
     if (errs.length) throw new Error(errs.join(' / '));
     odWritePicks_(picks.concat(made));
+    odAppendPriceLog_(odFreshLog_(made, new Date(now).toISOString()));
+  } else if (op === 'pick_prices') {
+    const result = odApplyPrices_(b.prices, now);
+    return Object.assign(odAdmin_(), { price_result: result });
   } else if (op === 'lead_dismiss') {
     const leads = odReadLeads_();
     const lead = leads.filter(function (l) { return l.key === String(b.key || ''); })[0];

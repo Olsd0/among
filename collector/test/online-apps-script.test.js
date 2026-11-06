@@ -6,6 +6,7 @@ import { loadAppsScript } from './gas-harness.js';
 import { runOnlineDeals } from '../src/online/run.js';
 import { ADAPTERS } from '../src/online/suppliers.js';
 import { createHttpClient } from '../src/online/http.js';
+import { runPrices } from '../src/online/prices.js';
 import { candidate, mixedBatch, OD_T0, MIN, HOUR } from './online-fixtures.js';
 
 const CODE = new URL('../../apps-script/Code.gs', import.meta.url).pathname;
@@ -361,4 +362,66 @@ test('항목별 상품: 여러 개 한 번에 저장(모두 통과해야 저장)
   assert.equal(pub_(b).picks.find(p => p.item === 'water').price, 9500);
   later(b, 30 * 24 * HOUR);
   assert.equal(pub_(b).picks.length, 0, '노출 종료일이 지나면 내려감');
+});
+
+// 11/06 10:19 대표 요청: 최근 30일 최저 표시 · 매일 아침 가격 확인(작업자) → 관리 화면 '가격 일괄 기록'
+test('가격 기록·30일 최저: 저장마다 기록, 일괄 기록은 관리 토큰으로 있는 카드만 바꾸고 항목별은 노출 연장, 3일 쌓이면 공개 응답에 30일 최저', () => {
+  const b = boot();
+  const DAY = 24 * HOUR;
+  const save = b.adminSet({ op: 'pick_save_many', picks: [{ title: '테스트 생수 2L 12개', url: 'https://link.coupang.com/a/low1', item: 'water', price: '6000' }, { title: '테스트 특가 과자', url: 'https://link.coupang.com/a/low2', category: 'food', price: '3000' }] });
+  assert.equal(save.ok, true, save.error);
+  const water = save.picks.find(p => p.item === 'water'), deal = save.picks.find(p => !p.item);
+  assert.equal(b.gas.sheet('online_price_log').objects().length, 2, '처음 저장한 가격도 기록');
+  const prices = list => b.adminSet({ op: 'pick_prices', prices: list });
+  assert.equal(b.gas.post({ action: 'online_admin_set', token: b.token, op: 'pick_prices', prices: [{ id: water.id, price: 5000 }] }).error, 'unauthorized', '수집기 토큰으로는 못 바꿈');
+  assert.match(prices([{ id: water.id, price: '5900' }]).error, /기록할 가격이 없어요/);
+  later(b, DAY);
+  let r = prices([{ id: water.id, price: 5900 }, { id: 'pk_ffffffffffffffff', price: 1000 }]);
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual(r.price_result, { recorded: 1, missing: ['pk_ffffffffffffffff'] });
+  let pub = pub_(b).picks.find(p => p.id === water.id);
+  assert.deepEqual([pub.price, pub.low30, pub.lowDays, pub.atLow], [5900, null, 0, false], '기록 2일: 아직 표시 안 함');
+  later(b, DAY);
+  r = prices([{ id: water.id, price: 5690 }, { id: deal.id, price: 2900 }]);
+  assert.equal(r.price_result.recorded, 2);
+  pub = pub_(b).picks.find(p => p.id === water.id);
+  assert.deepEqual([pub.price, pub.low30, pub.lowDays, pub.atLow], [5690, 5690, 3, true], '3일째 가장 싸면 30일 최저 표시');
+  const admin = b.adminGet().picks.find(p => p.id === water.id);
+  assert.deepEqual([admin.price_stats.low, admin.price_stats.high, admin.price_stats.days, admin.at_low], [5690, 6000, 3, true]);
+  assert.equal(admin.endsAt, new Date(b.gas.clock.now + 30 * DAY).toISOString(), '항목별 상품은 확인할 때마다 30일 뒤까지 노출');
+  const dealRow = b.gas.sheet('online_picks').objects().find(x => x.id === deal.id);
+  assert.equal(dealRow.ends_at, new Date(OD_T0 + DAY).toISOString(), '특가는 노출을 늘리지 않음');
+  assert.equal(b.gas.sheet('online_price_log').objects().length, 5);
+  // 숨긴 카드는 기록하지 않음
+  b.adminSet({ op: 'pick_hide', id: water.id, hidden: true });
+  assert.deepEqual(prices([{ id: water.id, price: 5000 }]).price_result, { recorded: 0, missing: [water.id] });
+  b.adminSet({ op: 'pick_hide', id: water.id, hidden: false });
+  // 35일 지난 기록은 정리
+  later(b, 36 * DAY);
+  prices([{ id: water.id, price: 6100 }]);
+  assert.deepEqual(b.gas.sheet('online_price_log').objects().map(x => String(x.price)), ['6100']);
+  assert.equal(pub_(b).picks.find(p => p.id === water.id).low30, null, '오래된 기록은 30일 최저에 넣지 않음');
+});
+
+test('매일 아침 가격 확인 입구(online_prices_ingest): 수집기 토큰만, 기록 결과만 돌려주고, 수집기(prices.js)와 같은 규칙', async () => {
+  const b = boot();
+  const DAY = 24 * HOUR;
+  const save = b.adminSet({ op: 'pick_save', pick: { title: '테스트 즉석밥 210g 24개', url: 'https://link.coupang.com/a/low3', item: 'rice', price: '26080' } });
+  assert.equal(save.ok, true, save.error);
+  const id = save.picks[0].id;
+  assert.equal(b.gas.post({ action: 'online_prices_ingest', token: b.admin, prices: [{ id, price: 25000 }] }).error, 'unauthorized', '관리 토큰으로는 이 입구를 못 씀');
+  assert.equal(b.gas.post({ action: 'online_prices_ingest', token: 'wrong', prices: [{ id, price: 25000 }] }).error, 'unauthorized');
+  later(b, DAY);
+  const r = await runPrices({ api: b.api, text: JSON.stringify([{ id, price: 25500 }, { id: 'pk_eeeeeeeeeeeeeeee', price: 1000 }, { id, price: 1 }]) });
+  assert.deepEqual([r.recorded, r.missing, r.skipped], [1, ['pk_eeeeeeeeeeeeeeee'], 1]);
+  const sent = b.sent.at(-1);
+  assert.equal(sent.action, 'online_prices_ingest');
+  assert.deepEqual(sent.payload.prices, [{ id, price: 25500 }, { id: 'pk_eeeeeeeeeeeeeeee', price: 1000 }]);
+  const raw = b.gas.post({ action: 'online_prices_ingest', token: b.token, prices: [{ id, price: 25400 }] });
+  assert.deepEqual(Object.keys(raw).sort(), ['missing', 'ok', 'recorded'], '카드 목록·관리 정보는 돌려주지 않음');
+  assert.equal(b.gas.sheet('online_price_log').objects().length, 3);
+  assert.equal(pub_(b).picks.find(p => p.id === id).price, 25400);
+  await assert.rejects(runPrices({ api: b.api, text: '{"id":"x"}' }), /목록/);
+  await assert.rejects(runPrices({ api: b.api, text: 'pk_1 900' }), /JSON이 아니에요/);
+  await assert.rejects(runPrices({ api: b.api, text: '[{"id":"pk_eeeeeeeeeeeeeeee","price":"9000"}]' }), /기록할 가격이 없어요/);
 });

@@ -343,8 +343,22 @@ test('워크플로: 읽기 권한만, 겹침 방지, 외부 액션 고정, 비�
   assert.match(yml, /node src\/online\/run\.js/);
 });
 
+test('가격 확인 워크플로: 수동 실행만, 입력은 환경변수로만(셸에 끼워 넣지 않음), 수집기 토큰만, 읽기 권한', () => {
+  const yml = readFileSync(new URL('../../.github/workflows/online-prices.yml', import.meta.url), 'utf8');
+  assert.doesNotMatch(yml, /schedule:|cron:/, '정해진 시간에 혼자 돌지 않음 (확인한 가격이 있을 때만)');
+  assert.match(yml, /permissions:\n  contents: read/);
+  assert.match(yml, /concurrency:\n  group: online-prices\n  cancel-in-progress: false/);
+  for (const uses of yml.match(/uses: \S+/g)) assert.match(uses, /@[0-9a-f]{40}$/, uses);
+  assert.doesNotMatch(yml, /ADMIN_TOKEN|echo[^\n]*secrets\.|npm (ci|install)|playwright/);
+  assert.deepEqual(yml.match(/secrets\.\w+/g), ['secrets.APPS_SCRIPT_URL', 'secrets.COLLECTOR_TOKEN']);
+  const runLines = yml.split('\n').filter(l => /^\s+run: \S/.test(l));
+  assert.deepEqual(runLines.map(l => l.trim()), ['run: node src/online/prices.js']);
+  assert.ok(runLines.every(l => !l.includes('${{')), '입력값을 셸 명령에 직접 넣지 않음');
+  assert.match(yml, /PRICES_JSON: \$\{\{ inputs\.prices \}\}/);
+});
+
 // ---------- 직접 고른 쿠팡 특가 (최종 승인 전) ----------
-import { odPickInput, odPickPublic, odClientPick, odPickImage, odPartnerHtml, odGuessItem, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
+import { odPickInput, odPickPublic, odClientPick, odPickImage, odPartnerHtml, odGuessItem, odPriceStats, odPriceObservations, OD_PICK_CATEGORIES } from '../src/online-deals-core.js';
 const pickRaw = (over = {}) => ({ title: '테스트 생수 2L × 12병', url: 'https://link.coupang.com/a/abcDEF123', category: 'food', note: '와우회원 가격', price: '7900', memo: '에펨코리아 핫딜', ...over });
 
 test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노출 기간 검사, 가격 확인 시각은 서버 시각', () => {
@@ -376,7 +390,7 @@ test('직접 고른 카드 입력: AMONG 간편 링크만, 항목·가격·노�
 test('직접 고른 카드 공개: 메모·숨김 없음, 가격 카드는 확인 후 24시간만, 노출 종료 뒤에는 빠짐', () => {
   const pick = { ...odPickInput(pickRaw(), OD_T0).pick, id: 'pk_0123456789abcdef' };
   const pub = odPickPublic(pick, OD_T0 + HOUR);
-  assert.deepEqual(Object.keys(pub).sort(), ['category', 'id', 'imageUrl', 'item', 'note', 'price', 'priceCheckedAt', 'priceUntil', 'title', 'url', 'visibleUntil']);
+  assert.deepEqual(Object.keys(pub).sort(), ['atLow', 'category', 'id', 'imageUrl', 'item', 'low30', 'lowDays', 'note', 'price', 'priceCheckedAt', 'priceUntil', 'title', 'url', 'visibleUntil']);
   assert.ok(!JSON.stringify(pub).includes('에펨코리아'), '출처 메모는 공개하지 않음');
   assert.equal(pub.price, 7900);
   assert.equal(odPickPublic(pick, OD_T0 + 24 * HOUR - 1).price, 7900);
@@ -453,4 +467,41 @@ test('항목별 상품 규칙: 항목이 분류를 정하고, 화면 재검사�
   // 11/06 실제로 올린 상품명 (파트너스 상품 링크): 첫 버전에서 못 맞춘 이름들
   assert.deepEqual(['오뚜기 흰밥, 210g, 12개', '탐사 파워워시 액체세제 본품, 2.5L, 4개', '퍼플리 프리미엄 액체세제 본품, 4개, 2.5L', '프릴 시크릿오브 베이킹소다 퓨어레몬향 리필, 1L, 2개',
     '탐사 샘물, 2L, 12개', '곰곰 김치볶음밥 (냉동), 300g, 6개', '쿠팡 베이직 천연펄프 3겹 롤 화장지, 30m, 30개입, 1개'].map(g), ['rice', 'laundry', 'laundry', 'dish', 'water', 'frozen', 'tissue']);
+});
+
+
+// 11/06 10:19 대표 요청: 최근 30일 최저를 쿠폰에 표시 (AMONG이 확인한 가격 기록만으로)
+test('30일 최저: 기록 3일 이상일 때만, 지금 가격이 기간 최저이고 더 비싼 날이 있었으면 표시, 화면 재검사도 같은 기준', () => {
+  const day = 24 * HOUR;
+  const at = d => new Date(OD_T0 + d * day).toISOString();
+  const rec = (d, price) => ({ price, at: at(d) });
+  const now = OD_T0 + 10 * day + HOUR;
+  assert.equal(odPriceStats([], now), null);
+  assert.deepEqual(odPriceStats([rec(10, 5900), rec(10, 5800), rec(9, 6000), rec(-25, 4000), rec(11, 1000), { price: '5000', at: at(9) }, { price: 5000, at: 'x' }], now),
+    { low: 5800, high: 6000, days: 2, since: at(9) }, '30일 지난 기록·미래 기록·잘못된 값은 뺌, 같은 날은 하루로');
+  const saved = odPickInput(pickRaw({ item: 'water', price: '5690' }), OD_T0 + 10 * day).pick;
+  const pick = { ...saved, id: 'pk_0123456789abcdef' };
+  const two = odPriceStats([rec(9, 6000), rec(10, 5690)], now);
+  let pub = odPickPublic(pick, now, two);
+  assert.deepEqual([pub.low30, pub.lowDays, pub.atLow], [null, 0, false], '확인한 날이 2일이면 아직 표시하지 않음');
+  const three = odPriceStats([rec(8, 6200), rec(9, 6000), rec(10, 5690)], now);
+  pub = odPickPublic(pick, now, three);
+  assert.deepEqual([pub.low30, pub.lowDays, pub.atLow], [5690, 3, true]);
+  assert.equal(odPickPublic(pick, now, odPriceStats([rec(8, 5690), rec(9, 5690), rec(10, 5690)], now)).atLow, false, '가격이 한 번도 안 바뀌었으면 최저 표시 없음');
+  assert.equal(odPickPublic({ ...pick, price: 6000 }, now, odPriceStats([rec(8, 5690), rec(9, 6100), rec(10, 6000)], now)).atLow, false, '지금이 최저가 아니면 표시 없음');
+  const stale = odPickPublic(pick, OD_T0 + 12 * day, three);
+  assert.equal(stale.price, null); assert.equal(stale.atLow, false, '가격이 빠진 카드(24시간 지남)는 최저 표시 없음'); assert.equal(stale.low30, 5690, '기록 최저는 그대로 보여 줌');
+  const client = odClientPick(pub, now);
+  assert.deepEqual([client.low30, client.lowDays, client.atLow], [5690, 3, true]);
+  assert.equal(odClientPick({ ...pub, low30: 5000, atLow: true, price: 5690 }, now).atLow, false, '응답이 바뀌어 가격이 최저보다 높으면 최저 표시 안 함');
+  assert.deepEqual([odClientPick({ ...pub, lowDays: 2 }, now).low30, odClientPick({ ...pub, lowDays: 2 }, now).atLow], [null, false], '기록 일수가 모자라면 빼고');
+  assert.equal(odClientPick({ ...pub, low30: '5690' }, now).low30, null);
+});
+
+test('가격 일괄 기록 입력: 카드 번호·정수 가격만, 같은 카드는 한 번, 최대 200개', () => {
+  assert.deepEqual(odPriceObservations([{ id: 'pk_0123456789abcdef', price: 5690 }, { id: 'pk_0123456789abcdef', price: 1 }, { id: 'pk_ffffffffffffffff', price: '5690' },
+    { id: 'x', price: 5690 }, { id: 'pk_aaaaaaaaaaaaaaaa', price: 99 }, { id: 'pk_bbbbbbbbbbbbbbbb', price: 12900.5 }, null, { id: 'pk_cccccccccccccccc', price: 12900 }]),
+  [{ id: 'pk_0123456789abcdef', price: 5690 }, { id: 'pk_cccccccccccccccc', price: 12900 }]);
+  assert.deepEqual(odPriceObservations('x'), []);
+  assert.equal(odPriceObservations(Array.from({ length: 300 }, (_, i) => ({ id: `pk_${String(i).padStart(16, '0')}`, price: 1000 }))).length, 200);
 });

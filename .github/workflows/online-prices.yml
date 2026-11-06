@@ -1,0 +1,49 @@
+name: online-prices
+
+# 매일 아침 가격 확인 (11/06 대표 결정): 작업자가 쿠팡 파트너스 화면에서 확인한 카드별 가격을 기록한다.
+# 입력은 카드 번호와 가격뿐이다(링크·이름·사진은 바꾸지 않음). 기록이 3일 이상 쌓인 카드만 'AMONG 확인 30일 최저'를 보여 준다.
+# 시트에는 수집기 토큰(GitHub Secrets)으로만 쓴다. 관리 토큰은 쓰지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      prices:
+        description: '[{"id":"pk_…","price":12900}, …]'
+        required: true
+        type: string
+      mode:
+        description: 'run = 시트에 기록 / dry = 입력 확인만'
+        required: false
+        default: run
+        type: choice
+        options: [run, dry]
+
+concurrency:
+  group: online-prices
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  online-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: 가격 기록 · 시트 저장
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          PRICES_JSON: ${{ inputs.prices }}
+          PRICES_MODE: ${{ inputs.mode || 'run' }}
+        run: node src/online/prices.js

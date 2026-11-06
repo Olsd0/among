@@ -358,7 +358,7 @@ function showOnlineDeals() {
   const panel = $('#onlineDeals');
   panel.innerHTML = '<div class="empty" role="status">온라인 특가를 불러오고 있어요.</div>';
   // 코드·스타일·상품 JSON 모두 실제로 이 탭을 열 때만 요청한다.
-  onlineDealsLoading = import('./online-deals.js?v=20261106-2').then(({ createOnlineDealsUI }) => {
+  onlineDealsLoading = import('./online-deals.js?v=20261106-3').then(({ createOnlineDealsUI }) => {
     // 실제 상품은 Apps Script(online_deals)에서, 예시 모드는 같은 출처의 빈 JSON에서 읽는다.
     onlineDealsUI = createOnlineDealsUI(panel, { apiUrl: DEMO ? '' : API, dataUrl: CFG.onlineDeals.dataUrl, goldboxUrl: CFG.onlineDeals.goldboxUrl, shortcutLinks: CFG.onlineDeals.shortcutLinks });
     if (state.view === 'onlineDeals') onlineDealsUI.show();
@@ -920,6 +920,33 @@ function render() {
   $('#freshLine').textContent = fmtChecked(state.meta.last_checked_at) ? `${fmtChecked(state.meta.last_checked_at)} 확인` : '';
 }
 
+// ---------- 30일 최저 알림 (11/06 대표 결정: 먼저 사이트 안 알림, 이 기기에만 저장) ----------
+// 알림을 켠 상품이 있을 때만 온라인 특가 정보를 받아, AMONG 확인 30일 최저가 된 상품을 맨 위에 알린다(같은 가격은 한 번만).
+function checkPriceWatch() {
+  if (DEMO || !ONLINE_DEALS_ENABLED) return;
+  let n = 0;
+  try { n = (JSON.parse(localStorage.getItem('among_price_watch') || '[]') || []).length; } catch { n = 0; }
+  if (!n) return;
+  import('./online-deals.js?v=20261106-3').then(async (m) => {
+    const list = await m.checkPriceWatch({ apiUrl: API, dataUrl: CFG.onlineDeals.dataUrl });
+    if (!list.length) return;
+    try { navigator.setAppBadge?.(list.length); } catch { /* 지원 안 함 */ }
+    const b = $('#watchBanner');
+    setHTML(b, `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      <p><b>알림을 켠 상품${list.length > 1 ? ` ${list.length}개가` : '이'} 30일 최저예요</b><span>${esc(list[0].title)}${list.length > 1 ? ` 외 ${list.length - 1}개` : ''} · AMONG 확인 가격 기준</span></p>
+      <button type="button" class="wb-go" data-watch-go>보기</button><button type="button" class="wb-close" data-watch-close aria-label="알림 닫기">×</button>`);
+    b.hidden = false;
+    b.onclick = (e) => {
+      if (e.target.closest('[data-watch-go]')) {
+        b.hidden = true; changeView('onlineDeals');
+        const t0 = Date.now();
+        const go = () => { const el = $('#onlineDeals .od-watch-section:not([hidden])'); if (el) el.scrollIntoView({ block: 'start' }); else if (Date.now() - t0 < 8000) setTimeout(go, 300); };
+        go();
+      } else if (e.target.closest('[data-watch-close]')) { b.hidden = true; m.markWatchSeen(list); }
+    };
+  }).catch(() => {});
+}
+
 let toastTimer;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
@@ -1340,6 +1367,6 @@ $('#demoNote').hidden = !DEMO;
 render();
 // 온라인 특가 직접 주소는 쿠폰 API가 느리거나 실패해도 바로 열 수 있다.
 if (params.get('view') === 'onlineDeals' && ONLINE_DEALS_ENABLED && !params.get('ac') && !params.get('c') && !params.get('n')) changeView('onlineDeals');
-loadCoupons().then(() => { openFromLink(); checkStatusOnLoad(); });
+loadCoupons().then(() => { openFromLink(); checkStatusOnLoad(); checkPriceWatch(); });
 track('visit', { value: document.referrer ? host(document.referrer) : '' });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

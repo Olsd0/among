@@ -107,6 +107,64 @@ function odWriteLeads_(leads) {
       posted_at: l.postedAt, found_at: l.foundAt };
   }));
 }
+// ---------- 가격 기록 (11/06: AMONG이 확인한 가격으로 최근 30일 최저 계산) ----------
+// 카드에 가격을 새로 확인해 저장할 때마다(관리 화면 저장·여러 개 한 번에·매일 아침 가격 일괄 기록) 한 줄씩 남긴다. 35일 지나면 정리.
+const OD_PRICE_LOG_KEEP_DAYS = 35;
+function odReadPriceLog_() {
+  return readTable_('online_price_log').rows.map(function (r) {
+    return { pickId: String(r.pick_id), price: Number(r.price), at: String(r.checked_at) };
+  }).filter(function (r) { return /^pk_[0-9a-z]{8,24}$/.test(r.pickId) && Number.isSafeInteger(r.price) && r.price > 0 && Number.isFinite(Date.parse(r.at)); });
+}
+function odAppendPriceLog_(entries) {
+  if (!entries.length) return;
+  const from = Date.now() - OD_PRICE_LOG_KEEP_DAYS * OD_DAY;
+  const rows = odReadPriceLog_().concat(entries).filter(function (r) { return Date.parse(r.at) > from; }).slice(-20000);
+  writeTable_(sheet_('online_price_log'), SHEETS.online_price_log, rows.map(function (r) { return { pick_id: r.pickId, price: r.price, checked_at: r.at }; }));
+}
+/** 처음 배포 때 한 번: 기록이 비어 있으면 지금 카드에 있는 확인 가격을 첫 기록으로 (migrate_에서 잠금 안에서 부름) */
+function odSeedPriceLog_() {
+  if (odReadPriceLog_().length) return;
+  const from = Date.now() - OD_LOW_DAYS * OD_DAY;
+  odAppendPriceLog_(odReadPicks_().filter(function (p) { return odPosInt_(p.price) && Date.parse(p.priceCheckedAt) > from; })
+    .map(function (p) { return { pickId: p.id, price: p.price, at: p.priceCheckedAt }; }));
+}
+/** 카드별 최근 30일 기록 통계 { pk_…: {low, high, days, since} } */
+function odPriceStatsMap_(now) {
+  const by = {}, out = {};
+  odReadPriceLog_().forEach(function (r) { (by[r.pickId] = by[r.pickId] || []).push(r); });
+  Object.keys(by).forEach(function (id) { out[id] = odPriceStats(by[id], now); });
+  return out;
+}
+/**
+ * 가격 일괄 기록 (관리 화면 '가격 일괄 기록' · 매일 아침 확인 워크플로 online-prices.yml).
+ * 있는 카드만 바꾸고 가격·확인 시각을 지금으로, 항목별 상품은 노출을 30일 뒤까지 늘린다(계속 파는 상품). 특가·숨긴 카드는 그대로.
+ */
+function odApplyPrices_(list, now) {
+  const obs = odPriceObservations(list);
+  if (!obs.length) throw new Error('기록할 가격이 없어요. [{"id":"pk_…","price":12900}] 형식으로 넣으세요.');
+  const picks = odReadPicks_();
+  const at = new Date(now).toISOString();
+  const done = [], missing = [];
+  obs.forEach(function (o) {
+    const p = picks.filter(function (x) { return x.id === o.id; })[0];
+    if (!p || p.hidden) { missing.push(o.id); return; }
+    p.price = o.price; p.priceCheckedAt = at; p.updatedAt = at;
+    if (p.item) p.endsAt = new Date(Math.max(Date.parse(p.endsAt) || 0, now + OD_PICK_ITEM_DAYS * OD_DAY)).toISOString();
+    done.push(p);
+  });
+  if (done.length) { odWritePicks_(picks); odAppendPriceLog_(odFreshLog_(done, at)); }
+  return { recorded: done.length, missing: missing };
+}
+/** 매일 아침 확인 워크플로(COLLECTOR_TOKEN)가 부르는 입구. 카드 목록(공개 정보)과 기록 결과만 돌려준다 */
+function odPricesIngest_(b) {
+  const r = odApplyPrices_(b.prices, Date.now());
+  return { ok: true, recorded: r.recorded, missing: r.missing };
+}
+/** 저장한 카드 중 지금 가격을 확인한 것(확인 시각 = 지금)을 기록 줄로 */
+function odFreshLog_(picks, at) {
+  return picks.filter(function (p) { return odPosInt_(p.price) && p.priceCheckedAt === at; }).map(function (p) { return { pickId: p.id, price: p.price, at: at }; });
+}
+
 /** 수집기가 찾은 후보를 같은 기준(odLeadInput)으로 다시 검사해 새 것만 더한다 */
 function odLeadsIngest_(b) {
   if (!Array.isArray(b.leads) || b.leads.length > 50) throw new Error('bad leads');
@@ -143,7 +201,8 @@ function getOnlineDeals_() {
   const pubs = Object.keys(ctx.suppliers).map(function (id) { return ctx.suppliers[id]; }).filter(function (s) { return s.mode === 'publish' && s.lastSuccessAt; });
   const recent = pubs.some(function (s) { return Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR; });
   const state = items.length || recent ? 'live' : pubs.length ? 'delayed' : 'preparing';
-  const picks = odReadPicks_().sort(odNewest_).map(function (p) { return odPickPublic(p, ctx.now); }).filter(Boolean).slice(0, OD_PICK_MAX);
+  const stats = odPriceStatsMap_(ctx.now);
+  const picks = odReadPicks_().sort(odNewest_).map(function (p) { return odPickPublic(p, ctx.now, stats[p.id]); }).filter(Boolean).slice(0, OD_PICK_MAX);
   if (picks.length && disclosures.indexOf(OD_SUPPLIERS.coupang.disclosure) < 0) disclosures.unshift(OD_SUPPLIERS.coupang.disclosure);
   const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, picks: picks, disclosures: disclosures };
   try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
@@ -261,10 +320,13 @@ function odAdmin_() {
       };
     }),
     runs: runs,
-    picks: odReadPicks_().sort(odNewest_).map(function (p) {
-      const pub = odPickPublic(p, ctx.now);
-      return Object.assign({}, p, { live: !!pub, price_fresh: !!(pub && pub.price) });
-    }),
+    picks: (function () {
+      const stats = odPriceStatsMap_(ctx.now);
+      return odReadPicks_().sort(odNewest_).map(function (p) {
+        const pub = odPickPublic(p, ctx.now, stats[p.id]);
+        return Object.assign({}, p, { live: !!pub, price_fresh: !!(pub && pub.price), price_stats: stats[p.id] || null, at_low: !!(pub && pub.atLow) });
+      });
+    })(),
     leads: odReadLeads_().filter(function (l) { return l.status === 'new'; })
       .sort(function (a, b) { return a.foundAt < b.foundAt ? 1 : a.foundAt > b.foundAt ? -1 : 0; }).slice(0, 60),
   };
@@ -315,6 +377,7 @@ function odAdminSet_(b) {
       picks.push(res.pick);
     } else picks[picks.indexOf(prev)] = res.pick;
     odWritePicks_(picks);
+    odAppendPriceLog_(odFreshLog_([res.pick], new Date(now).toISOString()));
     // 자동 후보로 만든 카드면 그 후보를 '사용함'으로 (목록에서 빠짐)
     if (b.lead_key) {
       const leads = odReadLeads_();
@@ -343,6 +406,10 @@ function odAdminSet_(b) {
     });
     if (errs.length) throw new Error(errs.join(' / '));
     odWritePicks_(picks.concat(made));
+    odAppendPriceLog_(odFreshLog_(made, new Date(now).toISOString()));
+  } else if (op === 'pick_prices') {
+    const result = odApplyPrices_(b.prices, now);
+    return Object.assign(odAdmin_(), { price_result: result });
   } else if (op === 'lead_dismiss') {
     const leads = odReadLeads_();
     const lead = leads.filter(function (l) { return l.key === String(b.key || ''); })[0];

@@ -1,7 +1,7 @@
 // 온라인 특가 화면 (선택해서 열 때만 불러옴). 프랜차이즈 쿠폰 데이터와 섞지 않는다.
 // 상품은 승인된 공급처에서 자동으로 확인해 검증을 통과한 것만 Apps Script가 내려 준다.
 // 서버 응답도 그대로 믿지 않고 같은 규칙(online-deals-core.js)으로 다시 검사한다.
-import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261106-2';
+import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261106-3';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 // 항목별 바로가기 (11/05 대표 요청: 자취에 필요한 물품을 항목별로). 쿠팡 검색 결과 페이지로 보낸다 — AMONG이 고른 상품·가격이 아니다.
@@ -35,10 +35,52 @@ export function normalizeOnlineDeals(payload, now = Date.now()) {
 export function normalizePicks(payload, now = Date.now()) {
   if (!payload || !Array.isArray(payload.picks)) return [];
   const seen = new Set();
-  return payload.picks.slice(0, 100).map(row => odClientPick(row, now)).filter(p => {
+  return payload.picks.slice(0, 150).map(row => odClientPick(row, now)).filter(p => {
     if (!p || seen.has(p.id)) return false;
     seen.add(p.id); return true;
-  }).slice(0, 60);
+  }).slice(0, 120);
+}
+
+// ---------- 30일 최저 알림 (11/06 대표 결정: 먼저 사이트 안 알림, 이 기기에만 저장 — 가입·서버 저장·개인정보 수집 없음) ----------
+const WATCH_KEY = 'among_price_watch', SEEN_KEY = 'among_price_watch_seen';
+const PK = /^pk_[0-9a-z]{8,24}$/;
+const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+/** 알림을 켠 카드 [{id, t(상품명), at}] (최대 100개) */
+export function readWatch() {
+  const v = lsGet(WATCH_KEY, []);
+  return Array.isArray(v) ? v.filter(w => w && typeof w.id === 'string' && PK.test(w.id)).slice(0, 100) : [];
+}
+export function toggleWatch(p) {
+  const list = readWatch(), on = !list.some(w => w.id === p.id);
+  const next = on ? [{ id: p.id, t: String(p.title || '').slice(0, 80), at: new Date().toISOString() }, ...list].slice(0, 100) : list.filter(w => w.id !== p.id);
+  return lsSet(WATCH_KEY, next) ? on : null;
+}
+/** 이미 알려 드린 최저(카드별 가격)는 다시 알리지 않는다 */
+export function markWatchSeen(picks) {
+  const seen = lsGet(SEEN_KEY, {});
+  const next = seen && typeof seen === 'object' && !Array.isArray(seen) ? seen : {};
+  picks.forEach(p => { next[p.id] = p.price; });
+  const keep = Object.fromEntries(Object.entries(next).filter(([k]) => PK.test(k)).slice(-200));
+  lsSet(SEEN_KEY, keep);
+  try { navigator.clearAppBadge?.(); } catch { /* 지원 안 함 */ }
+}
+/** 앱을 열 때: 알림을 켠 카드 중 지금 AMONG 확인 30일 최저이고 아직 알려 드리지 않은 것 */
+export async function checkPriceWatch(options = {}) {
+  const watch = readWatch();
+  if (!watch.length) return [];
+  const src = source(options);
+  if (!src) return [];
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(src.href, { signal: ctrl.signal, credentials: 'omit', cache: 'no-store', redirect: src.redirect });
+    if (!res.ok) return [];
+    const j = await res.json();
+    const ids = new Set(watch.map(w => w.id));
+    const seen = lsGet(SEEN_KEY, {}) || {};
+    return normalizePicks(j).filter(p => ids.has(p.id) && p.atLow && seen[p.id] !== p.price);
+  } catch { return []; } finally { clearTimeout(timer); }
 }
 
 const kst = value => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value));
@@ -52,6 +94,7 @@ export function when(value, now = Date.now()) {
   return `${days === 0 ? '오늘' : days === 1 ? '어제' : days === -1 ? '내일' : `${d.getUTCMonth() + 1}/${d.getUTCDate()}`} ${hm}`;
 }
 const NEW_TAB = '<span class="od-sr-only"> (새 탭)</span><span aria-hidden="true" class="od-arrow">↗</span>';
+const BELL = '<svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 
 // 쿠폰 티켓 왼쪽 칸 (메인 쿠폰 카드와 같은 .ticket/.stub). 사진이 있으면 사진을 비율 그대로(자르거나 덮지 않음),
 // 사진을 못 불러오면 글자 칸으로 바뀐다(onImageError).
@@ -79,20 +122,25 @@ export function onlineDealCard(item, now = Date.now()) {
   </div></div></article>`;
 }
 
-/** 직접 고른 쿠팡 특가 — 카드 전체가 AMONG 간편 링크. 사진(파트너스 배너)과 확인한 가격을 바로 보이게 */
-export function pickCard(p, now = Date.now()) {
+/**
+ * 직접 고른 쿠팡 특가 — 카드 전체가 AMONG 간편 링크. 사진(파트너스 배너)과 확인한 가격을 바로 보이게.
+ * 30일 최저(AMONG 확인 기록 3일 이상)는 작은 줄로, 지금 가격이 그 최저면 '30일 최저' 표시. 알림 버튼은 링크 밖(카드 왼쪽 아래)에 둔다.
+ */
+export function pickCard(p, now = Date.now(), watched = false) {
   const label = p.item ? OD_PICK_ITEMS[p.item].label : OD_PICK_CATEGORIES[p.category];
-  const price = p.price ? `<b>${p.price}원</b><span class="what">확인 당시 가격</span>` : '<span class="what">가격은 쿠팡에서 확인</span>';
-  // 항목별 상품은 가격 확인이 지나도 남아 있으므로 '언제까지' 대신 확인 시각만 (가격이 없으면 칩 없음)
-  const chip = p.price ? `${when(p.priceCheckedAt, now)} 확인` : p.item ? '' : `${when(p.visibleUntil, now)}까지`;
-  return `<li class="card"><a class="tk od-pick-card" data-od-pick="${esc(p.id)}" href="${esc(p.url)}" target="_blank" rel="sponsored noopener noreferrer"><span class="ticket od-ticket">
+  const price = p.price ? `<b>${p.price}원</b>${p.atLow ? '<span class="od-low-badge">30일 최저</span>' : '<span class="what">확인 당시 가격</span>'}` : '<span class="what">가격은 쿠팡에서 확인</span>';
+  // 항목별 상품은 가격 확인이 지나도 남아 있으므로 '언제까지' 대신 확인 시각만
+  const meta = [p.price ? `${when(p.priceCheckedAt, now)} 확인` : p.item ? '' : `${when(p.visibleUntil, now)}까지`,
+    p.low30 ? `AMONG 확인 30일 최저 ${p.low30}원 (${p.lowDays}일 기록)` : ''].filter(Boolean).join(' · ');
+  return `<li class="card od-pick-li"><a class="tk od-pick-card" data-od-pick="${esc(p.id)}" href="${esc(p.url)}" target="_blank" rel="sponsored noopener noreferrer"><span class="ticket od-ticket">
     ${stubHtml(p.imageUrl, '쿠팡', label)}
     <span class="body"><span class="who"><span class="bn">쿠팡 · ${esc(label)}</span><span class="od-ad-label">제휴광고</span></span>
     <span class="menu">${esc(p.title)}</span>
     <span class="price">${price}</span>
+    ${meta ? `<span class="od-meta">${esc(meta)}</span>` : ''}
     ${p.note ? `<span class="conds"><span>${esc(p.note)}</span></span>` : ''}
-    <span class="foot">${chip ? `<span class="chip">${esc(chip)}</span>` : ''}<span class="cta">쿠팡에서 보기${NEW_TAB}</span></span></span>
-  </span></a></li>`;
+    <span class="foot"><span class="cta">쿠팡에서 보기${NEW_TAB}</span></span></span>
+  </span></a><button type="button" class="od-watch" data-od-watch="${esc(p.id)}" aria-pressed="${watched}">${BELL}<span class="od-watch-text">${watched ? '알림 중' : '최저 알림'}</span><span class="od-sr-only"> ${esc(p.title)}</span></button></li>`;
 }
 
 function loadStyles() {
@@ -125,12 +173,16 @@ export function createOnlineDealsUI(root, options = {}) {
   const shortcuts = shortcutLinks(options.shortcutLinks);
   const shortcutAffiliate = shortcuts.some(g => g.items.some(i => i.affiliate));
   const rel = affiliate => (affiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer');
-  let payload = { items: [], picks: [] }, active = false, loaded = false, loading = false, failed = false, cat = 'all', item = '';
+  let payload = { items: [], picks: [] }, active = false, loaded = false, loading = false, failed = false, cat = 'all', item = '', watching = new Set();
   let request = null, expiryTimer = 0, controller = null, destroyed = false;
   root.classList.add('od-view');
   root.setAttribute('aria-labelledby', 'onlineDealsTitle');
   root.innerHTML = `<div class="od-heading"><p class="od-eyebrow">필요한 장보기도, 한곳에서</p><h2 id="onlineDealsTitle">온라인 특가</h2><p>식품·생활용품 특가를 쿠폰처럼 사진과 가격으로 둘러보세요.</p></div>
     <div class="od-disclosure" hidden></div>
+    <section class="od-watch-section" aria-labelledby="odWatchTitle" hidden><div class="od-list-heading"><h3 id="odWatchTitle">내 최저 알림</h3><p class="od-watch-count"></p></div>
+      <p class="od-watch-help">알림을 켠 상품이 AMONG이 확인한 최근 30일 가격 중 가장 낮아지면, AMONG을 열 때 맨 위에 알려 드려요. 알림은 이 기기에만 저장돼요.</p>
+      <ul class="od-picks-list od-watch-list" role="list"></ul><p class="od-watch-gone" hidden></p></section>
+    <p class="od-sr-only od-watch-live" role="status" aria-live="polite"></p>
     <section class="od-picks" aria-labelledby="odPicksTitle"><div class="od-list-heading"><h3 id="odPicksTitle">AMONG이 고른 쿠팡 특가</h3><p class="od-pick-count"></p></div>
       <div class="od-cats" role="group" aria-label="항목" hidden></div>
       <div class="od-status" role="status" aria-live="polite"></div><ul class="od-picks-list" role="list"></ul>
@@ -145,10 +197,26 @@ export function createOnlineDealsUI(root, options = {}) {
       <span class="foot"><span class="cta">쿠팡에서 특가 보기${NEW_TAB}</span></span></span></span></a></div>
     <p class="od-footnote">주문과 결제는 각 판매처에서 진행돼요. AMONG은 가격을 보장하지 않아요.</p>`;
   const list = root.querySelector('.od-products-list');
-  const pickList = root.querySelector('.od-picks-list');
+  const pickList = root.querySelector('.od-picks > .od-picks-list');
   const status = root.querySelector('.od-status');
 
   // 항목별: 고른 상품이 하나라도 있으면 항목 탭 + 그 항목의 상품 카드 + '쿠팡에서 더 보기', 없으면 검색 바로가기 칩만
+  // 내 최저 알림: 알림을 켠 카드 중 지금 공개된 것 (30일 최저인 것 먼저). 보이는 최저는 '알려 드림'으로 표시해 앱 배너에 다시 뜨지 않게
+  function renderWatch(all, now) {
+    const box = root.querySelector('.od-watch-section');
+    const list = readWatch();
+    box.hidden = !list.length || loading || failed;
+    if (box.hidden) { root.querySelector('.od-watch-list').innerHTML = ''; return; }
+    const live = all.filter(p => watching.has(p.id)).sort((a, b) => Number(b.atLow) - Number(a.atLow));
+    const gone = list.length - live.length;
+    root.querySelector('.od-watch-count').textContent = `${list.length}개`;
+    root.querySelector('.od-watch-list').innerHTML = live.map(p => pickCard(p, now, true)).join('');
+    const goneEl = root.querySelector('.od-watch-gone');
+    goneEl.hidden = !gone;
+    goneEl.textContent = gone ? `지금 공개되지 않은 상품 ${gone}개는 다시 올라오면 여기에 보여 드려요.` : '';
+    if (active) { const low = live.filter(p => p.atLow); if (low.length) markWatchSeen(low); }
+  }
+
   function renderItems(itemPicks, now) {
     const box = root.querySelector('.od-shortcuts');
     const affiliate = shortcutAffiliate || itemPicks.length > 0;
@@ -166,7 +234,7 @@ export function createOnlineDealsUI(root, options = {}) {
     const mine = itemPicks.filter(p => p.item === item);
     box.innerHTML = `${head}<p>AMONG이 쿠팡에서 고른 자취 필수품이에요. 가격은 확인 후 24시간만 보여 드려요.</p>
       <div class="od-cats od-item-tabs" role="group" aria-label="항목">${flat.map(i => `<button type="button" class="chip-btn" data-od-item="${esc(i.key)}" aria-pressed="${i.key === item}">${esc(i.label)}${counts[i.key] ? ` <span class="n">${counts[i.key]}</span>` : ''}</button>`).join('')}</div>
-      ${mine.length ? `<ul class="od-picks-list od-item-list" role="list">${mine.map(p => pickCard(p, now)).join('')}</ul>` : `<p class="od-item-empty">${esc(sel.label)}은(는) 아직 고른 상품이 없어요.</p>`}
+      ${mine.length ? `<ul class="od-picks-list od-item-list" role="list">${mine.map(p => pickCard(p, now, watching.has(p.id))).join('')}</ul>` : `<p class="od-item-empty">${esc(sel.label)}은(는) 아직 고른 상품이 없어요.</p>`}
       <a class="od-sc od-item-more" data-od-shortcut="${esc(sel.key)}" href="${esc(sel.url)}" target="_blank" rel="${rel(sel.affiliate)}">쿠팡에서 ${esc(sel.label)} 더 보기<span class="od-sr-only"> (새 탭)</span><span aria-hidden="true" class="od-arrow">↗</span></a>`;
   }
 
@@ -176,6 +244,7 @@ export function createOnlineDealsUI(root, options = {}) {
     let items = [];
     try { items = normalizeOnlineDeals(payload); } catch { /* 형식이 맞지 않으면 빈 목록 (쿠폰 화면에는 영향 없음) */ }
     const all = normalizePicks(payload);
+    watching = new Set(readWatch().map(w => w.id));
     const picks = all.filter(p => !p.item), itemPicks = all.filter(p => p.item);
     root.setAttribute('aria-busy', String(loading));
     // 제휴 링크가 있는 공급처의 고지 문구를 목록보다 먼저 보여 준다 (화면이 가진 목록 기준, 서버 문구를 그대로 쓰지 않음).
@@ -200,7 +269,8 @@ export function createOnlineDealsUI(root, options = {}) {
     cats.innerHTML = present.length < 2 ? '' : [['all', '전체', picks.length], ...present.map(k => [k, OD_PICK_CATEGORIES[k], counts[k]])]
       .map(([k, label, n]) => `<button type="button" class="chip-btn" data-od-cat="${k}" aria-pressed="${k === cat}">${esc(label)} <span class="n">${n}</span></button>`).join('');
     const now = Date.now();
-    pickList.innerHTML = picks.filter(p => cat === 'all' || p.category === cat).map(p => pickCard(p, now)).join('');
+    pickList.innerHTML = picks.filter(p => cat === 'all' || p.category === cat).map(p => pickCard(p, now, watching.has(p.id))).join('');
+    renderWatch(all, now);
     renderItems(itemPicks, now);
     const none = !items.length && !picks.length;
     if (loading) status.innerHTML = '<span>상품 정보를 확인하고 있어요…</span>';
@@ -245,6 +315,20 @@ export function createOnlineDealsUI(root, options = {}) {
     if (event.target.closest('[data-od-retry]')) { void refresh(); return; }
     const c = event.target.closest('[data-od-cat]');
     if (c) { cat = c.dataset.odCat; render(); root.querySelector(`[data-od-cat="${cat}"]`)?.focus(); return; }
+    const w = event.target.closest('[data-od-watch]');
+    if (w) {
+      const p = normalizePicks(payload).find(x => x.id === w.dataset.odWatch);
+      if (!p) return;
+      const on = toggleWatch(p);
+      if (on === null) { w.title = '이 기기에 저장하지 못했어요. 브라우저 저장 설정을 확인해 주세요.'; return; }
+      const id = CSS.escape(p.id), inWatch = !!w.closest('.od-watch-list');
+      render();
+      // 누른 목록의 같은 버튼으로 초점을 돌려준다 (알림 목록에서 끈 카드는 사라지므로 본 목록의 버튼으로)
+      (inWatch && root.querySelector(`.od-watch-list [data-od-watch="${id}"]`) || root.querySelector(`.od-picks-list:not(.od-watch-list) [data-od-watch="${id}"]`))?.focus();
+      const live = root.querySelector('.od-watch-live');
+      if (live) live.textContent = on ? `${p.title} 최저 알림을 켰어요.` : `${p.title} 최저 알림을 껐어요.`;
+      return;
+    }
     const it = event.target.closest('[data-od-item]');
     if (it) { item = it.dataset.odItem; render(); root.querySelector(`[data-od-item="${item}"]`)?.focus(); }
   }

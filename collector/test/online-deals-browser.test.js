@@ -741,3 +741,68 @@ test('항목별 상품: 파트너스 HTML 여러 개를 한 번에 붙여 올리
   assert.ok(outside.filter(u => !u.startsWith('https://cdn.jsdelivr.net/')).every(u => /^https:\/\/img5c\.coupangcdn\.com\/image\/affiliate\//.test(u)), outside.join(', '));
   assert.deepEqual(errors, []);
 });
+
+test('30일 최저·최저 알림: 기록 3일부터 표시, 알림을 켠 상품이 30일 최저가 되면 첫 화면 배너, 보면 다시 뜨지 않음, 알림은 이 기기에만', { timeout: 90000 }, async t => {
+  const { gas, admin, page, errors } = await chain(t, { width: 390, batch: [], publish: false });
+  const DAY = 24 * HOUR;
+  const set = body => { const r = gas.post({ action: 'online_admin_set', token: admin, ...body }); assert.equal(r.ok, true, r.error); return r; };
+  const later = async ms => { gas.clock.now += ms; gas.cache.clear(); await page.clock.setFixedTime(new Date(gas.clock.now + 60 * 1000)); };
+  const water = set({ op: 'pick_save', pick: { title: '테스트 생수 2L 12개', url: 'https://link.coupang.com/a/lowWater01', item: 'water', price: '6000' } }).picks[0];
+  await later(DAY);
+  set({ op: 'pick_prices', prices: [{ id: water.id, price: 5900 }] });
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  const panel = page.locator('#onlineDeals');
+  const card = panel.locator('.od-item-list .od-pick-li');
+  await card.waitFor();
+  assert.doesNotMatch(await card.innerText(), /30일 최저/, '기록 2일: 아직 표시 안 함');
+  const bell = card.locator('[data-od-watch]');
+  assert.equal(await bell.getAttribute('aria-pressed'), 'false');
+  assert.match(await bell.innerText(), /최저 알림/);
+  await bell.click();
+  assert.equal(await bell.getAttribute('aria-pressed'), 'true');
+  assert.match(await bell.innerText(), /알림 중/);
+  assert.ok(await bell.evaluate(el => el === document.activeElement), '다시 그린 뒤에도 같은 버튼에 초점');
+  assert.match(await panel.locator('.od-watch-live').innerText(), /최저 알림을 켰어요/);
+  const watchBox = panel.locator('.od-watch-section');
+  assert.equal(await watchBox.isVisible(), true);
+  assert.deepEqual(await watchBox.locator('.menu').allInnerTexts(), ['테스트 생수 2L 12개']);
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('among_price_watch')));
+  assert.deepEqual(stored.map(w => w.id), [water.id]);
+  assert.deepEqual(Object.keys(stored[0]).sort(), ['at', 'id', 't'], '이 기기에는 카드 번호·상품명·켠 시각만');
+  // 다음 날 가격이 내려가 30일 최저가 됨 → 첫 화면 배너
+  await later(DAY);
+  set({ op: 'pick_prices', prices: [{ id: water.id, price: 5690 }] });
+  await page.goto(site.base + '/index.html');
+  const banner = page.locator('#watchBanner');
+  await banner.waitFor();
+  assert.match(await banner.innerText(), /알림을 켠 상품이 30일 최저예요[\s\S]*테스트 생수 2L 12개/);
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await noOverflow(page), `배너 ${width}px`);
+    if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/price-watch-banner-${width}.png` });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await banner.getByRole('button', { name: '보기' }).click();
+  await watchBox.waitFor();
+  const low = watchBox.locator('.od-pick-li');
+  const lowText = await low.innerText();
+  assert.match(lowText, /5690원[\s\S]*30일 최저/);
+  assert.match(lowText, /AMONG 확인 30일 최저 5690원 \(3일 기록\)/);
+  assert.doesNotMatch(await panel.innerText(), /최저가|역대가|할인율/);
+  assert.ok(await noOverflow(page));
+  if (process.env.AMONG_QA_DIR) { await watchBox.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/price-watch-390.png`, fullPage: true }); }
+  // 본 뒤에는 같은 가격으로 다시 알리지 않음
+  await page.goto(site.base + '/index.html');
+  await page.waitForResponse(r => /script\.google\.com/.test(r.url()) && /online_deals/.test(r.url()));
+  await page.waitForTimeout(500);
+  assert.equal(await banner.isVisible(), false, '본 최저는 다시 알리지 않음');
+  // 알림 끄기 → 알림 목록이 사라짐
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  await watchBox.waitFor();
+  await watchBox.locator('[data-od-watch]').click();
+  assert.equal(await watchBox.isVisible(), false);
+  assert.equal(await card.locator('[data-od-watch]').getAttribute('aria-pressed'), 'false');
+  assert.ok(await card.locator('[data-od-watch]').evaluate(el => el === document.activeElement), '알림 목록에서 끄면 본 목록 버튼으로 초점');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('among_price_watch') || '[]')), []);
+  assert.deepEqual(errors, []);
+});

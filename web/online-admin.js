@@ -1,6 +1,6 @@
 // 온라인 특가 관리: 공급처 연결 상태·모드, 보류 사유, 숨김·분류 지정, 운영 규칙, 실행 기록.
 // 운영자는 예외와 규칙만 다룬다. 상품을 직접 입력하는 기능은 두지 않는다.
-import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261106-2';
+import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261106-3';
 
 const root = document.querySelector('#onlineDealsManager');
 const API = window.AMONG_CONFIG?.apiUrl || '';
@@ -50,6 +50,10 @@ root.innerHTML = `<div class="od-admin-heading"><div><h2>온라인 특가</h2><p
         <label class="od-check wide"><input type="checkbox" name="recheck">가격을 방금 쿠팡에서 다시 확인했어요 (확인 시각을 지금으로)</label>
         <div class="wide od-pick-actions"><button type="submit" class="primary" id="odPickSubmit">카드 등록</button><button type="button" id="odPickCancel" hidden>수정 취소</button></div>
       </form>
+      <details class="od-price-batch"><summary>가격 일괄 기록</summary>
+        <p class="muted">쿠팡에서 방금 확인한 가격을 카드 번호와 함께 넣으면 가격·확인 시각을 한꺼번에 바꾸고 30일 최저 계산에 기록해요. 항목별 상품은 노출이 30일 뒤까지 늘어나요. 한 줄에 하나씩 <code>카드번호 가격</code> (예: <code>pk_0123456789abcdef 5690</code>) 또는 JSON. 매일 아침 자동 확인은 GitHub 워크플로(online-prices.yml)로 들어와요.</p>
+        <textarea id="odPriceBatch" rows="4" autocomplete="off" spellcheck="false" aria-label="카드 번호와 확인한 가격" placeholder="pk_0123456789abcdef 5690"></textarea>
+        <div class="od-pick-actions"><button type="button" id="odPriceBatchSave">가격 기록</button></div></details>
       <div id="odPicks" class="od-items"></div></section>
     <h3>자동 확인 (쿠팡 API · 승인 후)</h3>
     <div id="odSuppliers" class="od-suppliers"></div>
@@ -177,7 +181,9 @@ function pickRows() {
     const confirm = pendingDelete === p.id;
     return `<article class="od-item${p.imageUrl ? ' has-thumb' : ''}" data-pick-id="${esc(p.id)}">${p.imageUrl ? `<img class="od-pick-thumb" src="${esc(p.imageUrl)}" alt="" width="40" height="80" loading="lazy" referrerpolicy="no-referrer">` : ''}<div class="od-item-top"><span class="pill ${p.live ? 'good' : p.hidden ? '' : 'warn'}">${state}</span><b>${esc(p.title)}</b>${p.imageUrl ? '' : '<span class="muted">사진 없음</span>'}</div>
       <p>${esc(placeLabel(p))} · ${esc(price)} · ${esc(kstDay(Date.parse(p.endsAt)))}까지${Date.parse(p.endsAt) <= now ? ' (끝남)' : ''}${p.note ? ` · ${esc(p.note)}` : ''}</p>
+      ${p.price_stats ? `<p class="${p.at_low ? 'od-low-line' : 'muted'}">AMONG 확인 기록 ${p.price_stats.days}일 · 30일 최저 ${p.price_stats.low}원 · 최고 ${p.price_stats.high}원${p.price_stats.days < 3 ? ' (3일부터 공개 화면에 표시)' : ''}${p.at_low ? ' · 지금 30일 최저' : ''}</p>` : ''}
       ${p.memo ? `<p class="muted">출처 메모: ${esc(p.memo)}</p>` : ''}
+      <p class="muted od-pick-id">카드 번호 ${esc(p.id)}</p>
       <div class="od-item-actions"><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer sponsored">링크 확인 ↗</a>
         <button type="button" data-pick-edit>수정·가격 갱신</button><button type="button" data-pick-hide>${p.hidden ? '다시 보이기' : '숨기기'}</button>
         <button type="button" data-pick-delete class="${confirm ? 'danger' : ''}">${confirm ? '정말 삭제' : '삭제'}</button></div></article>`;
@@ -198,6 +204,7 @@ function leadRows() {
 let pendingDelete = '';
 function render(j, note) {
   data = j;
+  if (typeof note === 'function') note = note(j);
   $('#odAdminContent').hidden = false;
   pendingDelete = '';
   if (!$('#odPickForm').elements.id.value) resetPickForm();
@@ -352,6 +359,26 @@ $('#odPickForm').elements.url.addEventListener('input', e => {
   applyPartnerHtml(v);
 });
 $('#odPickPhotoRemove').addEventListener('click', () => { setPhoto(''); message('사진을 뺐어요. 카드에는 글자 칸이 들어가요.'); });
+// 가격 일괄 기록: '카드번호 가격' 줄 또는 JSON [{id, price}] → pick_prices (서버가 같은 기준으로 다시 검사)
+function parsePriceBatch(text) {
+  const t = String(text || '').trim();
+  if (t.startsWith('[')) { try { return JSON.parse(t); } catch { return null; } }
+  const out = [];
+  for (const line of t.split('\n').map(x => x.trim()).filter(Boolean)) {
+    const m = /^(pk_[0-9a-z]{8,24})\s+([\d,]+)\s*원?$/.exec(line);
+    if (!m) return null;
+    out.push({ id: m[1], price: Number(m[2].replace(/,/g, '')) });
+  }
+  return out;
+}
+$('#odPriceBatchSave').addEventListener('click', () => {
+  const prices = parsePriceBatch($('#odPriceBatch').value);
+  if (!prices || !prices.length) { message("형식을 확인하세요. 한 줄에 '카드번호 가격' (예: pk_0123456789abcdef 5690)", true); return; }
+  act({ op: 'pick_prices', prices }, j => {
+    const r = j.price_result || { recorded: 0, missing: [] };
+    return `${r.recorded}개 가격을 기록했어요.${r.missing.length ? ` 못 찾은 카드 ${r.missing.length}개(지웠거나 숨긴 카드).` : ''} 공개 화면에는 1분 안에 반영돼요.`;
+  }).then(() => { if (!$('#odAdminMessage').classList.contains('bad')) $('#odPriceBatch').value = ''; });
+});
 $('#odRulesForm').addEventListener('submit', e => {
   e.preventDefault();
   const f = new FormData(e.target);
