@@ -2216,11 +2216,11 @@ const odItem_ = v => (typeof v === 'string' && Object.prototype.hasOwnProperty.c
 function odGuessItem(title) {
   const t = String(title || '');
   if (/물티슈/.test(t)) return 'wipes';
-  if (/주방\s*세제|식기\s*세척|설거지/.test(t)) return 'dish';
-  if (/세탁\s*세제|섬유\s*유연|캡슐\s*세제|세탁용/.test(t)) return 'laundry';
+  if (/주방\s*세제|식기\s*세척|설거지|퐁퐁|프릴|트리오|순샘/.test(t)) return 'dish';
+  if (/세탁|섬유\s*유연|(?:액체|캡슐|가루|드럼)\s*세제/.test(t)) return 'laundry';
   if (/화장지|휴지|두루마리|키친\s*타월/.test(t)) return 'tissue';
   if (/생수|먹는\s*샘물|삼다수|탄산수|\d+(?:\.\d+)?\s*(?:L|리터)\b.*(?:병|개)/i.test(t)) return 'water';
-  if (/즉석\s*밥|햇반|오뚜기밥|백미밥|컵밥/.test(t)) return 'rice';
+  if (/즉석\s*밥|햇반|오뚜기밥|백미밥|흰밥|쌀밥|잡곡밥|현미밥|컵밥/.test(t)) return 'rice';
   if (/라면|짜파게티|컵면|봉지면/.test(t)) return 'ramen';
   if (/냉동|만두|교자|볶음밥|돈까스|피자|핫도그/.test(t)) return 'frozen';
   return '';

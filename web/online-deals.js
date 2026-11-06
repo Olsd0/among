@@ -1,7 +1,7 @@
 // 온라인 특가 화면 (선택해서 열 때만 불러옴). 프랜차이즈 쿠폰 데이터와 섞지 않는다.
 // 상품은 승인된 공급처에서 자동으로 확인해 검증을 통과한 것만 Apps Script가 내려 준다.
 // 서버 응답도 그대로 믿지 않고 같은 규칙(online-deals-core.js)으로 다시 검사한다.
-import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261106-1';
+import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261106-2';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 // 항목별 바로가기 (11/05 대표 요청: 자취에 필요한 물품을 항목별로). 쿠팡 검색 결과 페이지로 보낸다 — AMONG이 고른 상품·가격이 아니다.
