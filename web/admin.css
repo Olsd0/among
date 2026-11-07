@@ -12,7 +12,6 @@
 body { margin: 0; background: var(--bg); color: var(--text); font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; font-size: 14px; line-height: 1.45; }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 48px; }
 header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-header h1 img { width: 96px; height: auto; border-radius: 6px; vertical-align: middle; }
 h1 { font-size: 20px; margin: 0; flex: 1; }
 h2 { font-size: 15px; margin: 0 0 12px; }
 .ctrl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

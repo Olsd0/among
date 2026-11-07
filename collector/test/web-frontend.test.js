@@ -85,9 +85,22 @@ test('바나나 옐로우 로고와 바둑판 배너가 화면 크기와 테마�
   await page.goto(site.base + '/');
   const logo = page.getByRole('img', { name: 'AMONG', exact: true }).first();
   await logo.evaluate((img) => img.decode());
+  const symbol = page.locator('.bar .brand-symbol');
+  await symbol.evaluate((img) => img.decode());
+  const cornerAlpha = await logo.evaluate((img) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 100, 28);
+    return ctx.getImageData(0, 0, 1, 1).data[3];
+  });
+  assert.equal(cornerAlpha, 0, '글자 로고 모서리가 투명하다');
   for (const [width, colorScheme] of [[360, 'light'], [390, 'dark'], [1280, 'light'], [1280, 'dark']]) {
     await page.setViewportSize({ width, height: 844 });
     await page.emulateMedia({ colorScheme });
+    const [left, right] = await Promise.all([symbol.boundingBox(), logo.boundingBox()]);
+    assert.ok(left && right && left.x + left.width <= right.x);
+    assert.ok(Math.abs((left.y + left.height / 2) - (right.y + right.height / 2)) < 1);
+    assert.equal(await logo.evaluate((img) => getComputedStyle(img).filter), colorScheme === 'dark' ? 'invert(1)' : 'none');
     const banner = page.locator('.hero');
     const style = await banner.evaluate((el) => {
       const css = getComputedStyle(el);

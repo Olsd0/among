@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 136" role="img" aria-label="AMONG">
+  <defs>
+    <linearGradient id="r" x1="0" y1="0" x2=".85" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#a21cff"/><stop offset=".47" stop-color="#5735ff"/><stop offset="1" stop-color="#00cee7"/>
+    </linearGradient>
+    <linearGradient id="l" x1="0" y1="1" x2=".9" y2=".06">
+      <stop stop-color="#ffe765"/><stop offset=".48" stop-color="#ffe765"/><stop offset=".72" stop-color="#ffb64f"/><stop offset="1" stop-color="#f16b98"/>
+    </linearGradient>
+    <linearGradient id="p" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ff9260"/><stop offset=".45" stop-color="#ee589f"/><stop offset="1" stop-color="#8d43ef"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#r)" d="M67 5h17q7 0 10 8l44 102q4 10-6 10h-19q-8 0-11-7L67 41z"/>
+  <path fill="url(#l)" d="M7 68q0-7 7-7h23L59 13q3-8 11-8h14q6 0 9 6c-7-2-11 6-14 13l-39 94q-3 7-10 7H13q-7 0-7-7v-16c12-1 13-19 1-21z"/>
+  <path fill="url(#p)" fill-rule="evenodd" d="M74 80c-11 0-19 8-19 19 0 7 6 14 16 29q3 6 6 0c10-15 16-22 16-29 0-11-8-19-19-19zm0 10a8 8 0 1 0 0 16 8 8 0 0 0 0-16z"/>
+</svg>

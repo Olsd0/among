@@ -10,3 +10,18 @@
   :root:not([data-theme="light"]) { --primary-label: var(--primary); --primary-soft: #383018; }
 }
 :root[data-theme="dark"] { --primary-label: var(--primary); --primary-soft: #383018; }
+
+/* Keep both halves legible on the page surface, including an explicitly selected theme. */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  vertical-align: middle;
+  flex: none;
+}
+.brand-lockup .brand-symbol { display: block; width: 36px; height: 34px; }
+.brand-lockup .wordmark { display: block; width: 100px; height: auto; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-lockup .wordmark { filter: invert(1); }
+}
+:root[data-theme="dark"] .brand-lockup .wordmark { filter: invert(1); }

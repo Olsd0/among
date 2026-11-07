@@ -33,7 +33,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .top { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
 .top-in { max-width: 720px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 10px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-weight: 800; letter-spacing: -.01em; }
-.brand img { display: block; width: 96px; height: auto; border-radius: 6px; }
 .top nav { margin-left: auto; display: flex; gap: 2px; font-size: 13.5px; }
 .top nav a { color: var(--text-2); text-decoration: none; padding: 6px 8px; border-radius: 999px; }
 .top nav a[aria-current="page"] { color: var(--primary-label); background: var(--primary-soft); font-weight: 700; }
