@@ -55,7 +55,7 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .bar { display: flex; align-items: center; gap: 6px; height: 58px; padding: 0 12px 0 16px; }
 .logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); }
 .bar .logo img { width: 36px; height: 36px; }
-.wordmark { font-size: 24px; line-height: 1; }
+.wordmark { font-size: 27px; line-height: 1; }
 .bar .sp { flex: 1; }
 .icon-btn { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: var(--text); }
 .icon-btn:hover, .icon-btn[aria-expanded="true"] { background: var(--surface-2); }
@@ -113,21 +113,22 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .sec-h .sp { flex: 1; }
 .sec-h .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-/* 오늘의 핫딜: 같은 높이의 카드 (사진 160px + 글 + 하단 줄). 쿠폰·공지 모두 제목이 같은 위치에서 시작한다 */
+/* 쿠폰·공지 모두 사진 비율을 맞추고 제목과 기간은 사진 아래에 둔다. */
 .hot { background: var(--bg); margin-top: 8px; padding-bottom: 14px; }
-.rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 16px 4px; scroll-padding: 0 16px; scrollbar-width: none; align-items: stretch; }
+.rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 16px 18px; scroll-padding: 0 16px; scrollbar-width: none; align-items: stretch; }
 .rail::-webkit-scrollbar { display: none; }
-.hcard { position: relative; flex: 0 0 78%; max-width: 300px; height: 300px; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; scroll-snap-align: start; background: var(--surface); color: var(--text); border: 1px solid var(--line); text-align: left; isolation: isolate; }
+.hcard { position: relative; flex: 0 0 78%; --hot-ratio: 4 / 3; max-width: 312px; display: flex; flex-direction: column; border-radius: 23px; overflow: hidden; scroll-snap-align: start; background: var(--surface); color: var(--text); border: 1px solid var(--line); text-align: left; isolation: isolate; }
 .hcard:active { transform: scale(.985); }
-.hot-visual { position: relative; display: block; flex: none; height: 160px; overflow: hidden; background: var(--surface-2); }
-.hcard .hot-visual .ph { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 10px; background: #fff; }
-.hot-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 10px; }
+.hot-visual { position: relative; display: block; flex: none; width: 100%; aspect-ratio: var(--hot-ratio); overflow: hidden; background: var(--surface-2); }
+.hcard .hot-visual .ph { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; padding: 0; background: #fff; }
+.hot-visual > img.ph, .hot-visual > .ph-parts, .hot-visual > .notice-preview { position: absolute; inset: 0; }
+.hot-copy { flex: 1; min-height: 105px; display: flex; flex-direction: column; gap: 5px; padding: 14px 16px 12px; }
 .hcard .top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 21px; }
 .hcard .br { font-size: 12.5px; font-weight: 700; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hcard .why { flex: none; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: var(--sale-soft); color: var(--sale); }
 .hcard .why.n { background: var(--good-soft); color: var(--good); }
 .hcard .why.d { background: var(--info-soft); color: var(--info); }
-.hcard .tt { font-size: 15px; font-weight: 700; line-height: 1.3; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hcard .tt { font-size: 17px; font-weight: 720; line-height: 1.35; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .hcard .period { display: inline-flex; align-items: center; gap: 4px; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .hcard .period.due { color: var(--sale); font-weight: 750; }
 .hcard .period svg { width: 14px; height: 14px; }
@@ -137,7 +138,7 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .hcard .lbl.tone-gift { color: var(--primary); }
 .hcard .lbl.tone-plain { color: var(--text); }
 .hcard .kind { flex: none; font-size: 12px; font-weight: 600; color: var(--muted); }
-.dots { display: flex; justify-content: center; gap: 5px; padding: 12px 0 0; }
+.dots { display: flex; justify-content: center; gap: 5px; padding: 0; }
 .dots i { width: 5px; height: 5px; border-radius: 3px; background: var(--line-strong); transition: width .2s; }
 .dots i.on { width: 14px; background: var(--text-2); }
 
@@ -202,7 +203,7 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 main { flex: 1; padding: 2px 16px 24px; display: flex; flex-direction: column; gap: 12px; }
 .card { scroll-margin-top: calc(var(--hh) + 64px); }
 .tk { filter: var(--ticket-shadow); }
-.ticket { --stub: 92px; --r: 9px; position: relative; display: grid; grid-template-columns: var(--stub) minmax(0, 1fr); min-height: 128px; background: var(--surface); border-radius: 16px;
+.ticket { --stub: 92px; --r: 9px; position: relative; display: grid; grid-template-columns: var(--stub) minmax(0, 1fr); min-height: 128px; background: var(--surface); border-radius: 20px;
   -webkit-mask: radial-gradient(circle var(--r) at var(--stub) 0, #0000 97%, #000) top / 100% 51% no-repeat, radial-gradient(circle var(--r) at var(--stub) 100%, #0000 97%, #000) bottom / 100% 51% no-repeat;
   mask: radial-gradient(circle var(--r) at var(--stub) 0, #0000 97%, #000) top / 100% 51% no-repeat, radial-gradient(circle var(--r) at var(--stub) 100%, #0000 97%, #000) bottom / 100% 51% no-repeat; }
 :root[data-theme="dark"] .ticket { box-shadow: 0 0 0 1px var(--line) inset; }

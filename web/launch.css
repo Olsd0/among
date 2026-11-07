@@ -35,9 +35,9 @@
 
 /* 홈과 탐색 */
 :root {
-  --panel-shadow: 0 2px 4px rgb(35 22 57 / .035), 0 10px 26px -18px rgb(45 27 74 / .25);
+  --panel-shadow: 0 2px 4px rgb(35 22 57 / .04), 0 12px 32px -20px rgb(45 27 74 / .32);
   --hero-fill: color-mix(in srgb, var(--primary-soft) 67%, var(--bg));
-  --ticket-shadow: drop-shadow(0 1px 1px rgb(31 18 57 / .07)) drop-shadow(0 5px 6px rgb(36 21 62 / .08));
+  --ticket-shadow: drop-shadow(0 2px 2px rgb(31 18 57 / .075)) drop-shadow(0 7px 8px rgb(36 21 62 / .11));
 }
 body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft) 22%, var(--canvas)), var(--canvas) 680px); }
 .bar { height: 62px; gap: 10px; }
@@ -67,7 +67,18 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 #budget { scroll-margin-block-start: calc(var(--hh) + 12px); }
 .hot, .grid, .brand-panel, .service-guide { box-shadow: var(--panel-shadow); }
 .hot, .grid { margin-top: 14px; }
-.hcard { box-shadow: 0 2px 5px rgb(34 22 58 / .07); }
+.hot { border-radius: 28px; background: linear-gradient(180deg, var(--bg) 10%, color-mix(in srgb, var(--bg) 83%, var(--canvas))); }
+.hcard { border-color: color-mix(in srgb, var(--line-strong) 66%, var(--surface));
+  box-shadow: 0 2px 3px -1px rgb(33 24 52 / .11), 0 8px 13px -7px rgb(33 24 52 / .23); }
+.hcard:focus-visible, .hcard:focus-within { outline: 2px solid var(--primary); outline-offset: 1px; }
+.hot .sec-h h2 { font-size: clamp(19px, 2.5vw, 24px); letter-spacing: -.045em; }
+@media (min-width: 960px) {
+  .hcard { flex-basis: calc((100% - 24px) / 3); max-width: none; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .hcard { transition: transform .2s ease, box-shadow .2s ease; }
+  .hcard:hover { transform: translateY(-2px); box-shadow: 0 3px 5px -2px rgb(33 24 52 / .14), 0 11px 17px -8px rgb(33 24 52 / .27); }
+}
 .hot .sec-h { align-items: center; }
 .rail-controls { display: flex; gap: 4px; }
 .rail-controls button { display: grid; place-items: center; width: 36px; height: 36px; font: 24px/1 sans-serif; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--text); background: var(--bg); }
@@ -103,7 +114,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
   .hero .intro-detail p { width: 62%; font-size: 13px; }
   .hero-links { gap: 12px; margin-top: 14px; }
   .hero-links .budget-jump { min-height: 40px; font-size: 13px; }
-  .hot, .grid, .brand-panel, .service-guide { margin-inline: var(--gutter); border-radius: 18px; }
+  .hot, .grid, .brand-panel, .service-guide { margin-inline: var(--gutter); border-radius: 22px; }
   .hot .sec-h { gap: 6px; padding: 15px 12px 10px; }
   .hot .sec-h small { display: none; }
   .hcard { flex-basis: 84%; }
@@ -134,7 +145,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 }
 .hcard.noph:has(.notice-placeholder):has(.lbl) .fallback-brand { visibility: hidden; }
 .hcard.noph:has(.notice-placeholder) .hot-meta .lbl {
-  position: absolute; inset: 0 0 auto; height: 160px; display: grid; place-items: center;
+  position: absolute; inset: 0 0 auto; aspect-ratio: var(--hot-ratio); display: grid; place-items: center;
   font-size: 40px; line-height: 1; letter-spacing: -.05em; color: var(--primary);
 }
 .hcard.noph:has(.notice-placeholder) .hot-meta .lbl.money-label,

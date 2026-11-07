@@ -5,15 +5,15 @@
   font-display: swap;
 }
 @font-face {
-  font-family: "Archivo Black";
-  src: url("fonts/ArchivoBlack-Regular.ttf") format("truetype");
+  font-family: "AMONG Nunito";
+  src: url("fonts/Nunito-AMONG-680.woff2") format("woff2");
   font-style: normal;
-  font-weight: 400;
+  font-weight: 680;
   font-display: swap;
 }
 .wordmark, .brand-word {
-  font-family: "Archivo Black", sans-serif;
+  font-family: "AMONG Nunito", sans-serif;
   font-synthesis: none;
-  font-weight: 400;
-  letter-spacing: -.055em;
+  font-weight: 680;
+  letter-spacing: -.019em;
 }

@@ -172,7 +172,13 @@ test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원�
   assert.equal(await hot.locator('.lbl').count(), 0, '공지 카드 아래에 혜택 숫자를 중복 표시하지 않는다');
   assert.equal(await hot.locator('img.ph').getAttribute('src'), photoUrl);
   assert.match(await hot.locator('.hot-source').getAttribute('href'), /detail\/1130$/);
-  assert.equal(await hot.locator('img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'contain');
+  const cover = await hot.locator('img.ph').evaluate(img => {
+    const frame = img.closest('.hot-visual').getBoundingClientRect();
+    const box = img.getBoundingClientRect();
+    return { fit: getComputedStyle(img).objectFit, padding: getComputedStyle(img).padding,
+      fills: Math.abs(box.width - frame.width) < 1 && Math.abs(box.height - frame.height) < 1 };
+  });
+  assert.deepEqual(cover, { fit: 'cover', padding: '0px', fills: true });
   await hot.click();
   assert.equal(await page.locator('.notice-original').getAttribute('href'), photoUrl);
   assert.match(await page.locator('[data-news-src]').getAttribute('href'), /detail\/1130$/);
