@@ -1,0 +1,12 @@
+/* Banana Yellow · 2022-40. Use the darker tone for text on light surfaces. */
+:root {
+  --primary: #ffe765;
+  --primary-ink: #211c10;
+  --primary-label: #6b540b;
+  --primary-soft: #fff4b9;
+  --primary-press: #efd14e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --primary-label: var(--primary); --primary-soft: #383018; }
+}
+:root[data-theme="dark"] { --primary-label: var(--primary); --primary-soft: #383018; }

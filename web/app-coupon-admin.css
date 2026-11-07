@@ -1,8 +1,8 @@
-#appCouponManager { margin: 20px 0 30px; border-top: 3px solid var(--series); padding-top: 18px; }
+#appCouponManager { margin: 20px 0 30px; border-top: 3px solid var(--primary); padding-top: 18px; }
 .ac-admin-heading { display: flex; align-items: baseline; gap: 16px; justify-content: space-between; flex-wrap: wrap; }
 .ac-admin-heading h2 { margin: 0; font-size: 21px; }
 .ac-admin-heading p { color: var(--muted); font-size: 13px; }
-.ac-admin-heading a { color: var(--series); }
+.ac-admin-heading a { color: var(--primary-label); }
 .ac-admin-message { padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; white-space: pre-wrap; }
 .ac-admin-message.bad { color: var(--bad); border-color: var(--bad); }
 .ac-admin-toolbar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin: 16px 0; }

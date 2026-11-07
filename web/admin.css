@@ -1,24 +1,25 @@
 :root {
+  --series: var(--primary);
   --bg: #f6f6f9; --surface: #ffffff; --line: #ececf2; --grid: #ececf2; --text: #17161c; --text-2: #4a4957; --muted: #8a8a99;
-  --series: #5b3df5; --good: #138a52; --good-soft: #e6f6ee; --warn: #a35400; --warn-soft: #fff3df; --bad: #d1263a; --bad-soft: #fff0f1;
+  --good: #138a52; --good-soft: #e6f6ee; --warn: #a35400; --warn-soft: #fff3df; --bad: #d1263a; --bad-soft: #fff0f1;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #111015; --surface: #1a1920; --line: #2c2b35; --grid: #2c2b35; --text: #f2f1f6; --text-2: #c9c8d3; --muted: #9c9baa;
-    --series: #8f7bff; --good: #4cc98b; --good-soft: #15291f; --warn: #ffb547; --warn-soft: #3a2a12; --bad: #ff6574; --bad-soft: #3a1d23; color-scheme: dark; }
+    --good: #4cc98b; --good-soft: #15291f; --warn: #ffb547; --warn-soft: #3a2a12; --bad: #ff6574; --bad-soft: #3a1d23; color-scheme: dark; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; font-size: 14px; line-height: 1.45; }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 48px; }
 header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-header img { width: 32px; height: 32px; border-radius: 9px; }
+header h1 img { width: 96px; height: auto; border-radius: 6px; vertical-align: middle; }
 h1 { font-size: 20px; margin: 0; flex: 1; }
 h2 { font-size: 15px; margin: 0 0 12px; }
 .ctrl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 input, select, button { font: inherit; color: var(--text); }
 input, select { height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 10px; }
 button { height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; cursor: pointer; }
-button.primary { background: var(--series); color: #fff; border-color: transparent; font-weight: 700; }
+button.primary { background: var(--primary); color: var(--primary-ink); border-color: transparent; font-weight: 700; }
 .note { padding: 10px 12px; border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
 .note.demo { background: var(--warn-soft); color: var(--warn); }
 .note.err { background: var(--bad-soft); color: var(--bad); }
@@ -50,8 +51,8 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .bars div { display: grid; grid-template-columns: 120px 1fr 40px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
 .bars progress { width: 100%; height: 10px; border: 0; appearance: none; background: transparent; }
 .bars progress::-webkit-progress-bar { background: var(--surface); }
-.bars progress::-webkit-progress-value { background: var(--series); border-radius: 0 4px 4px 0; }
-.bars progress::-moz-progress-bar { background: var(--series); border-radius: 0 4px 4px 0; }
+.bars progress::-webkit-progress-value { background: var(--primary); border-radius: 0 4px 4px 0; }
+.bars progress::-moz-progress-bar { background: var(--primary); border-radius: 0 4px 4px 0; }
 .bars .muted { text-align: right; }
 .metrics-breakdown { margin-top: 12px; }
 .pending-title { margin-top: 16px; }

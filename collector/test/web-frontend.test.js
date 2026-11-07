@@ -79,6 +79,31 @@ test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고 작�
   assert.equal(await page.locator('[data-hot="news:happy-public"]').count(), 0);
 });
 
+test('바나나 옐로우 로고와 바둑판 배너가 화면 크기와 테마에 관계없이 표시된다', async (t) => {
+  const { context, page } = await setup({ ok: true, coupons: [], news: [] });
+  t.after(() => context.close());
+  await page.goto(site.base + '/');
+  const logo = page.getByRole('img', { name: 'AMONG', exact: true }).first();
+  await logo.evaluate((img) => img.decode());
+  for (const [width, colorScheme] of [[360, 'light'], [390, 'dark'], [1280, 'light'], [1280, 'dark']]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme });
+    const banner = page.locator('.hero');
+    const style = await banner.evaluate((el) => {
+      const css = getComputedStyle(el);
+      return { color: css.color, image: css.backgroundImage, repeat: css.backgroundRepeat };
+    });
+    assert.equal(style.color, 'rgb(33, 28, 16)');
+    assert.equal(await banner.locator('h1').evaluate((el) => getComputedStyle(el).color), style.color);
+    assert.match(style.image, /banana-checks\.svg/);
+    assert.equal(style.repeat, 'repeat');
+    const selected = page.locator('.view-nav [aria-pressed="true"]');
+    assert.equal(await selected.evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(255, 231, 101)');
+    assert.equal(await selected.evaluate((el) => getComputedStyle(el).color), 'rgb(33, 28, 16)');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+});
+
 test('브랜드 검색·구독·상세·새로고침·구독 취소가 이어지고 모바일·데스크톱에서 넘치지 않는다', { timeout: 30000 }, async (t) => {
   const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('burger'), { ...coupon('coffee'), brand: '테스트카페', category: '카페' }], news: [] };
   const { context, page } = await setup(data);
@@ -86,7 +111,8 @@ test('브랜드 검색·구독·상세·새로고침·구독 취소가 이어지
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${site.base}/index.html`);
   await page.locator('#card-burger').waitFor();
-  assert.equal(await page.locator('.wordmark').innerText(), 'AMONG');
+  assert.equal(await page.locator('.bar .wordmark').getAttribute('alt'), 'AMONG');
+  assert.equal(await page.locator('.bar .wordmark').evaluate((img) => img.complete && img.naturalWidth > 0), true);
   await page.locator('[data-view="following"]').click();
   await page.getByRole('button', { name: '브랜드 둘러보기' }).click();
   assert.equal(await page.locator('#list').isHidden(), true);

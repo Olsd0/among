@@ -35,7 +35,7 @@ const ART = {
   치킨: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M29 30.5l6.5 6.5" stroke="#f6eadb" stroke-width="5" stroke-linecap="round"/><circle cx="37.8" cy="35.6" r="3.3" fill="#f6eadb"/><circle cx="34.6" cy="39.2" r="3.3" fill="#f6eadb"/><ellipse cx="21.5" cy="20.5" rx="13" ry="10.5" transform="rotate(-38 21.5 20.5)" fill="url(#g-chk)"/><path d="M14 17c2-3 5-5 8-5.5" stroke="#ffe7b0" stroke-width="2" stroke-linecap="round" fill="none"/></svg>',
   피자: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M24 43 7.5 12.5a31 31 0 0 1 33 0z" fill="url(#g-cheese)"/><path d="M7.5 12.5a31 31 0 0 1 33 0l-2.3 4.3a26.5 26.5 0 0 0-28.4 0z" fill="#c8752c"/><circle cx="19.5" cy="22" r="3.2" fill="#e2442f"/><circle cx="28.5" cy="26" r="2.8" fill="#e2442f"/><circle cx="23.5" cy="33" r="2.3" fill="#e2442f"/><path d="M30 19.5l2 1M16 29l1.6-1" stroke="#5aa64d" stroke-width="1.8" stroke-linecap="round"/></svg>',
   디저트: '<svg viewBox="0 0 48 48" width="100%" height="100%"><g mask="url(#m-donut)"><circle cx="24" cy="25" r="16" fill="#e7b170"/><path d="M24 11.5c8 0 14 6 14 13.5 0 1.5-1.6 2.2-2.6 1.2-1.3-1.2-2.6.6-4 0-1.5-.7-2.4 1.6-4.2 1-1.4-.5-2.2 1.3-3.6.8-1.6-.6-2.7 1.4-4.3.5-1.3-.7-2.6.6-3.8-.3-1.2-.8-2.6.3-3.6-.6-.8-.7-1.5-1-1.5-2.4 0-7.5 6-13.5 13.6-13.7z" fill="url(#g-donut)"/></g><g stroke-width="1.8" stroke-linecap="round"><path d="M17 17.5l1.6 1" stroke="#fff"/><path d="M30 16l-1.2 1.4" stroke="#ffe27a"/><path d="M33 22.5l-1.8.2" stroke="#7fd3ff"/><path d="M15.5 23.5l1.7-.5" stroke="#ffe27a"/><path d="M22 14.5l.6 1.6" stroke="#7fd3ff"/></g></svg>',
-  free: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="9" y="21" width="30" height="19" rx="3" fill="url(#g-vio)"/><rect x="7" y="15" width="34" height="8" rx="3" fill="#8d79ff"/><rect x="21.8" y="15" width="4.4" height="25" fill="#ffd34d"/><path d="M24 15c-4-6.5-11-5.5-9.5-1.5 1.2 3 6.5 1.8 9.5 1.5zM24 15c4-6.5 11-5.5 9.5-1.5-1.2 3-6.5 1.8-9.5 1.5z" fill="#ffc21a"/></svg>',
+  free: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="9" y="21" width="30" height="19" rx="3" fill="url(#g-gift)"/><rect x="7" y="15" width="34" height="8" rx="3" fill="#f2c84d"/><rect x="21.8" y="15" width="4.4" height="25" fill="#ffd34d"/><path d="M24 15c-4-6.5-11-5.5-9.5-1.5 1.2 3 6.5 1.8 9.5 1.5zM24 15c4-6.5 11-5.5 9.5-1.5-1.2 3-6.5 1.8-9.5 1.5z" fill="#ffc21a"/></svg>',
   ending: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M12 10l-4 4M36 10l4 4" stroke="#ff8f99" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="26" r="15" fill="url(#g-red)"/><circle cx="24" cy="26" r="11" fill="#fff"/><path d="M24 19v7.5l5 3" stroke="#e0283b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M17 41l-2 3M31 41l2 3" stroke="#e0283b" stroke-width="3" stroke-linecap="round"/></svg>',
   telecom: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="13" y="6" width="22" height="37" rx="5" fill="url(#g-blue)"/><rect x="16" y="11" width="16" height="25" rx="2" fill="#eaf2ff"/><g fill="#2d63d6"><rect x="18.5" y="27" width="2.6" height="5" rx="1"/><rect x="22.7" y="23.5" width="2.6" height="8.5" rx="1"/><rect x="26.9" y="19" width="2.6" height="13" rx="1"/></g><circle cx="24" cy="39.6" r="1.4" fill="#eaf2ff"/></svg>',
   pay: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="6" y="13" width="32" height="24" rx="4.5" fill="url(#g-grn)"/><path d="M6 19h32" stroke="#0f7e51" stroke-width="3"/><rect x="26" y="24" width="12" height="8" rx="3" fill="#0f7e51"/><circle cx="35" cy="34" r="8.5" fill="url(#g-gold)"/><path d="M31.8 31.2l1.4 5.6 1.8-4.2 1.8 4.2 1.4-5.6M31.2 33.4h7.6" stroke="#9a6700" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
@@ -368,7 +368,7 @@ function showOnlineDeals() {
   const panel = $('#onlineDeals');
   panel.innerHTML = '<div class="empty" role="status">온라인 특가를 불러오고 있어요.</div>';
   // 코드·스타일·상품 JSON 모두 실제로 이 탭을 열 때만 요청한다.
-  onlineDealsLoading = import('./online-deals.js?v=20261106-4').then(({ createOnlineDealsUI }) => {
+  onlineDealsLoading = import('./online-deals.js?v=20261107-3').then(({ createOnlineDealsUI }) => {
     // 실제 상품은 Apps Script(online_deals)에서, 예시 모드는 같은 출처의 빈 JSON에서 읽는다.
     onlineDealsUI = createOnlineDealsUI(panel, { apiUrl: DEMO ? '' : API, dataUrl: CFG.onlineDeals.dataUrl, goldboxUrl: CFG.onlineDeals.goldboxUrl, shortcutLinks: CFG.onlineDeals.shortcutLinks });
     if (state.view === 'onlineDeals') onlineDealsUI.show();
@@ -948,7 +948,7 @@ function checkPriceWatch() {
   let n = 0;
   try { n = (JSON.parse(localStorage.getItem('among_price_watch') || '[]') || []).length; } catch { n = 0; }
   if (!n) return;
-  import('./online-deals.js?v=20261106-4').then(async (m) => {
+  import('./online-deals.js?v=20261107-3').then(async (m) => {
     const list = await m.checkPriceWatch({ apiUrl: API, dataUrl: CFG.onlineDeals.dataUrl });
     if (!list.length) return;
     try { navigator.setAppBadge?.(list.length); } catch { /* 지원 안 함 */ }

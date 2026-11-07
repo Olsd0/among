@@ -1,8 +1,8 @@
-#onlineDealsManager { margin: 20px 0 30px; border-top: 3px solid var(--series); padding-top: 18px; }
+#onlineDealsManager { margin: 20px 0 30px; border-top: 3px solid var(--primary); padding-top: 18px; }
 .od-admin-heading { display: flex; align-items: baseline; gap: 16px; justify-content: space-between; flex-wrap: wrap; }
 .od-admin-heading h2 { margin: 0; font-size: 21px; }
 .od-admin-heading p { color: var(--muted); font-size: 13px; max-width: 62ch; }
-.od-admin-heading a { color: var(--series); }
+.od-admin-heading a { color: var(--primary-label); }
 .od-admin-message { padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; white-space: pre-wrap; }
 .od-admin-message.bad { color: var(--bad); border-color: var(--bad); }
 .od-suppliers { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin: 14px 0; }
@@ -21,7 +21,7 @@
 .od-holds { margin: 6px 0; padding-left: 18px; color: var(--warn); font-size: 13px; }
 .od-item-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
 .od-item-actions input:not([type]) { min-width: 0; flex: 1 1 160px; }
-.od-item-actions a { color: var(--series); }
+.od-item-actions a { color: var(--primary-label); }
 .od-rules { margin: 16px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
 .od-rules summary { font-weight: 750; color: var(--text); font-size: 15px; }
 .od-rules fieldset { border: 0; padding: 0; margin: 12px 0; display: flex; gap: 14px; flex-wrap: wrap; }
@@ -76,5 +76,5 @@
 .od-price-batch { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
 .od-price-batch summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .od-price-batch textarea { width: 100%; min-width: 0; margin: 6px 0 8px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 8px; resize: vertical; }
-.od-low-line { color: var(--primary); font-weight: 700; }
+.od-low-line { color: var(--primary-label); font-weight: 700; }
 .od-pick-id { font-size: 11.5px; }

@@ -3,7 +3,7 @@
 .skip-link:focus { top: 12px; }
 .intro-detail { color: var(--text-2); font-size: 14px; line-height: 1.6; }
 .intro-detail p { margin: 0; }
-.intro-detail a { color: var(--primary); font-weight: 650; text-decoration: none; white-space: nowrap; }
+.intro-detail a { color: var(--primary-label); font-weight: 650; text-decoration: none; white-space: nowrap; }
 .intro-detail a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* 혜택을 고르는 기준 · 자주 묻는 질문 */
@@ -12,7 +12,7 @@
 .service-guide > p { margin: 0 0 16px; font-size: 14px; color: var(--text-2); line-height: 1.6; }
 .service-guide ul.criteria { display: grid; gap: 12px; margin: 0 0 18px; padding: 0; list-style: none; }
 .service-guide ul.criteria li { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; font-size: 14px; line-height: 1.5; }
-.service-guide ul.criteria li::before { content: ""; grid-row: 1 / span 2; width: 28px; height: 28px; border-radius: 50%; background: var(--primary-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235b3df5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 5 5 9-10'/%3E%3C/svg%3E") no-repeat center; }
+.service-guide ul.criteria li::before { content: ""; grid-row: 1 / span 2; width: 28px; height: 28px; border-radius: 50%; background: var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b540b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 5 5 9-10'/%3E%3C/svg%3E") no-repeat center; }
 .service-guide ul.criteria strong { font-weight: 700; }
 .service-guide ul.criteria span { color: var(--text-2); font-size: 13px; }
 .service-guide details { border-top: 1px solid var(--line); font-size: 14px; line-height: 1.65; }
@@ -21,7 +21,7 @@
 .service-guide summary::after { content: ""; flex: none; width: 10px; height: 10px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-3px) rotate(45deg); transition: transform .15s; }
 .service-guide details[open] summary::after { transform: translateY(2px) rotate(-135deg); }
 .service-guide details p { margin: 0 0 16px; color: var(--text-2); }
-.service-guide a { color: var(--primary); font-weight: 600; text-underline-offset: 3px; }
+.service-guide a { color: var(--primary-label); font-weight: 600; text-underline-offset: 3px; }
 .service-guide .guide-link { margin: 0; padding: 14px 0 6px; border-top: 1px solid var(--line); font-size: 14px; }
 
 /* 직접 계약 광고: 목록 밖, '광고' 표시로 분리 */
@@ -30,7 +30,7 @@
 .sponsor-label { display: inline-block; color: var(--text-2); font-size: 11.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); margin-bottom: 10px; }
 .sponsor h2 { margin: 0 0 6px; font-size: 17px; }
 .sponsor p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
-.sponsor a { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary); font-size: 13.5px; font-weight: 700; text-underline-offset: 3px; }
+.sponsor a { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary-label); font-size: 13.5px; font-weight: 700; text-underline-offset: 3px; }
 @media (min-width: 680px) { .service-guide { padding: 24px 24px 12px; } .sponsor { margin: 16px 0 0; } }
 
 /* 홈과 탐색 */
@@ -52,25 +52,25 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 .hero {
   position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center;
   min-height: 230px; padding: 26px clamp(22px,4vw,48px); border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--primary) 15%, var(--bg));
-  background: radial-gradient(ellipse at 83% 70%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 52%),
-    linear-gradient(110deg, var(--bg) -22%, var(--hero-fill) 58%, color-mix(in srgb, var(--primary-soft) 83%, var(--bg)));
-  box-shadow: var(--panel-shadow), inset 0 1px rgb(255 255 255 / .23);
+  color: #211c10;
+  background: var(--primary) url("banana-checks.svg") repeat 0 0 / 336px 224px;
+  box-shadow: var(--panel-shadow);
 }
-.hero-copy { position: relative; z-index: 1; width: 57%; }
-.hero .intro { font-size: clamp(32px, 4.1vw, 48px); letter-spacing: -.06em; line-height: 1.12; margin: 0 0 10px; }
-.hero .intro-detail { font-size: 15px; }
-.hero-art { position: absolute; right: 3%; top: 50%; transform: translateY(-50%); width: min(40%, 385px); height: auto; pointer-events: none; }
+.hero a:focus-visible { outline: 2px solid #211c10; }
+.hero-copy { position: relative; z-index: 1; max-width: 38rem; }
+.hero .intro { color: inherit; font-size: clamp(32px, 4.1vw, 48px); letter-spacing: -.06em; line-height: 1.12; margin: 0 0 10px; }
+.hero .intro-detail { color: #453b1d; font-size: 15px; }
+
 .hero-links { display: flex; align-items: center; gap: 16px; margin-top: 17px; }
-.hero-links .budget-jump { display: inline-flex; gap: 10px; align-items: center; min-height: 42px; padding: 0 16px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 2px 5px rgb(35 22 57 / .12); }
-.hero-links .guide-shortcut { color: var(--text-2); font-size: 13px; text-underline-offset: 3px; text-decoration: underline; }
+.hero-links .budget-jump { display: inline-flex; gap: 10px; align-items: center; min-height: 42px; padding: 0 16px; border-radius: 12px; background: #211c10; color: #fff; font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 2px 5px rgb(35 22 57 / .12); }
+.hero-links .guide-shortcut { color: #413615; font-size: 13px; text-underline-offset: 3px; text-decoration: underline; }
 #budget { scroll-margin-block-start: calc(var(--hh) + 12px); }
 .hot, .grid, .brand-panel, .service-guide { box-shadow: var(--panel-shadow); }
 .hot, .grid { margin-top: 14px; }
 .hot { border-radius: 28px; background: linear-gradient(180deg, var(--bg) 10%, color-mix(in srgb, var(--bg) 83%, var(--canvas))); }
 .hcard { border-color: color-mix(in srgb, var(--line-strong) 66%, var(--surface));
   box-shadow: 0 2px 3px -1px rgb(33 24 52 / .11), 0 8px 13px -7px rgb(33 24 52 / .23); }
-.hcard:focus-visible, .hcard:focus-within { outline: 2px solid var(--primary); outline-offset: 1px; }
+.hcard:focus-visible, .hcard:focus-within { outline: 2px solid var(--primary-label); outline-offset: 1px; }
 .hot .sec-h h2 { font-size: clamp(19px, 2.5vw, 24px); letter-spacing: -.045em; }
 @media (min-width: 960px) {
   .hcard { flex-basis: calc((100% - 24px) / 3); max-width: none; }
@@ -83,7 +83,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 .rail-controls { display: flex; gap: 4px; }
 .rail-controls button { display: grid; place-items: center; width: 36px; height: 36px; font: 24px/1 sans-serif; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--text); background: var(--bg); }
 .rail-controls button:disabled { opacity: .38; cursor: default; }
-.rail-controls button:enabled:hover { color: var(--primary); background: var(--primary-soft); }
+.rail-controls button:enabled:hover { color: var(--primary-label); background: var(--primary-soft); }
 .gi .ic { box-shadow: inset 0 1px rgb(255 255 255 / .28), inset 0 -2px rgb(38 25 57 / .09); }
 .gi:has(.n.z) { opacity: .72; }
 .card .ticket { box-shadow: inset 0 0 0 1px var(--line); }
@@ -92,7 +92,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 #onlineDeals .od-heading, #brandPanel .brand-intro { border-left: 3px solid var(--primary); padding-left: 14px; }
 @media (hover: hover) {
   .gi:hover .ic { transform: translateY(-2px); }
-  .hero-links .budget-jump:hover { background: var(--primary); color: var(--primary-ink); }
+  .hero-links .budget-jump:hover { background: #40361b; color: #fff; }
 }
 @media (min-width: 680px) {
   .bar { height: 68px; }
@@ -107,11 +107,11 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
   .view-nav { padding: 2px var(--gutter) 8px; gap: 3px; border: 0; }
   .view-nav button { flex: 1 0 auto; font-size: clamp(12px,3.45vw,15px); padding: 0 4px; }
   .lead-block { margin: 12px var(--gutter) 0; }
-  .hero { border-radius: 18px; min-height: 182px; padding: 20px 16px; }
+  .hero { background-size: 216px 144px; border-radius: 18px; min-height: 182px; padding: 20px 16px; }
   .hero-copy { width: 100%; }
   .hero .intro { font-size: clamp(27px,7.3vw,38px); margin-bottom: 10px; }
-  .hero-art { width: clamp(118px,36%,196px); right: 0; top: 48px; transform: none; }
-  .hero .intro-detail p { width: 62%; font-size: 13px; }
+
+  .hero .intro-detail p { font-size: 13px; }
   .hero-links { gap: 12px; margin-top: 14px; }
   .hero-links .budget-jump { min-height: 40px; font-size: 13px; }
   .hot, .grid, .brand-panel, .service-guide { margin-inline: var(--gutter); border-radius: 22px; }
@@ -126,7 +126,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
   .budget .budget-btn { height: 40px; }
 }
 @media (max-width: 350px) {
-  .hero-art { width: 105px; right: -4px; top: 45px; }
+
   .hero-links { gap: 10px; }
 }
 
@@ -136,7 +136,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 /* 사진이 없는 카드도 실제 혜택 금액이나 브랜드를 먼저 읽을 수 있다. */
 .hcard.noph .notice-placeholder {
   background: linear-gradient(135deg, var(--hero-fill), var(--surface-2));
-  color: var(--primary);
+  color: var(--primary-label);
 }
 .fallback-brand { font-size: 24px; letter-spacing: -.045em; }
 .hcard.noph:has(.notice-placeholder) .hot-visual::after {
@@ -146,7 +146,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 .hcard.noph:has(.notice-placeholder):has(.lbl) .fallback-brand { visibility: hidden; }
 .hcard.noph:has(.notice-placeholder) .hot-meta .lbl {
   position: absolute; inset: 0 0 auto; aspect-ratio: var(--hot-ratio); display: grid; place-items: center;
-  font-size: 40px; line-height: 1; letter-spacing: -.05em; color: var(--primary);
+  font-size: 40px; line-height: 1; letter-spacing: -.05em; color: var(--primary-label);
 }
 .hcard.noph:has(.notice-placeholder) .hot-meta .lbl.money-label,
 .hcard.noph:has(.notice-placeholder) .hot-meta .lbl.long-label { font-size: 26px; }

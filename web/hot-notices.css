@@ -14,7 +14,7 @@
 .news-hero .notice-image-label { left: 12px; bottom: 12px; z-index: 1; }
 .coupon-image-label { color: var(--text-2); font-size: 9.5px; line-height: 1.3; }
 .stub.campaign-photo img.ph { height: 92px; }
-.hot-source { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 34px; padding: 0 14px; border-top: 1px solid var(--line); text-decoration: none; color: var(--primary); background: var(--surface); font-size: 12px; font-weight: 700; }
+.hot-source { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 34px; padding: 0 14px; border-top: 1px solid var(--line); text-decoration: none; color: var(--primary-label); background: var(--surface); font-size: 12px; font-weight: 700; }
 .hot-source:hover { background: var(--surface-2); }
 .hot-source .source-host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: 500; }
 .hot-source > span:last-child { flex: none; }
@@ -29,10 +29,10 @@
 .news-hero.news-notice.has-ph { height: 300px; background: #f4f4f6; }
 .news-hero.news-notice.has-ph .lbl { display: none; }
 .news-hero.has-ph img.ph { position: static; display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 0; }
-.notice-original { display: inline-block; color: var(--primary); font-size: 13px; font-weight: 600; margin: 0 0 12px; text-underline-offset: 3px; }
+.notice-original { display: inline-block; color: var(--primary-label); font-size: 13px; font-weight: 600; margin: 0 0 12px; text-underline-offset: 3px; }
 .notice-original[hidden], .notice-image-error[hidden] { display: none; }
 .notice-source-link { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px; border-radius: 12px; background: var(--surface-2); text-decoration: none; color: var(--text-2); font-size: 13px; }
-.notice-source-link strong { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--primary); }
+.notice-source-link strong { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--primary-label); }
 .notice-image-error { color: var(--text-2); font-size: 13px; line-height: 1.6; margin: 0 0 12px; }
 
 /* 쿠폰 상세의 공식 행사 이미지 */
