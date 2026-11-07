@@ -337,7 +337,7 @@ test('같은 규칙 파일: 화면 사본과 Apps Script 생성 구역이 원본
 });
 
 test('워크플로: 읽기 권한만, 겹침 방지, 외부 액션 고정, 비밀값은 실행 단계에만', () => {
-  const yml = readFileSync(new URL('../../.github/workflows/online-deals.yml', import.meta.url), 'utf8');
+  const yml = readFileSync(new URL('../../.github/workflows/online-deals.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.match(yml, /permissions:\n  contents: read/);
   assert.match(yml, /concurrency:\n  group: online-deals\n  cancel-in-progress: false/);
   for (const uses of yml.match(/uses: \S+/g)) assert.match(uses, /@[0-9a-f]{40}$/, uses);
@@ -347,7 +347,7 @@ test('워크플로: 읽기 권한만, 겹침 방지, 외부 액션 고정, 비�
 });
 
 test('가격 확인 워크플로: 수동 실행만, 입력은 환경변수로만(셸에 끼워 넣지 않음), 수집기 토큰만, 읽기 권한', () => {
-  const yml = readFileSync(new URL('../../.github/workflows/online-prices.yml', import.meta.url), 'utf8');
+  const yml = readFileSync(new URL('../../.github/workflows/online-prices.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.doesNotMatch(yml, /schedule:|cron:/, '정해진 시간에 혼자 돌지 않음 (확인한 가격이 있을 때만)');
   assert.match(yml, /permissions:\n  contents: read/);
   assert.match(yml, /concurrency:\n  group: online-prices\n  cancel-in-progress: false/);

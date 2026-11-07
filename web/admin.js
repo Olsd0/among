@@ -1,5 +1,8 @@
 // AMONG 지표 화면 스크립트 (admin.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
+import { request } from './admin-request.js?v=20261107-1';
 (function () {
+  if (self !== top) return;
+  document.querySelector('.wrap').hidden = false;
   const API = (window.AMONG_CONFIG || {}).apiUrl || '';
   const DEMO = new URLSearchParams(location.search).has('demo') || !API;
   const $ = (s) => document.querySelector(s);
@@ -12,7 +15,6 @@
     if (isNaN(d)) return '—';
     return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
   };
-  const ss = { get(k) { try { return sessionStorage.getItem(k) || ''; } catch { return ''; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* 무시 */ } } };
   let data = null;
 
   function demo() {
@@ -51,18 +53,14 @@
     if (DEMO) { data = demo(); render(); return; }
     const token = $('#token').value.trim();
     if (!token) { $('#errNote').hidden = false; $('#errNote').textContent = '관리 토큰(ADMIN_TOKEN)을 입력하세요.'; return; }
-    ss.set('among_admin', token);
     try {
-      const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'metrics', token, days: +$('#days').value }) });
-      const j = await res.json();
-      if (!j.ok) throw new Error(j.error === 'unauthorized' ? '토큰이 맞지 않아요.' : j.error);
-      data = j; render();
+      data = await request('metrics', { days: +$('#days').value }); render();
     } catch (e) {
       $('#errNote').hidden = false; $('#errNote').textContent = '불러오지 못했어요: ' + e.message;
     }
   }
 
-  function tile(k, v, s, sm) { return `<div class="tile"><div class="k">${esc(k)}</div><div class="v${sm ? ' sm' : ''}">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`; }
+  function tile(k, v, s, sm) { return `<div class="tile"><div class="k">${esc(k)}</div><div class="v${sm ? ' sm' : ''}">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`; }
 
   function barChart(el, rows, key, label) {
     const W = 600, H = 160, pad = { l: 28, r: 4, t: 8, b: 20 };
@@ -75,7 +73,7 @@
     ticks.forEach((tv) => { const y = pad.t + ih - (tv / nice) * ih; g += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/><text x="${pad.l - 6}" y="${y + 3}" text-anchor="end">${tv}</text>`; });
     let bars = '';
     rows.forEach((r, i) => {
-      const v = r[key] || 0; const h = (v / nice) * ih; const x = pad.l + i * bw + 1; const w = Math.max(1, bw - 2);
+      const v = Number(r[key]) || 0; const h = (v / nice) * ih; const x = pad.l + i * bw + 1; const w = Math.max(1, bw - 2);
       const y = pad.t + ih - h; const rr = Math.min(4, w / 2, h);
       const path = h > 0 ? `M${x},${pad.t + ih} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${pad.t + ih} Z` : '';
       bars += `<g data-i="${i}">${path ? `<path d="${path}" fill="var(--series)"/>` : ''}<rect x="${pad.l + i * bw}" y="${pad.t}" width="${bw}" height="${ih}" fill="transparent"/></g>`;
@@ -98,7 +96,7 @@
     const entries = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]);
     if (!entries.length) { el.innerHTML = '<p class="muted">없음</p>'; return; }
     const max = Math.max(...entries.map((e) => e[1]));
-    el.innerHTML = entries.map(([k, v]) => `<div><span>${esc(k)}</span><i style="width:${(v / max) * 100}%"></i><span class="muted" style="text-align:right">${num(v)}</span></div>`).join('');
+    el.innerHTML = entries.map(([k, v]) => `<div><span>${esc(k)}</span><progress aria-label="${esc(k)}" max="${Number(max) || 1}" value="${Number(v) || 0}"></progress><span class="muted">${num(v)}</span></div>`).join('');
   }
 
   const STATE = { success: ['good', '성공'], partial: ['warn', '일부 실패'], failed: ['bad', '실패'], running: ['warn', '실행 중'] };
@@ -124,7 +122,7 @@
       (() => {
         const sec = data.security || {};
         const purge = sec.last_purge_at ? `기록 정리 ${kst(sec.last_purge_at)}` : '기록 정리 전';
-        const err = sec.last_refresh_error ? ` · 갱신 오류: ${esc(sec.last_refresh_error.slice(0, 60))}` : '';
+        const err = sec.last_refresh_error ? ` · 갱신 오류: ${String(sec.last_refresh_error).slice(0, 60)}` : '';
         return tile('바로 갱신 (오늘)', `${num(sec.refresh_today || 0)} / ${num(sec.refresh_daily_max || 6)}`, `${purge} · 보관 이용기록 ${num((sec.retention_days || {}).events || 180)}일·제보 ${num((sec.retention_days || {}).reports || 365)}일${err}`);
       })(),
     ].join('');
@@ -173,6 +171,10 @@
   });
 
   $('#authForm').addEventListener('submit', (e) => { e.preventDefault(); load(); });
-  $('#token').value = ss.get('among_admin');
-  if (DEMO || $('#token').value) load();
+  // 이전 버전에서 저장한 토큰도 이 탭에서 제거한다.
+  try { sessionStorage.removeItem('among_admin'); } catch { /* 저장소가 꺼진 경우 */ }
+  $('#token').value = '';
+  window.addEventListener('pagehide', () => { $('#token').value = ''; });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+  if (DEMO) load();
 })();

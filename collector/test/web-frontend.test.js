@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // 모바일 화면에서 실제로 보이는 최신성 안내, 재시도, 키보드와 초기 표시를 검증한다.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +11,7 @@ import { serveDir } from './helpers.js';
 
 let site, browser;
 before(async () => {
-  site = await serveDir(new URL('../../web/', import.meta.url).pathname);
+  site = await serveDir(fileURLToPath(new URL('../../web/', import.meta.url)));
   browser = await chromium.launch();
 });
 after(async () => { if (browser) await browser.close(); if (site) await site.close(); });

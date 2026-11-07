@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // 온라인 특가 전체 경로 모의 검증: 실행기(run.js) → Apps Script(Code.gs, Node 가짜 환경) → 공개 API
 // 공급처는 테스트 안의 가짜 어댑터·가짜 네트워크다. 실제 공급처 연결을 검증하지 않는다.
 import { test } from 'node:test';
@@ -9,7 +10,7 @@ import { createHttpClient } from '../src/online/http.js';
 import { runPrices } from '../src/online/prices.js';
 import { candidate, mixedBatch, OD_T0, MIN, HOUR } from './online-fixtures.js';
 
-const CODE = new URL('../../apps-script/Code.gs', import.meta.url).pathname;
+const CODE = fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url));
 const SECRET = 'SECRET-VALUE-do-not-log-123';
 const ENV = { COUPANG_PARTNERS_ACCESS_KEY: SECRET, COUPANG_PARTNERS_SECRET_KEY: SECRET + '-2' };
 

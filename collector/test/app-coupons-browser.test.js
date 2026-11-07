@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -6,10 +7,10 @@ import { loadAppsScript } from './gas-harness.js';
 import { appCoupon, AC_NOW } from './app-coupon-fixtures.js';
 
 let site, browser;
-before(async () => { site = await serveDir(new URL('../../web/', import.meta.url).pathname); browser = await chromium.launch(); });
+before(async () => { site = await serveDir(fileURLToPath(new URL('../../web/', import.meta.url))); browser = await chromium.launch(); });
 after(async () => { if (browser) await browser.close(); if (site) await site.close(); });
 async function setup(t, width = 390) {
-  const gas = loadAppsScript(new URL('../../apps-script/Code.gs', import.meta.url).pathname, { now: AC_NOW }); gas.ctx.setup();
+  const gas = loadAppsScript(fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url)), { now: AC_NOW }); gas.ctx.setup();
   const token = gas.props.get('ADMIN_TOKEN');
   const post = (action, body = {}) => gas.post({ action, token, ...body });
   const save = c => { const j = post('app_coupon_save', { coupon: c, expected_revision: c.revision, confirm_checked: true, confirm_link: true }); assert.equal(j.ok, true, j.error); return j.coupon; };

@@ -1,10 +1,11 @@
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serveDir } from './helpers.js';
 
 test('홈 안내·계산기·제휴 화면은 모바일과 데스크톱에서 동작하고 광고는 명확하게 구분한다', { timeout: 60000 }, async t => {
-  const site = await serveDir(new URL('../../web/', import.meta.url).pathname);
+  const site = await serveDir(fileURLToPath(new URL('../../web/', import.meta.url)));
   const browser = await chromium.launch();
   t.after(async () => { await browser.close(); await site.close(); });
   const context = await browser.newContext({ serviceWorkers: 'block' });

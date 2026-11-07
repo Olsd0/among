@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // v4: 자동 마이그레이션 · 통신사 혜택 필드 · 영양성분 API · 00시 정시 수집
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -5,7 +6,7 @@ import { loadAppsScript } from './gas-harness.js';
 import { normalizeAndValidate } from '../src/engine.js';
 import { couponId, contentHash } from '../src/ids.js';
 
-const CODE = new URL('../../apps-script/Code.gs', import.meta.url).pathname;
+const CODE = fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url));
 const T0 = Date.parse('2026-10-27T03:00:00Z'); // KST 10/27 12:00
 const DAY = 24 * 3600 * 1000;
 

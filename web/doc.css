@@ -116,3 +116,7 @@ tr:last-child td { border-bottom: 0; }
 .calculator button { justify-self: start; min-height: 44px; }
 .calculation-result { font-weight: 700; line-height: 1.8; }
 @media (max-width: 420px) { .calculator { grid-template-columns: 1fr; } }
+
+.brand img { border-radius: 0; }
+.brand-word { font-size: 20px; line-height: 1; }
+.top { box-shadow: 0 2px 12px rgb(34 22 58 / .04); }

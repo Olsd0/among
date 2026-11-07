@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // 목록 위 예산 버튼: 실제 필터(state.filters.maxPrice)와 상세 필터 시트가 같은 값을 쓰는지, 다른 조건을 건드리지 않는지,
 // 작은 화면에서 줄 안에서만 넘기는지, 버튼을 눌러도 API를 다시 부르지 않는지 확인한다.
 // 아래 혜택·브랜드는 모두 가상 데이터이며 실제 사이트에 게시되지 않는다.
@@ -8,7 +9,7 @@ import { serveDir } from './helpers.js';
 
 let site, browser;
 before(async () => {
-  site = await serveDir(new URL('../../web/', import.meta.url).pathname);
+  site = await serveDir(fileURLToPath(new URL('../../web/', import.meta.url)));
   browser = await chromium.launch();
 });
 after(async () => { if (browser) await browser.close(); if (site) await site.close(); });

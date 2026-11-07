@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // The trial is isolated from franchise coupons. All prices below are test fixtures only.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +8,7 @@ import { appCoupon, AC_NOW } from './app-coupon-fixtures.js';
 
 let site, browser;
 before(async () => {
-  site = await serveDir(new URL('../../web/', import.meta.url).pathname);
+  site = await serveDir(fileURLToPath(new URL('../../web/', import.meta.url)));
   browser = await chromium.launch();
 });
 after(async () => { if (browser) await browser.close(); if (site) await site.close(); });
@@ -311,7 +312,7 @@ import { candidate, mixedBatch, OD_T0, HOUR } from './online-fixtures.js';
 import { readFileSync } from 'node:fs';
 
 async function chain(t, { width = 390, batch = mixedBatch(), publish = true, darkMode = false, images = null } = {}) {
-  const gas = loadAppsScript(new URL('../../apps-script/Code.gs', import.meta.url).pathname, { now: OD_T0 });
+  const gas = loadAppsScript(fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url)), { now: OD_T0 });
   gas.ctx.setup();
   const token = gas.props.get('COLLECTOR_TOKEN'), admin = gas.props.get('ADMIN_TOKEN');
   const api = { async post(action, payload) { const r = gas.post({ ...payload, action, token }); if (!r.ok) throw new Error(r.error); return r; } };
@@ -792,8 +793,10 @@ test('30일 최저·최저 알림: 기록 3일부터 표시, 알림을 켠 상�
   assert.ok(await noOverflow(page));
   if (process.env.AMONG_QA_DIR) { await watchBox.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/price-watch-390.png`, fullPage: true }); }
   // 본 뒤에는 같은 가격으로 다시 알리지 않음
-  await page.goto(site.base + '/index.html');
-  await page.waitForResponse(r => /script\.google\.com/.test(r.url()) && /online_deals/.test(r.url()));
+  await Promise.all([
+    page.waitForResponse(r => /script\.google\.com/.test(r.url()) && /online_deals/.test(r.url())),
+    page.goto(site.base + '/index.html'),
+  ]);
   await page.waitForTimeout(500);
   assert.equal(await banner.isVisible(), false, '본 최저는 다시 알리지 않음');
   // 알림 끄기 → 알림 목록이 사라짐

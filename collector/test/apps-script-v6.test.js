@@ -1,9 +1,10 @@
+import { fileURLToPath } from 'node:url';
 // v6 보안: 공개 API 남용 방지 · 시트 수식 주입 차단 · 보관 기간 · 내부 오류 숨김 · 행 자동 확장
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadAppsScript } from './gas-harness.js';
 
-const CODE = new URL('../../apps-script/Code.gs', import.meta.url).pathname;
+const CODE = fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url));
 const T0 = Date.parse('2026-10-28T03:00:00Z'); // KST 10/28 12:00
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;

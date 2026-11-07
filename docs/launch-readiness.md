@@ -18,6 +18,16 @@
 4. **도메인과 HTTPS**: GitHub Pages의 Custom domain 및 DNS를 설정하고 HTTPS 인증서 발급을 확인한 뒤 Pages 워크플로를 다시 실행한다. `actions/configure-pages`가 제공한 실제 배포 주소를 canonical·사이트맵·공유 주소에 반영한다. 임의의 CNAME이나 DNS를 생성하지 않았다.
 5. **실제 공개 화면**: 공식 데이터가 로드되는지, 행사 기간과 최근 확인 시각이 유효한지, 출처·문의·정책 링크가 정상인지 확인한다. 로컬 예시 화면과 모의 API 테스트만으로 운영 데이터 최신성을 판단하지 않는다. 확인 시각을 현재 시각으로 바꿔 오래된 자료를 최신처럼 보이게 하지 않는다.
 
+## 새 도메인을 연결할 때
+
+1. 사용할 도메인을 등록한 뒤 GitHub **계정 Settings → Pages → Add a domain**에서 소유권 확인을 시작한다. 등록기관 DNS에 GitHub가 표시하는 TXT 이름과 값을 그대로 넣고 **Verify**가 끝나면 TXT 레코드를 유지한다.
+2. **Olsd0/among → Settings → Pages → Custom domain**에 실제 서비스 호스트를 저장한 다음 DNS를 연결한다. 서브도메인(예: www)은 해당 호스트의 CNAME을 `olsd0.github.io`로, 루트 도메인은 등록기관이 지원하는 ALIAS/ANAME 또는 GitHub 공식 문서의 A/AAAA 레코드로 연결한다. 필요한 호스트만 설정한다. 와일드카드 DNS는 사용하지 않는다.
+3. DNS 확인과 인증서 발급 후 **Enforce HTTPS**를 켠다. Pages 워크플로를 다시 실행하고 http에서 https로 전환되는지, 새 주소에서 홈·온라인 특가·공식 링크·관리 화면을 열 수 있는지 확인한다. sitemap.xml과 canonical이 새 주소인지 확인한다.
+4. 쿠팡 파트너스 활동 매체에 실제 도메인을 등록한다. 구독·찜·가격 알림은 브라우저의 출처별 저장소에 있어 새 도메인에서는 다시 선택해야 한다.
+5. GitHub Pages에서는 각 HTML의 CSP와 referrer 정책이 동작한다. `_headers`는 Cloudflare Pages·Netlify용이다. HSTS·frame-ancestors를 직접 제어하려면 HTTP 응답 헤더를 지원하는 호스팅 또는 앞단 프록시에서 설정하고 실제 응답을 확인한다. 관리 화면은 최상위 창에서만 열리며 새로고침 후 관리 토큰을 다시 입력한다.
+
+[GitHub 도메인 소유권 확인](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/verifying-your-custom-domain-for-github-pages) · [DNS 설정 및 레코드](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site) · [HTTPS 설정](https://docs.github.com/en/pages/getting-started-with-github-pages/securing-your-github-pages-site-with-https)
+
 ## AdSense 연결 및 심사
 
 본인 계정에서 최종 사이트 주소를 추가하고 지원되는 **메타 태그 방식의 사이트 소유권 확인**을 선택한다. 준비된 빌드가 공개 페이지에 `google-adsense-account` 메타를 넣는다. 루트 도메인일 때 생성되는 `ads.txt`의 게시자 ID가 본인 계정과 일치하는지 확인한다. GitHub 프로젝트 하위 경로(`/among/`)의 `ads.txt`는 도메인 루트 파일을 대신할 수 없으므로 생성하지 않는다.

@@ -41,7 +41,6 @@ const ART = {
   pay: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="6" y="13" width="32" height="24" rx="4.5" fill="url(#g-grn)"/><path d="M6 19h32" stroke="#0f7e51" stroke-width="3"/><rect x="26" y="24" width="12" height="8" rx="3" fill="#0f7e51"/><circle cx="35" cy="34" r="8.5" fill="url(#g-gold)"/><path d="M31.8 31.2l1.4 5.6 1.8-4.2 1.8 4.2 1.4-5.6M31.2 33.4h7.6" stroke="#9a6700" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
   new: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M24 5l5.4 11.2 12.3 1.7-9 8.6 2.2 12.2L24 33l-10.9 5.7 2.2-12.2-9-8.6 12.3-1.7z" fill="url(#g-gold)"/><path d="M24 12.5l3 6.3 6.9 1" stroke="#fff6cf" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="39" cy="38" r="3" fill="#ffb3d2"/><circle cx="9" cy="37" r="2.2" fill="#8dbbff"/></svg>',
 };
-const TINT = { 햄버거: '--t-bun', 카페: '--t-cafe', 치킨: '--t-chk', 피자: '--t-piz', 디저트: '--t-des', free: '--t-vio', ending: '--t-red', telecom: '--t-blue', pay: '--t-grn', new: '--t-gold' };
 const ICON = {
   store: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-4h4v4"/></svg>',
   cal: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
@@ -140,7 +139,18 @@ const brandSite = (c) => (LINK_LABELS.some(([re]) => re.test(c.source_url || '')
 const logoUrl = (c) => { const known = officialBrandLogo(c.brand); if (known) return known.image; const d = siteDomain(brandSite(c)); return d && !LINK_LABELS.some(([re]) => re.test(d)) ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : ''; };
 const logoAlt = (c) => { const known = officialBrandLogo(c.brand); if (known) return known.fallback || ''; const u = brandSite(c); try { return u ? `${new URL(u).origin}/favicon.ico` : ''; } catch { return ''; } };
 // 구글 아이콘 서비스는 아이콘이 없으면 16px 지구본을 준다 → 공식 사이트 favicon.ico로 한 번 더, 그래도 없으면 카테고리 아이콘
-const logoFail = (img) => { const alt = img.dataset.alt; if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; } else img.remove(); };
+const logoFail = (img) => {
+  const alt = img.dataset.alt;
+  if (alt && img.src !== alt) { img.dataset.alt = ''; img.src = alt; return; }
+  if (img.classList.contains('notice-brand-logo')) {
+    const preview = img.parentElement;
+    const name = document.createElement('b');
+    name.className = 'fallback-brand';
+    name.textContent = img.dataset.brand;
+    preview.classList.add('notice-placeholder');
+    preview.replaceChildren(name);
+  } else img.remove();
+};
 const logoCheck = (img) => { if (img.naturalWidth <= 16 && img.src.includes('google.com/s2/')) logoFail(img); };
 // 연도가 다른 날짜는 연도까지 보여줘 이미 지난 날짜처럼 오해하지 않게 한다.
 const md = (iso) => (iso ? `${iso.slice(0, 4) !== todayKST().slice(0, 4) ? `${iso.slice(0, 4)}년 ` : ''}${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
@@ -413,6 +423,11 @@ function toggleFollow(brand) {
   document.querySelector(`[data-follow="${CSS.escape(brand)}"]`)?.focus({ preventScroll: true });
   toast(adding ? `${brand}를 구독했어요` : `${brand} 구독을 취소했어요`);
 }
+$('.budget-jump').addEventListener('click', (event) => {
+  event.preventDefault();
+  $('#budget').scrollIntoView({ block: 'start' });
+  $('#budget button[aria-pressed="true"]').focus({ preventScroll: true });
+});
 $('#viewNav').addEventListener('click', (e) => { const b = e.target.closest('[data-view]'); if (b) changeView(b.dataset.view); });
 $('#brandPanel').addEventListener('click', (e) => {
   const f = e.target.closest('[data-follow]'); if (f) { toggleFollow(f.dataset.follow); return; }
@@ -434,7 +449,7 @@ const KIND_LABEL = Object.fromEntries(KINDS.map((k) => [k.id, k.label]));
 /** 아이콘 그리드: 위 줄 음식 종류, 아래 줄 혜택 종류. 숫자 = 그 아이콘을 눌렀을 때 보일 개수 */
 function renderGrid() {
   const n = (over) => visibleWith(over).length;
-  const tile = (key, val, label, art, on, count) => `<button class="gi" data-${key}="${esc(val)}" aria-pressed="${on}" style="--tint: var(${TINT[val]})"><span class="ic" aria-hidden="true">${art}</span>${esc(label)}<span class="n${count ? '' : ' z'}">${count}</span></button>`;
+  const tile = (key, val, label, art, on, count) => `<button class="gi" data-${key}="${esc(val)}" aria-pressed="${on}"><span class="ic" aria-hidden="true">${art}</span>${esc(label)}<span class="n${count ? '' : ' z'}">${count}</span></button>`;
   const cats = CATS.filter((c) => c.id !== '전체').map((c) => tile('cat', c.id, c.id, ART[c.id], state.category === c.id, n({ category: c.id })));
   const kinds = KINDS.map((k) => tile('kind', k.id, k.label, ART[k.id], state.kind === k.id, n({ kind: k.id })));
   setHTML($('#grid'), cats.join('') + '<hr>' + kinds.join(''));
@@ -455,7 +470,7 @@ function noticeSource(n) {
 // 사진이 하나도 없을 때(또는 못 불러왔을 때) 바탕: 공식 브랜드 로고. 요약문을 이미지 대신 반복하지 않고, 우리 일러스트로 채우지 않는다.
 function noticePreview(n) {
   const logo = officialBrandLogo(n.brand)?.image;
-  return logo ? `<span class="notice-preview"><img class="logo notice-brand-logo" src="${esc(logo)}" alt="${esc(n.brand)} 공식 브랜드 로고" loading="lazy" referrerpolicy="no-referrer"><span class="notice-brand-label">브랜드 로고</span></span>` : '<span class="notice-preview notice-placeholder" aria-hidden="true"></span>';
+  return logo ? `<span class="notice-preview"><img class="logo notice-brand-logo" src="${esc(logo)}" data-brand="${esc(n.brand)}" alt="${esc(n.brand)} 공식 브랜드 로고" loading="lazy" referrerpolicy="no-referrer"><span class="notice-brand-label">브랜드 로고</span></span>` : `<span class="notice-preview notice-placeholder" aria-hidden="true"><b class="fallback-brand">${esc(n.brand)}</b></span>`;
 }
 const relatedCoupons = (n) => (n.related_ids || []).map((id) => state.coupons.find((c) => c.id === id)).filter(Boolean);
 const asVisual = (p) => { const src = p && safeImg(p.url); return src ? { src, label: p.label || '', alt: `${p.name || ''} ${p.label || ''}`.trim(), source: p.source || '', official: false } : null; };
@@ -497,7 +512,7 @@ function hotCard(h, i) {
   const lbl = h.kind === 'news' ? '' : h.label || '';
   const hc = h.kind === 'coupon' ? state.coupons.find(c => c.id === h.id) : null;
   const tone = hc ? stubParts(hc).tone : 'sale';
-  const size = /[0-9]원/.test(lbl) ? 'font-size:18px' : lbl.length > 9 ? 'font-size:17px' : lbl.length > 6 ? 'font-size:19px' : '';
+  const size = /[0-9]원/.test(lbl) ? ' money-label' : lbl.length > 9 ? ' long-label' : lbl.length > 6 ? ' medium-label' : '';
   if (h.kind === 'news') {
     const n = state.news.find(n => n.id === h.id) || h;
     const v = noticeVisual(n);
@@ -518,7 +533,7 @@ function hotCard(h, i) {
   return `<button class="hcard${v ? ' has-ph' : ' noph'}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
     <span class="hot-visual">${noticePreview(h)}${visualImg(v ? { ...v, alt: v.alt || title } : null, i)}</span>
     <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span>
-    <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl tone-${tone}" style="${size}">${esc(lbl)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
+    <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl tone-${tone}${size}">${esc(lbl)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
   </button>`;
 }
 function renderHot() {
@@ -541,6 +556,7 @@ function renderHot() {
   if (!hot.length) return;
   if (!setHTML($('#hotRail'), hot.map(hotCard).join(''))) return;
   $('#hotRail').scrollLeft = 0;
+  updateRailControls();
   $('#hotDots').innerHTML = hot.length > 1 ? hot.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
   $('#hotCount').textContent = hot.length > 1 ? `1 / ${hot.length}` : '';
 }
@@ -641,7 +657,7 @@ function nutritionBlock(c) {
   const m = matchNutrition(c, state.nutrition.items);
   if (!m) return '';
   const it = m.item;
-  const cell = (v, unit, label) => (has(v) ? `<div><b>${won(v)}<small style="font-size:11px">${unit}</small></b><span>${label}</span></div>` : '');
+  const cell = (v, unit, label) => (has(v) ? `<div><b>${won(v)}<small class="nutrition-unit">${unit}</small></b><span>${label}</span></div>` : '');
   const sp = sodiumPercent(it.sodium_mg);
   const basis = [
     m.set ? `세트 중 ${esc(it.name)} 기준 (음료·사이드 제외)` : `${esc(it.name)}${m.basis === 'exact' ? '' : ' 기준'}`,
@@ -695,7 +711,7 @@ function card(c, today) {
   const bigLen = st.big.length + (st.unit || '').length;
   // 적용가가 있는 상품은 오른쪽 가격이 중심 → 왼쪽 할인율은 한 단계 작게 (같은 강도로 겹쳐 강조하지 않음)
   const quiet = st.unit === '%' && budgetPrice(c) !== null && c.discount_type !== 'free_item';
-  const bigStyle = st.unit === '원' || quiet ? '' : bigLen > 6 ? ' style="font-size:19px"' : bigLen > 4 ? ' style="font-size:23px"' : '';
+  const bigClass = st.unit === '원' || quiet ? '' : bigLen > 6 ? ' long-label' : bigLen > 4 ? ' medium-label' : '';
   // 정보 순서: 브랜드·메뉴 → 가격(혜택) → 쓸 수 있는 조건 → 기간 → 공식 페이지. 펼치기는 '상세 보기' 버튼(카드 빈 곳을 눌러도 열림)
   return `
   <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
@@ -704,7 +720,7 @@ function card(c, today) {
         ${img ? (photo.kind === 'parts' ? partsImgs(photo.parts, true) : `<img class="ph" src="${esc(img)}" alt="" width="80" height="62" loading="lazy" decoding="async" referrerpolicy="no-referrer">`) : ''}
         ${photo?.label ? `<span class="coupon-image-label">${PHOTO_LABEL[photo.kind] || ''}</span>` : ''}
         <span class="cat-art">${ART[c.category] || ''}</span>
-        <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}${quiet ? ' quiet' : ''}"${bigStyle}>${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
+        <div class="lbl-w"><div class="big${st.unit === '원' ? ' money' : ''}${quiet ? ' quiet' : ''}${bigClass}">${esc(st.big)}${st.unit ? `<small>${esc(st.unit)}</small>` : ''}</div><div class="sub">${esc(st.sub)}</div></div>
       </div>
       <div class="body">
         <div class="who"><span class="bn"><button class="brand-link" data-brand-open="${esc(c.brand)}" aria-label="${esc(c.brand)} 브랜드 보기">${esc(c.brand)}</button>${(c.channels || []).length > 1 ? `<span class="chn"> · ${esc(c.channels.join(' · '))}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}<button type="button" class="more" data-toggle="${esc(c.id)}" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">${open ? '상세 닫기' : '상세 보기'}${ICON.down}</button></div>
@@ -838,7 +854,12 @@ function render() {
   renderViewNav();
   const onlineView = state.view === 'onlineDeals';
   $('#onlineDeals').hidden = !onlineView;
+  $('.hero').hidden = state.view !== 'all';
   $('#introDetail').hidden = state.view !== 'all';
+  const section = { all: 'list', onlineDeals: 'onlineDeals', appCoupons: 'appCoupons', brands: 'brandPanel', following: 'brandPanel' }[state.view];
+  const skip = $('.skip-link');
+  skip.href = '#' + section;
+  skip.textContent = `${document.getElementById(section).getAttribute('aria-label')} 바로 가기`;
   for (const el of [$('#searchBtn'), $('#meBtn'), $('#refreshBtn'), $('#searchRow'), $('#lastChecked'), $('#couponFooterNotes')]) el.hidden = onlineView;
   $('#footerHint').textContent = onlineView ? '상품 가격과 구매 조건은 쿠팡에서 최종 확인하세요.' : '실제 혜택과 영양정보는 공식 앱·매장에서 최종 확인하세요.';
   $('#demoNote').hidden = onlineView || !DEMO;
@@ -1026,7 +1047,22 @@ $('#hotRail').addEventListener('click', (e) => {
   track('detail', { value: `hot:${kind}`, coupon_id: kind === 'coupon' ? id : '' });
   if (kind === 'app_coupon') appCouponUI.open(id); else if (kind === 'news') openNews(id); else jumpTo(id);
 });
-$('#hotRail').addEventListener('scroll', () => {
+const rail = $('#hotRail');
+function updateRailControls() {
+  const end = rail.scrollWidth - rail.clientWidth;
+  $('#railControls').hidden = end < 2;
+  $('#previousDeal').disabled = rail.scrollLeft <= 1;
+  $('#nextDeal').disabled = rail.scrollLeft >= end - 1;
+}
+for (const [id, direction] of [['#previousDeal', -1], ['#nextDeal', 1]]) {
+  $(id).addEventListener('click', () => {
+    const step = rail.children[1]?.offsetLeft - rail.firstElementChild?.offsetLeft;
+    if (step) rail.scrollBy({ left: direction * step, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  });
+}
+if ('ResizeObserver' in window) new ResizeObserver(updateRailControls).observe(rail);
+rail.addEventListener('scroll', () => {
+  updateRailControls();
   const rail = $('#hotRail'); const first = rail.firstElementChild; if (!first) return;
   const i = Math.round(rail.scrollLeft / (first.offsetWidth + 12));
   $('#hotDots').querySelectorAll('i').forEach((d, k) => d.classList.toggle('on', k === i));

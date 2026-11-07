@@ -1,9 +1,10 @@
+import { fileURLToPath } from 'node:url';
 // v5: 소식(news) 탭 · 쿠폰 사진 주소 · 공개 API에 소식 포함
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadAppsScript } from './gas-harness.js';
 
-const CODE = new URL('../../apps-script/Code.gs', import.meta.url).pathname;
+const CODE = fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url));
 const T0 = Date.parse('2026-10-28T03:00:00Z'); // KST 10/28 12:00
 
 /** 운영 중인 v4 시트: v4 머리글, SCHEMA_VERSION=4, news 탭 없음 */

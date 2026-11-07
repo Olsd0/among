@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 230" fill="none">
+  <defs>
+    <linearGradient id="back" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#9478fa"/><stop offset=".55" stop-color="#6447cf"/><stop offset="1" stop-color="#433478"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2=".9" y2="1">
+      <stop stop-color="#fffaff"/><stop offset=".45" stop-color="#eee5ff"/><stop offset="1" stop-color="#c7b4f2"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#a789ff"/><stop offset=".5" stop-color="#8055ef"/><stop offset="1" stop-color="#5735b7"/>
+    </linearGradient>
+    <radialGradient id="floor"><stop stop-color="#9680be" stop-opacity=".45"/><stop offset="1" stop-color="#9680be" stop-opacity="0"/></radialGradient>
+    <path id="ticket" d="M14 0h170q12 0 12 12v25a11 11 0 0 0 0 22v22q0 12-12 12H14Q2 93 2 81V59a11 11 0 0 0 0-22V12Q2 0 14 0Z"/>
+    <g id="percent" stroke-width="7" stroke-linecap="round">
+      <circle cx="16" cy="13" r="9"/><path d="M41 5 15 45"/><circle cx="42" cy="37" r="9"/>
+    </g>
+  </defs>
+  <ellipse cx="193" cy="206" rx="139" ry="17" fill="url(#floor)"/>
+  <g transform="matrix(.86 .29 -.34 .92 133 40)">
+    <use href="#ticket" y="4" fill="#4f397f"/><use href="#ticket" fill="url(#back)" stroke="#b39bf3"/>
+    <path d="M145 6v81" stroke="#d7c8ff" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <g fill="#ebdfff"><rect x="21" y="22" width="25" height="4" rx="2"/><rect x="21" y="31" width="44" height="3" rx="1.5"/></g>
+    <path d="M159 20v51m4-51v51m6-51v51m3-51v51m5-51v51" stroke="#ddd2ff" stroke-width="2"/>
+  </g>
+  <g transform="matrix(1.07 -.27 .28 .98 49 105)">
+    <use href="#ticket" y="6" fill="#8d79b9"/><use href="#ticket" y="3" fill="#c3addd"/><use href="#ticket" fill="url(#face)" stroke="#fff9ff" stroke-width="1.6"/>
+    <path d="M143 7v79" stroke="#a58bbf" stroke-width="1.7" stroke-dasharray="4 4"/>
+    <g transform="translate(43 14) scale(1.2)">
+      <use href="#percent" stroke="#624694" transform="translate(0 2.7)"/><use href="#percent" stroke="url(#ink)"/>
+    </g>
+    <g stroke="#8063a6"><path d="M157 24v43m3-43v43m7-43v43m3-43v43m7-43v43" stroke-width="2"/><path d="M164 24v43m9-43v43" stroke-width="1"/></g>
+  </g>
+  <path d="M55 43c0 9-4 13-13 13 9 0 13 4 13 13 0-9 4-13 13-13-9 0-13-4-13-13Z" fill="#b59bdf"/>
+  <path d="M308 153c0 5-3 8-8 8 5 0 8 3 8 8 0-5 3-8 8-8-5 0-8-3-8-8Z" fill="#ac92d8"/>
+</svg>

@@ -124,7 +124,7 @@ test('실행: 알고 있는 후보를 먼저 받고, 새 후보만 저장 요청
 
 test('워크플로: 1시간마다, 읽기 권한만, 겹침 방지, 외부 액션 고정, 외부 패키지 설치 없음', async () => {
   const { readFileSync } = await import('node:fs');
-  const yml = readFileSync(new URL('../../.github/workflows/online-leads.yml', import.meta.url), 'utf8');
+  const yml = readFileSync(new URL('../../.github/workflows/online-leads.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.match(yml, /cron: '41 \* \* \* \*'/);
   assert.match(yml, /permissions:\n  contents: read/);
   assert.match(yml, /concurrency:\n  group: online-leads/);

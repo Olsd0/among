@@ -1,3 +1,4 @@
+import { request } from './admin-request.js?v=20261107-1';
 import { AC_APPS, AC_AUDIENCES, AC_BENEFITS, AC_FACTS, AC_LINK_LABELS, AC_STATES, acNormalize, acKST, acLifecycle, acNeedsReview, acValidate } from './app-coupons.js?v=20261029-8';
 import { acEsc as esc } from './app-coupon-ui.js?v=20261103-1';
 
@@ -10,19 +11,6 @@ root.innerHTML = `<div class="ac-admin-heading"><div><h2>앱 전용 쿠폰 관�
   <div id="acAdminContent" hidden><div class="ac-admin-toolbar"><label>목록 필터<select id="acAdminFilter"><option value="all">전체</option><option value="draft">초안</option><option value="published">공개</option><option value="review">재확인 필요</option><option value="redeem_only">발급 종료</option><option value="ended">사용 종료</option><option value="archived">보관</option></select></label><button type="button" id="acNew">쿠폰 등록</button><button type="button" id="acReload">목록 새로고침</button></div><p id="acAdminCount"></p><div id="acAdminList" class="ac-admin-list"></div><div id="acEditor"></div></div>`;
 const $ = s => root.querySelector(s);
 const message = (s, bad = false) => { $('#acAdminMessage').textContent = s; $('#acAdminMessage').classList.toggle('bad', bad); };
-async function request(action, body = {}) {
-  if (DEMO) throw new Error('예시 모드에서는 변경할 수 없어요.');
-  const token = document.querySelector('#token').value.trim();
-  if (!token) throw new Error('관리 토큰을 입력하세요.');
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
-  try {
-    const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...body, action, token }), signal: ctrl.signal });
-    const j = await res.json();
-    if (!j.ok) throw new Error(j.error === 'unauthorized' ? '관리 토큰이 맞지 않아요.' : j.error || '요청 실패');
-    return j;
-  } finally { clearTimeout(timer); }
-}
 function list() {
   const filter = $('#acAdminFilter').value;
   const shown = rows.filter(c => filter === 'all' || (filter === 'review' ? acNeedsReview(c) : ['draft', 'published', 'archived'].includes(filter) ? c.status === filter : acLifecycle(c) === filter));

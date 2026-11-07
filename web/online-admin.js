@@ -1,3 +1,4 @@
+import { request } from './admin-request.js?v=20261107-1';
 // 온라인 특가 관리: 공급처 연결 상태·모드, 보류 사유, 숨김·분류 지정, 운영 규칙, 실행 기록.
 // 운영자는 예외와 규칙만 다룬다. 상품을 직접 입력하는 기능은 두지 않는다.
 import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_PUBLIC_CATEGORY, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261106-4';
@@ -70,19 +71,6 @@ root.innerHTML = `<div class="od-admin-heading"><div><h2>온라인 특가</h2><p
 const $ = s => root.querySelector(s);
 const message = (s, bad = false) => { $('#odAdminMessage').textContent = s; $('#odAdminMessage').classList.toggle('bad', bad); };
 
-async function request(action, body = {}) {
-  if (DEMO) throw new Error('예시 모드에서는 바꿀 수 없어요.');
-  const token = document.querySelector('#token').value.trim();
-  if (!token) throw new Error('관리 토큰을 입력하세요.');
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
-  try {
-    const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...body, action, token }), signal: ctrl.signal });
-    const j = await res.json();
-    if (!j.ok) throw new Error(j.error === 'unauthorized' ? '관리 토큰이 맞지 않아요.' : j.error || '요청 실패');
-    return j;
-  } finally { clearTimeout(timer); }
-}
 
 function connection(s) {
   if (s.lastResult === 'awaiting_access') return ['warn', '승인 대기 · 연결 안 됨'];

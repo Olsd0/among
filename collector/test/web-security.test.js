@@ -6,6 +6,46 @@ import vm from 'node:vm';
 
 const readWeb = (name) => readFileSync(new URL(`../../web/${name}`, import.meta.url), 'utf8');
 
+test('모든 배포 HTML에서 외부 글꼴·인라인 코드·프레임 허용이 다시 열리지 않는다', () => {
+  for (const name of ['index', 'admin', 'about', 'terms', 'guide', 'privacy', 'partners']) {
+    const html = readWeb(name + '.html');
+    const policy = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
+    for (const rule of ["script-src 'self'", "style-src 'self'", "style-src-attr 'none'", "font-src 'self'", "frame-src 'none'", "base-uri 'none'"]) {
+      assert.ok(policy.split(';').map(s => s.trim()).includes(rule), name + ' ' + rule);
+    }
+    assert.doesNotMatch(html, /unsafe-inline|unsafe-eval|<style\b|\sstyle=|cdn\.jsdelivr\.net/i, name);
+  }
+});
+
+test('관리 요청은 공식 배포 주소와 최상위 창에서만 토큰을 본문으로 보내고 기록을 남기지 않는다', async () => {
+  const calls = [];
+  const top = {};
+  const deployment = 'https://script.google.com/macros/s/test-id/exec';
+  const window = { self: top, top, AMONG_CONFIG: { apiUrl: deployment } };
+  const request = vm.runInNewContext(readWeb('admin-request.js').replace('export async function', 'async function') + '\nrequest', {
+    window, location: { search: '' }, URLSearchParams, AbortController, setTimeout, clearTimeout,
+    document: { querySelector: () => ({ value: 'test-only' }) },
+    fetch: async (url, options) => { calls.push({ url, options }); return { ok: true, json: async () => ({ ok: true }) }; },
+  });
+  for (const url of ['https://script.google.com.evil.example/macros/s/a/exec', deployment + '?next=other', 'https://script.google.com/macros/s/a/dev']) {
+    window.AMONG_CONFIG.apiUrl = url;
+    await assert.rejects(request('metrics'));
+  }
+  window.AMONG_CONFIG.apiUrl = deployment;
+  window.self = {};
+  await assert.rejects(request('metrics'));
+  assert.equal(calls.length, 0);
+  window.self = top;
+  await request('metrics');
+  const [{ url, options }] = calls;
+  assert.equal(url, deployment);
+  assert.deepEqual(JSON.parse(options.body), { action: 'metrics', token: 'test-only' });
+  assert.equal(options.method, 'POST');
+  assert.equal(options.cache, 'no-store');
+  assert.equal(options.credentials, 'omit');
+  assert.equal(options.referrerPolicy, 'no-referrer');
+});
+
 function docPage({ refuseWrites = false, initial = {} } = {}) {
   class Storage {
     getItem(k) { return Object.hasOwn(this, k) ? this[k] : null; }

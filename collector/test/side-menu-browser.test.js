@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // 메인 메뉴 / 사이드메뉴 전환 (11/05 대표 요청: 사이드가 섞여 보기 불편)
 // 아래 혜택·브랜드는 모두 가상 데이터이며 실제 사이트에 게시되지 않는다.
 import { test, before, after } from 'node:test';
@@ -7,7 +8,7 @@ import { serveDir } from './helpers.js';
 
 let site, browser;
 before(async () => {
-  site = await serveDir(new URL('../../web/', import.meta.url).pathname);
+  site = await serveDir(fileURLToPath(new URL('../../web/', import.meta.url)));
   browser = await chromium.launch();
 });
 after(async () => { if (browser) await browser.close(); if (site) await site.close(); });

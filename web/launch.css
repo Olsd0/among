@@ -32,3 +32,128 @@
 .sponsor p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
 .sponsor a { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary); font-size: 13.5px; font-weight: 700; text-underline-offset: 3px; }
 @media (min-width: 680px) { .service-guide { padding: 24px 24px 12px; } .sponsor { margin: 16px 0 0; } }
+
+/* 홈과 탐색 */
+:root {
+  --panel-shadow: 0 2px 4px rgb(35 22 57 / .035), 0 10px 26px -18px rgb(45 27 74 / .25);
+  --hero-fill: color-mix(in srgb, var(--primary-soft) 67%, var(--bg));
+  --ticket-shadow: drop-shadow(0 1px 1px rgb(31 18 57 / .07)) drop-shadow(0 5px 6px rgb(36 21 62 / .08));
+}
+body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft) 22%, var(--canvas)), var(--canvas) 680px); }
+.bar { height: 62px; gap: 10px; }
+.bar .logo { min-height: 44px; }
+.me-pill { min-height: 40px; border: 1px solid var(--line); }
+.view-nav { align-items: center; padding-block: 4px 8px; }
+.view-nav button { min-height: 40px; padding: 0 14px; border-radius: 11px; }
+.view-nav button[aria-pressed="true"] { color: var(--primary-ink); background: var(--primary); }
+.view-nav button[aria-pressed="true"]::after { content: none; }
+.view-nav button[aria-pressed="true"] #followingCount:not(:empty) { background: var(--primary-ink); color: var(--primary); }
+.lead-block { background: transparent; padding: 0; }
+.hero {
+  position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center;
+  min-height: 230px; padding: 26px clamp(22px,4vw,48px); border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, var(--bg));
+  background: radial-gradient(ellipse at 83% 70%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 52%),
+    linear-gradient(110deg, var(--bg) -22%, var(--hero-fill) 58%, color-mix(in srgb, var(--primary-soft) 83%, var(--bg)));
+  box-shadow: var(--panel-shadow), inset 0 1px rgb(255 255 255 / .23);
+}
+.hero-copy { position: relative; z-index: 1; width: 57%; }
+.hero .intro { font-size: clamp(32px, 4.1vw, 48px); letter-spacing: -.06em; line-height: 1.12; margin: 0 0 10px; }
+.hero .intro-detail { font-size: 15px; }
+.hero-art { position: absolute; right: 3%; top: 50%; transform: translateY(-50%); width: min(40%, 385px); height: auto; pointer-events: none; }
+.hero-links { display: flex; align-items: center; gap: 16px; margin-top: 17px; }
+.hero-links .budget-jump { display: inline-flex; gap: 10px; align-items: center; min-height: 42px; padding: 0 16px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 2px 5px rgb(35 22 57 / .12); }
+.hero-links .guide-shortcut { color: var(--text-2); font-size: 13px; text-underline-offset: 3px; text-decoration: underline; }
+#budget { scroll-margin-block-start: calc(var(--hh) + 12px); }
+.hot, .grid, .brand-panel, .service-guide { box-shadow: var(--panel-shadow); }
+.hot, .grid { margin-top: 14px; }
+.hcard { box-shadow: 0 2px 5px rgb(34 22 58 / .07); }
+.hot .sec-h { align-items: center; }
+.rail-controls { display: flex; gap: 4px; }
+.rail-controls button { display: grid; place-items: center; width: 36px; height: 36px; font: 24px/1 sans-serif; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--text); background: var(--bg); }
+.rail-controls button:disabled { opacity: .38; cursor: default; }
+.rail-controls button:enabled:hover { color: var(--primary); background: var(--primary-soft); }
+.gi .ic { box-shadow: inset 0 1px rgb(255 255 255 / .28), inset 0 -2px rgb(38 25 57 / .09); }
+.gi:has(.n.z) { opacity: .72; }
+.card .ticket { box-shadow: inset 0 0 0 1px var(--line); }
+.card .ticket::after { border-color: color-mix(in srgb, var(--muted) 42%, var(--line)); }
+#list .empty { background: var(--surface); border-radius: 16px; }
+#onlineDeals .od-heading, #brandPanel .brand-intro { border-left: 3px solid var(--primary); padding-left: 14px; }
+@media (hover: hover) {
+  .gi:hover .ic { transform: translateY(-2px); }
+  .hero-links .budget-jump:hover { background: var(--primary); color: var(--primary-ink); }
+}
+@media (min-width: 680px) {
+  .bar { height: 68px; }
+  .lead-block { padding: 0; margin-top: 18px; }
+  .service-guide .criteria { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .hero-links { gap: 20px; }
+}
+@media (max-width: 679px) {
+  .shell { --gutter: 12px; }
+  header.top { border-bottom: 1px solid var(--line); }
+  .bar { height: 54px; }
+  .view-nav { padding: 2px var(--gutter) 8px; gap: 3px; border: 0; }
+  .view-nav button { flex: 1 0 auto; font-size: clamp(12px,3.45vw,15px); padding: 0 4px; }
+  .lead-block { margin: 12px var(--gutter) 0; }
+  .hero { border-radius: 18px; min-height: 182px; padding: 20px 16px; }
+  .hero-copy { width: 100%; }
+  .hero .intro { font-size: clamp(27px,7.3vw,38px); margin-bottom: 10px; }
+  .hero-art { width: clamp(118px,36%,196px); right: 0; top: 48px; transform: none; }
+  .hero .intro-detail p { width: 62%; font-size: 13px; }
+  .hero-links { gap: 12px; margin-top: 14px; }
+  .hero-links .budget-jump { min-height: 40px; font-size: 13px; }
+  .hot, .grid, .brand-panel, .service-guide { margin-inline: var(--gutter); border-radius: 18px; }
+  .hot .sec-h { gap: 6px; padding: 15px 12px 10px; }
+  .hot .sec-h small { display: none; }
+  .hcard { flex-basis: 84%; }
+  .rail { padding-inline: 12px; scroll-padding: 12px; }
+  .gi .ic { width: 44px; height: 44px; border-radius: 14px; }
+  .gi .ic svg { width: 30px; height: 30px; }
+  .gi .n { left: calc(50% + 11px); }
+  .hot + .grid { margin-top: 12px; }
+  .budget .budget-btn { height: 40px; }
+}
+@media (max-width: 350px) {
+  .hero-art { width: 105px; right: -4px; top: 45px; }
+  .hero-links { gap: 10px; }
+}
+
+/* 선택 표시는 클릭한 프레임에서 곧바로 바뀐다. */
+.budget-btn { transition: none; }
+
+/* 사진이 없는 카드도 실제 혜택 금액이나 브랜드를 먼저 읽을 수 있다. */
+.hcard.noph .notice-placeholder {
+  background: linear-gradient(135deg, var(--hero-fill), var(--surface-2));
+  color: var(--primary);
+}
+.fallback-brand { font-size: 24px; letter-spacing: -.045em; }
+.hcard.noph:has(.notice-placeholder) .hot-visual::after {
+  content: ""; position: absolute; left: 10px; right: 10px; bottom: 8px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--primary) 22%, transparent);
+}
+.hcard.noph:has(.notice-placeholder):has(.lbl) .fallback-brand { visibility: hidden; }
+.hcard.noph:has(.notice-placeholder) .hot-meta .lbl {
+  position: absolute; inset: 0 0 auto; height: 160px; display: grid; place-items: center;
+  font-size: 40px; line-height: 1; letter-spacing: -.05em; color: var(--primary);
+}
+.hcard.noph:has(.notice-placeholder) .hot-meta .lbl.money-label,
+.hcard.noph:has(.notice-placeholder) .hot-meta .lbl.long-label { font-size: 26px; }
+.hcard.noph:has(.notice-placeholder) .kind { margin-left: auto; }
+
+
+/* 브랜드, 온라인 특가에서도 같은 구역 간격과 터치 영역을 사용한다. */
+#onlineDeals .od-heading { margin-block: 6px 16px; padding-block: 4px; }
+#onlineDeals .od-disclosure { background: var(--bg); border-color: var(--line); box-shadow: var(--panel-shadow); }
+#onlineDeals .od-item-tabs .chip-btn { min-height: 42px; }
+#onlineDeals .od-item-tabs .chip-btn:focus-visible { outline-offset: -3px; }
+#brandPanel .brand-intro { margin-bottom: 14px; }
+#brandPanel .brand-intro p { margin-bottom: 0; }
+@media (hover: hover) {
+  #brandPanel .brand-tile:hover { background: color-mix(in srgb, var(--primary-soft) 25%, var(--bg)); }
+}
+@media (min-width: 680px) {
+  #onlineDeals { padding-inline: 4px; }
+  #onlineDeals .od-heading { margin-top: 12px; }
+  #onlineDeals .od-picks-list, #onlineDeals .od-products-list { grid-template-columns: repeat(2,minmax(0, 1fr)); }
+}

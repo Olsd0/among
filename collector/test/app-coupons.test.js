@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -5,7 +6,7 @@ import { acNormalize, acValidate, acLifecycle, acPublic, acHotEligible, acBenefi
 import { loadAppsScript } from './gas-harness.js';
 import { appCoupon, AC_NOW } from './app-coupon-fixtures.js';
 
-const CODE = new URL('../../apps-script/Code.gs', import.meta.url).pathname;
+const CODE = fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url));
 function boot() {
   const gas = loadAppsScript(CODE, { now: AC_NOW }); gas.ctx.setup();
   const post = (action, body = {}) => gas.post({ action, token: gas.props.get('ADMIN_TOKEN'), ...body });

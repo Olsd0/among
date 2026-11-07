@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // Code.gs를 가짜 Apps Script 환경에서 실행해 수집기와 실제로 맞물리는지 확인
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ import { normalizeAndValidate } from '../src/engine.js';
 import { couponId, contentHash } from '../src/ids.js';
 import { clearRobotsCache } from '../src/robots.js';
 
-const CODE = new URL('../../apps-script/Code.gs', import.meta.url).pathname;
+const CODE = fileURLToPath(new URL('../../apps-script/Code.gs', import.meta.url));
 const T0 = Date.parse('2026-10-25T03:00:00Z'); // KST 12:00
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;
@@ -34,7 +35,7 @@ function coupon(over = {}, now = new Date(T0)) {
 }
 
 let site;
-before(async () => { site = await serveDir(new URL('./fixtures/site', import.meta.url).pathname); });
+before(async () => { site = await serveDir(fileURLToPath(new URL('./fixtures/site', import.meta.url))); });
 after(async () => { await site.close(); });
 
 test('setup: 탭·머리글·토큰 생성', () => {

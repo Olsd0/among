@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // 종단 테스트: 가상 공식 페이지 → Playwright 렌더링 → (모의) 추출 → 엔진 → 시트 반영
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ import { clearRobotsCache } from '../src/robots.js';
 const NOW = new Date('2026-10-25T03:00:00Z');
 let site;
 
-before(async () => { site = await serveDir(new URL('./fixtures/site', import.meta.url).pathname); });
+before(async () => { site = await serveDir(fileURLToPath(new URL('./fixtures/site', import.meta.url))); });
 after(async () => { await site.close(); });
 
 function recordingSheet() {
@@ -125,7 +126,7 @@ test('예약 실행: 00시 트리거가 오늘 이미 수집했으면 GitHub 예
 test('시험 실행: 시트에 아직 없는 출처 id는 예시 파일에서 보충', async () => {
   const { withExampleSources } = await import('../src/run.js');
   const cwd = process.cwd();
-  process.chdir(new URL('..', import.meta.url).pathname);
+  process.chdir(fileURLToPath(new URL('..', import.meta.url)));
   try {
     const out = withExampleSources([{ id: 'mcd-promo' }], ['mcd-promo', 'tmembership-brand', 'dunkin-event', 'nope']);
     assert.deepEqual(out.map((s) => s.id), ['mcd-promo', 'tmembership-brand', 'dunkin-event']);
