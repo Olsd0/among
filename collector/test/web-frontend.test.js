@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 // 모바일 화면에서 실제로 보이는 최신성 안내, 재시도, 키보드와 초기 표시를 검증한다.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -79,7 +80,17 @@ test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고 작�
   assert.equal(await page.locator('[data-hot="news:happy-public"]').count(), 0);
 });
 
-test('바나나 옐로우 로고와 바둑판 배너가 화면 크기와 테마에 관계없이 표시된다', async (t) => {
+test('머리글 바둑판 칸은 가로 1.7 : 세로 1 직사각형 (밝은·어두운 화면 같은 배치)', () => {
+  for (const file of ['banana-bricks.svg', 'banana-bricks-dark.svg']) {
+    const svg = readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8');
+    assert.match(svg, /viewBox="0 0 102 40"/);
+    const cells = [...svg.matchAll(/M(\d+) (\d+)h(\d+)v(\d+)H\d+z/g)].map((m) => m.slice(1).map(Number)).filter(([, , w]) => w !== 102);
+    assert.equal(cells.length, 20, `${file}: 바탕 위 칸 20개`);
+    for (const [x, y, w, h] of cells) { assert.equal(w / h, 1.7); assert.equal(x % 17, 0); assert.equal(y % 10, 0); }
+  }
+});
+
+test('바나나 옐로우 로고와 머리글 바둑판이 화면 크기와 테마에 관계없이 표시된다', async (t) => {
   const { context, page } = await setup({ ok: true, coupons: [], news: [] });
   t.after(() => context.close());
   await page.goto(site.base + '/');
@@ -101,18 +112,31 @@ test('바나나 옐로우 로고와 바둑판 배너가 화면 크기와 테마�
     assert.ok(left && right && left.x + left.width <= right.x);
     assert.ok(Math.abs((left.y + left.height / 2) - (right.y + right.height / 2)) < 1);
     assert.equal(await logo.evaluate((img) => getComputedStyle(img).filter), colorScheme === 'dark' ? 'invert(1)' : 'none');
-    const banner = page.locator('.hero');
-    const style = await banner.evaluate((el) => {
-      const css = getComputedStyle(el);
-      return { color: css.color, image: css.backgroundImage, repeat: css.backgroundRepeat };
+    // 11/07 대표 요청: 바둑판 배너 = 머리글(로고·탭). 칸은 가로 1.7 : 세로 1 직사각형. 소개 상자는 바둑판 없이 옅은 바나나색
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+    const header = page.locator('header.top');
+    const dark = colorScheme === 'dark';
+    const tile = dark ? 'banana-bricks-dark.svg' : 'banana-bricks.svg';
+    const head = await header.evaluate((el) => {
+      const css = getComputedStyle(el); const r = el.getBoundingClientRect();
+      return { image: css.backgroundImage, border: css.borderImageSource, outset: css.borderImageOutset, left: r.left, right: r.right };
     });
-    assert.equal(style.color, 'rgb(33, 28, 16)');
-    assert.equal(await banner.locator('h1').evaluate((el) => getComputedStyle(el).color), style.color);
-    assert.match(style.image, /banana-checks\.svg/);
-    assert.equal(style.repeat, 'repeat');
+    if (width >= 680) {
+      assert.match(head.border, new RegExp(tile.replace('.', '\\.')), '넓은 화면: 화면 양끝까지 border-image 바깥 그림');
+      assert.match(head.outset, /100vmax|\d{3,}px/);
+    } else {
+      assert.match(head.image, new RegExp(tile.replace('.', '\\.')));
+    }
+    const hero = page.locator('.hero');
+    assert.doesNotMatch(await hero.evaluate((el) => getComputedStyle(el).backgroundImage), /banana-/, '소개 상자에는 바둑판 없음');
+    const heroColor = await hero.evaluate((el) => getComputedStyle(el).color);
+    assert.equal(heroColor, dark ? 'rgb(243, 242, 247)' : 'rgb(33, 28, 16)');
+    assert.equal(await hero.locator('h1').evaluate((el) => getComputedStyle(el).color), heroColor);
     const selected = page.locator('.view-nav [aria-pressed="true"]');
-    assert.equal(await selected.evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(255, 231, 101)');
-    assert.equal(await selected.evaluate((el) => getComputedStyle(el).color), 'rgb(33, 28, 16)');
+    assert.equal(await selected.evaluate((el) => getComputedStyle(el).backgroundColor), dark ? 'rgb(255, 231, 101)' : 'rgb(33, 28, 16)');
+    assert.equal(await selected.evaluate((el) => getComputedStyle(el).color), dark ? 'rgb(33, 28, 16)' : 'rgb(255, 231, 101)');
+    const muted = await page.locator('.view-nav [aria-pressed="false"]').first().evaluate((el) => getComputedStyle(el).color);
+    assert.equal(muted, dark ? 'rgb(155, 154, 169)' : 'rgb(90, 74, 18)', '노란 바둑판 위 탭 글자는 바나나 잉크색');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   }
 });

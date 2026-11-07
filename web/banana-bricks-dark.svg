@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 102 40" width="306" height="120" shape-rendering="crispEdges">
+  <!-- 어두운 화면용 머리글 바둑판 (같은 배치, 밝은 글자가 읽히는 어두운 바나나색) -->
+  <path fill="#2a2412" d="M0 0h102v40H0z"/>
+  <path fill="#312a15" d="M0 0h17v10H0zM51 10h17v10H51zM17 20h17v10H17zM85 30h17v10H85z"/>
+  <path fill="#231e0f" d="M34 0h17v10H34zM85 10h17v10H85zM51 20h17v10H51zM0 30h17v10H0z"/>
+  <path fill="#363017" d="M68 0h17v10H68zM17 10h17v10H17zM85 20h17v10H85zM34 30h17v10H34z"/>
+  <path fill="#2d2713" d="M85 0h17v10H85zM34 10h17v10H34zM0 20h17v10H0zM68 30h17v10H68z"/>
+  <path fill="#282210" d="M51 0h17v10H51zM0 10h17v10H0zM68 20h17v10H68zM17 30h17v10H17z"/>
+</svg>

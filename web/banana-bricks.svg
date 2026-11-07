@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 102 40" width="306" height="120" shape-rendering="crispEdges">
+  <!-- 머리글 바둑판: 칸 가로 1.7 : 세로 1, 바나나 옐로우 6색 (banana-checks.svg와 같은 배치) -->
+  <path fill="#ffe765" d="M0 0h102v40H0z"/>
+  <path fill="#fff09e" d="M0 0h17v10H0zM51 10h17v10H51zM17 20h17v10H17zM85 30h17v10H85z"/>
+  <path fill="#f9de70" d="M34 0h17v10H34zM85 10h17v10H85zM51 20h17v10H51zM0 30h17v10H0z"/>
+  <path fill="#fff3bc" d="M68 0h17v10H68zM17 10h17v10H17zM85 20h17v10H85zM34 30h17v10H34z"/>
+  <path fill="#f9e591" d="M85 0h17v10H85zM34 10h17v10H34zM0 20h17v10H0zM68 30h17v10H68z"/>
+  <path fill="#ffed89" d="M51 0h17v10H51zM0 10h17v10H0zM68 20h17v10H68zM17 30h17v10H17z"/>
+</svg>
