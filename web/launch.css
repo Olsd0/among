@@ -50,7 +50,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 .view-nav button[aria-pressed="true"] #followingCount:not(:empty) { background: var(--primary-ink); color: var(--primary); }
 
 /* 머리글 바나나 바둑판 (11/07 대표 요청: "배너 = 이 부분(로고·탭 머리글)", "정사각형 말고 직사각형 바둑판, 1:1.7 비율")
-   칸 하나 = 가로 1.7 : 세로 1. 넓은 화면은 border-image 바깥 그림으로 화면 양끝까지 깔아 가로 스크롤을 만들지 않는다.
+   칸 하나 = 가로 1.7 : 세로 1, 넓은 화면 25.5×15px · 좁은 화면 17×10px (20:37 "한 칸 한 칸 작게, 4분할 정도로"). 넓은 화면은 border-image 바깥 그림으로 화면 양끝까지 깔아 가로 스크롤을 만들지 않는다.
    노란 바탕 위 글자는 바나나 잉크색, 선택 탭은 잉크색 알약. 어두운 화면은 어두운 바나나 바둑판에 기존 색. */
 :root {
   --hd-bricks: #ffe765 url("banana-bricks.svg"); --hd-ink: #211c10; --hd-muted: #5a4a12; --hd-glass: rgb(255 255 255 / .55);
@@ -140,7 +140,7 @@ header.top :focus-visible { outline-color: var(--hd-ink); }
 }
 @media (min-width: 680px) {
   .bar { height: 68px; }
-  /* 머리글 바둑판을 화면 양끝까지: border-image 바깥 그림(스크롤 영역에 들어가지 않음), 칸 51×30px. 아래 경계선은 기존 그림자 */
+  /* 머리글 바둑판을 화면 양끝까지: border-image 바깥 그림(스크롤 영역에 들어가지 않음), 타일 306×120px = 칸 25.5×15px. 아래 경계선은 기존 그림자 */
   header.top { background: none; border-image: var(--hd-tile) 0 fill / 0 / 0 100vmax repeat; box-shadow: 0 1px 0 100vmax var(--hd-line); }
   .lead-block { padding: 0; margin-top: 18px; }
   .service-guide .criteria { grid-template-columns: repeat(3, minmax(0,1fr)); }

@@ -83,9 +83,10 @@ test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고 작�
 test('머리글 바둑판 칸은 가로 1.7 : 세로 1 직사각형 (밝은·어두운 화면 같은 배치)', () => {
   for (const file of ['banana-bricks.svg', 'banana-bricks-dark.svg']) {
     const svg = readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8');
-    assert.match(svg, /viewBox="0 0 102 40"/);
-    const cells = [...svg.matchAll(/M(\d+) (\d+)h(\d+)v(\d+)H\d+z/g)].map((m) => m.slice(1).map(Number)).filter(([, , w]) => w !== 102);
-    assert.equal(cells.length, 20, `${file}: 바탕 위 칸 20개`);
+    assert.match(svg, /viewBox="0 0 204 80" width="306" height="120"/, '12×8 칸 타일, 넓은 화면 칸 25.5×15px (11/07 4분할)');
+    const cells = [...svg.matchAll(/M(\d+) (\d+)h(\d+)v(\d+)H\d+z/g)].map((m) => m.slice(1).map(Number)).filter(([, , w]) => w !== 204);
+    assert.ok(cells.length >= 70 && cells.length <= 84, `${file}: 바탕색이 아닌 칸 ${cells.length}개`);
+    assert.equal(new Set(cells.map(([x, y]) => `${x},${y}`)).size, cells.length, '칸이 겹치지 않음');
     for (const [x, y, w, h] of cells) { assert.equal(w / h, 1.7); assert.equal(x % 17, 0); assert.equal(y % 10, 0); }
   }
 });
