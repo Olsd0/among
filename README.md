@@ -2,6 +2,8 @@
 
 프랜차이즈 자사앱 쿠폰을 같은 기준(쿠폰가·할인율·단품/세트·주문 방법·대상·기간)으로 비교하고, 고른 혜택을 공식 앱으로 연결하는 모바일 웹 서비스.
 
+사이트: **https://www.amongpick.com/** (Cloudflare Pages 무료, 11/08부터 · 설정은 docs/launch-readiness.md). 옛 https://olsd0.github.io/among/ 은 같은 경로의 새 주소로 이동만 한다.
+
 ```
 공개 공식 페이지 ──(매일 00시 KST / 갱신 버튼)──▶ GitHub Actions
    │  robots.txt 확인 (AI 수집 거부 포함)

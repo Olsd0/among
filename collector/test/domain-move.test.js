@@ -103,3 +103,15 @@ test('옛 GitHub 주소 이동 안내: 같은 경로·검색어·#를 새 도메
   assert.match(MOVED_SW, /registration\.unregister\(\)/);
   assert.match(MOVED_SW, /among-shell-/);
 });
+
+test('없는 주소는 404 페이지 (Cloudflare Pages가 홈 화면을 200으로 내보내 중복 페이지가 되지 않게), 옛 GitHub 주소는 이동 안내만 배포', () => {
+  const html = readFileSync(new URL('web/404.html', ROOT), 'utf8');
+  assert.match(html, /<meta name="robots" content="noindex">/);
+  assert.match(html, /script-src 'none'/);
+  assert.doesNotMatch(html, /<script|rel="canonical"/);
+  for (const [, url] of html.matchAll(/(?:href|src)="([^"]+)"/g)) assert.match(url, /^\//, `깊은 주소에서도 열리게 / 로 시작: ${url}`);
+  const yml = readFileSync(new URL('.github/workflows/pages.yml', ROOT), 'utf8');
+  assert.match(yml, /build-moved-site\.js https:\/\/www\.amongpick\.com\/ moved/);
+  assert.match(yml, /path: moved/);
+  assert.doesNotMatch(yml, /path: web/, '옛 주소에 사이트 사본을 다시 배포하지 않음');
+});

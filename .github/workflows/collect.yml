@@ -103,7 +103,7 @@ jobs:
       - name: 공개 화면 점검 (AI 호출 없음 · 휴대폰 크기 · 사진 불러오기 · 소식 상세)
         if: inputs.mode == 'site'
         env:
-          SITE_URL: https://olsd0.github.io/among/
+          SITE_URL: https://www.amongpick.com/
         run: node src/site-check.js
 
       - name: 사진 점검 (AI 호출 없음 · 시트에 안 씀 · 공지 이미지가 출처의 어느 카드 것인지 / 공식 메뉴 사진 목록)

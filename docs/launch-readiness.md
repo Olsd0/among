@@ -13,6 +13,7 @@
 - **보안 헤더** (`web/_headers`): 다른 사이트 안에 넣기 금지(frame-ancestors·X-Frame-Options), nosniff, HSTS 1년(미리 등록·하위 도메인 강제 없음), 관리 화면 검색 제외·저장 금지, `*.pages.dev` 기본 주소 검색 제외. 페이지별 CSP는 각 HTML의 meta 그대로.
 - **Cloudflare 영역 설정**: 항상 HTTPS, 최소 TLS 1.2, 이메일 주소 난독화 끔(HTML·CSP를 바꾸지 않게), 자동 스크립트 삽입 기능(Rocket Loader·웹 분석 자동 삽입) 끔.
 - **옛 주소**: 새 주소 확인 뒤 GitHub Pages는 `collector/scripts/build-moved-site.js` 결과를 배포한다. 옛 `olsd0.github.io/among/`의 모든 경로를 같은 경로·검색어·#의 새 주소로 보내고, 옛 서비스 워커와 캐시를 지운다. 이동 목적지는 새 도메인 안으로만 제한한다.
+- **11/08 연결 결과 (실제 응답으로 확인)**: Cloudflare 계정(대표 메일)에 `amongpick.com` 무료 등록, 가비아 네임서버를 `brady.ns.cloudflare.com`·`mia.ns.cloudflare.com`으로 변경(소유자 인증은 대표). Pages 프로젝트 `among`(기본 주소 `among-8h2.pages.dev`, 검색 제외) — GitHub 앱은 `Olsd0/among` 하나에만 설치, 운영 브랜치 `main`만 배포(미리보기 배포 끔), 환경변수 `NODE_VERSION=22`·`SITE_URL`. 사용자 도메인 `www.amongpick.com`·`amongpick.com` 둘 다 Active·SSL, `amongpick.com/*` → `https://www.amongpick.com/${1}` 301(검색어 유지). 영역 설정: 항상 HTTPS·최소 TLS 1.2·TLS 1.3, 이메일 난독화 끔, **실사용자 측정(RUM·cloudflareinsights 비콘) 완전히 끔**(새 무료 영역은 기본으로 켜져 HTML에 추적 스크립트를 넣는다 — CSP가 막았지만 끔), 브라우저 캐시 TTL '기존 헤더 따름'(기본 4시간이 `sw.js`·설정 파일의 no-cache를 덮어씀), 봇 설정 동기화(robots.txt 앞에 덧붙이기) 끔. 없는 주소는 `web/404.html`이 404로(없으면 Pages가 홈을 200으로 돌려 중복 페이지가 됨).
 - **새 주소에서 다시 할 일**: 쿠팡 파트너스 활동 매체에 `www.amongpick.com` 등록, 관리 화면 토큰은 새 주소에서 다시 입력. 구독·찜·최저 알림은 브라우저의 주소별 저장소라 새 주소에서 다시 선택해야 한다.
 
 ## 기존 준비 사항

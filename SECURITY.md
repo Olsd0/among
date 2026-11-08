@@ -9,7 +9,7 @@ AMONG(어몽)의 보안 문제를 발견하셨다면 **공개 이슈가 아니�
 
 | 대상 | 위치 |
 |---|---|
-| 공개 사이트 | https://olsd0.github.io/among/ (`web/`) |
+| 공개 사이트 | https://www.amongpick.com/ (`web/`, Cloudflare Pages · 11/08부터). 옛 https://olsd0.github.io/among/ 은 새 주소로 이동만 |
 | 데이터 API (Google Apps Script 웹앱) | `apps-script/Code.gs` |
 | 수집기·워크플로 | `collector/`, `.github/workflows/` |
 

@@ -1,10 +1,10 @@
 // 공개 화면 점검 (AI 호출 없음): 실제 사이트를 휴대폰 크기로 열어 핫딜 카드·아이콘·티켓·소식 상세가 뜨는지,
 // 쿠폰 사진(공식 행사 페이지 이미지 주소)이 실제 브라우저에서 불러와지는지(다른 사이트 표시를 막는지) 확인한다.
 // 결과는 GitHub 주석으로만 남긴다 (화면 사진은 브랜드 이미지가 담기므로 저장하지 않음).
-// 사용: SITE_URL=https://olsd0.github.io/among/ node src/site-check.js
+// 사용: SITE_URL=https://www.amongpick.com/ node src/site-check.js (11/08부터 대표 주소)
 import { chromium } from 'playwright';
 
-const SITE = process.env.SITE_URL || 'https://olsd0.github.io/among/';
+const SITE = process.env.SITE_URL || 'https://www.amongpick.com/';
 const browser = await chromium.launch();
 const out = { errors: [], images: new Map() };
 try {
