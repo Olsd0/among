@@ -2,7 +2,16 @@
 
 어몽의 공개 자료를 기준으로 정리한 배포 절차다. 외부의 ‘모두의 창업’ 프로젝트 자료와 운영자 실명·사업자 정보는 이 저장소에서 확인하지 못했다. 확인되지 않은 소속·성과·방문자 수·제휴 관계는 게시하지 않는다.
 
-## 이번 변경
+## amongpick.com 심사 준비 (2026-11-08)
+
+대표 호스트는 `www.amongpick.com`이다. 11월 8일 확인 시 기존 Pages 홈은 열렸고, 새 호스트는 DNS 주소를 찾을 수 없었다. 당시 운영 배포에는 공개 문의 메일과 AdSense 게시자 ID가 설정되어 있지 않았다.
+
+1. [저장소 Pages 설정](https://github.com/Olsd0/among/settings/pages)에서 Custom domain을 `www.amongpick.com`으로 저장한다.
+2. 가비아 DNS에 `www`의 CNAME 값으로 `olsd0.github.io.`를 입력한다. 루트 도메인도 대표 호스트로 연결되도록 `@`에 GitHub Pages의 A 레코드 네 개를 등록한다. 주소는 `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`이다. 기존 메일·인증 레코드는 그대로 둔다.
+3. 인증서 발급 후 Enforce HTTPS를 켜고, `https://amongpick.com/`에서 `https://www.amongpick.com/`으로 이동하는지 확인한다. [저장소 변수](https://github.com/Olsd0/among/settings/variables/actions)에 공개용 `CONTACT_EMAIL`과 본인 계정의 `ADSENSE_PUBLISHER_ID`를 설정한 뒤 Pages를 다시 배포한다.
+4. 배포 로그에서 대표 주소와 메타·ads.txt·문의 메일 상태를 확인한다. 대표 주소의 홈, `/sitemap.xml`, `/ads.txt`, `/about.html#contact`를 열어 실제 결과를 확인한 뒤 AdSense 사이트 메뉴에서 `amongpick.com`을 추가하고 검토를 요청한다.
+
+## 기존 준비 사항
 
 - 홈: 비교 기준 설명, 키보드 바로가기, FAQ, 간결한 하단 안내, JS가 꺼진 경우 안내.
 - 가이드: 동일 주문에서 정액·정률 할인을 비교하는 계산기. 입력값은 저장·전송하지 않는다.
@@ -14,7 +23,7 @@
 
 1. **운영 문의 이메일**: GitHub 저장소 Settings → Secrets and variables → Actions → Variables에 `CONTACT_EMAIL`을 등록한다. 소유하고 실제 수신 가능한 주소여야 한다. 사이트 소개·개인정보·광고 제휴 페이지에 표시되며, 배포 HTML에도 정적으로 기록한다. 현재 값이 없어 문의 접수는 아직 준비 상태다.
 2. **운영자 표시**: 공개할 운영 주체·개인정보 보호책임자 정보와 실제 문의 처리 방식을 확인해 소개·개인정보 페이지에 반영한다. 현재 일반 명칭인 ‘AMONG 운영자’를 사용한다. 사업자번호·인증·지원사업 선정 사실은 확인 없이 기재하지 않는다.
-3. **AdSense 계정**: 본인 계정의 공개 게시자 ID `ca-pub-` + 16자리 숫자를 저장소 변수 `ADSENSE_PUBLISHER_ID`에 등록한다. 비밀번호·API 키가 아니며 실제 계정 값만 사용한다.
+3. **AdSense 계정**: 본인 계정의 공개 게시자 ID(`pub-` 또는 `ca-pub-` 뒤 16자리)를 저장소 변수 `ADSENSE_PUBLISHER_ID`에 등록한다. 비밀번호·API 키가 아니며 실제 계정 값만 사용한다.
 4. **도메인과 HTTPS**: GitHub Pages의 Custom domain 및 DNS를 설정하고 HTTPS 인증서 발급을 확인한 뒤 Pages 워크플로를 다시 실행한다. `actions/configure-pages`가 제공한 실제 배포 주소를 canonical·사이트맵·공유 주소에 반영한다. 임의의 CNAME이나 DNS를 생성하지 않았다.
 5. **실제 공개 화면**: 공식 데이터가 로드되는지, 행사 기간과 최근 확인 시각이 유효한지, 출처·문의·정책 링크가 정상인지 확인한다. 로컬 예시 화면과 모의 API 테스트만으로 운영 데이터 최신성을 판단하지 않는다. 확인 시각을 현재 시각으로 바꿔 오래된 자료를 최신처럼 보이게 하지 않는다.
 
@@ -32,7 +41,7 @@
 
 본인 계정에서 최종 사이트 주소를 추가하고 지원되는 **메타 태그 방식의 사이트 소유권 확인**을 선택한다. 준비된 빌드가 공개 페이지에 `google-adsense-account` 메타를 넣는다. 루트 도메인일 때 생성되는 `ads.txt`의 게시자 ID가 본인 계정과 일치하는지 확인한다. GitHub 프로젝트 하위 경로(`/among/`)의 `ads.txt`는 도메인 루트 파일을 대신할 수 없으므로 생성하지 않는다.
 
-공개 사이트에서 소유권 확인을 완료한 뒤 AdSense의 사이트 검토를 요청한다. 계정·최종 URL이 없으므로 이번 작업에서 신청하거나 승인받은 것은 아니다. 자체 안내와 도구가 있고 기능이 정상이어도 콘텐츠 가치·정책 준수·사이트 심사 통과를 보장할 수 없다.
+공개 사이트에서 소유권 확인을 완료한 뒤 AdSense의 사이트 검토를 요청한다. 검토 요청 결과는 해당 AdSense 계정의 사이트 상태에서 확인한다. 자체 안내와 도구가 있고 기능이 정상이어도 콘텐츠 가치·정책 준수·사이트 심사 통과를 보장할 수 없다.
 
 - Google 공식 안내: https://support.google.com/adsense/answer/7584263?hl=ko (사이트 연결)
 - Google 공식 안내: https://support.google.com/adsense/answer/12171612?hl=ko (사이트 준비)

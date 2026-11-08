@@ -34,7 +34,11 @@ test('홈 안내·계산기·제휴 화면은 모바일과 데스크톱에서 �
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} ${width}`);
     }
   }
-  await page.goto(`${site.base}/guide.html#calculator`);
+  await page.goto(`${site.base}/index.html?demo=1`);
+  await page.getByRole('link', { name: '할인 계산기', exact: true }).click();
+  assert.equal(new URL(page.url()).hash, '#calculator');
+  const example = page.getByRole('table', { name: '12000원 메뉴 하나를 주문하는 예시' });
+  assert.deepEqual(await example.locator('tfoot td').allTextContents(), ['12000원', '13000원']);
   await page.locator('[name="cap"]').fill('0');
   await page.getByRole('button', { name: '결제 금액 비교하기' }).click();
   assert.match(await page.locator('#comparisonResult').innerText(), /정률 쿠폰이 1,500원 더 저렴/);

@@ -114,3 +114,13 @@ tr:last-child td { border-bottom: 0; }
 @media (max-width: 420px) { .calculator { grid-template-columns: 1fr; } }
 
 .top { box-shadow: 0 2px 12px rgb(34 22 58 / .04); }
+
+.order-comparison { min-width: 0; table-layout: fixed; margin: 16px 0; font-variant-numeric: tabular-nums; }
+.order-comparison caption { text-align: left; color: var(--text-2); margin-bottom: 6px; font-size: 13px; }
+.order-comparison th, .order-comparison td { padding: 9px 8px; }
+.order-comparison th:not(:first-child), .order-comparison td { text-align: right; }
+.order-comparison tbody th { background: var(--bg); font-weight: 500; }
+.order-comparison tfoot th, .order-comparison tfoot td { background: var(--primary-soft); color: var(--text); font-weight: 750; }
+@media (max-width: 420px) {
+  main h2[id] { scroll-margin-top: calc(108px + env(safe-area-inset-top)); }
+}

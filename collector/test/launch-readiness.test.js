@@ -28,7 +28,10 @@ test('AdSense 소유권 확인은 실제 형식의 ID로만 생성하고 루트 
   assert.equal(existsSync(join(dir, 'ads.txt')), false);
   preparePages(dir, 'https://among.example/');
   assert.doesNotMatch(readFileSync(join(dir, 'partners.html'), 'utf8'), /google-adsense-account|hello@example.com/);
-  for (const publisherId of ['pub-1234567890123456', 'ca-pub-123', 'ca-pub-1234567890123456"><script>']) assert.throws(() => preparePages(dir, 'https://among.example/', { publisherId }));
+  preparePages(dir, 'https://www.amongpick.com/', { publisherId: 'pub-1234567890123456' });
+  assert.match(readFileSync(join(dir, 'index.html'), 'utf8'), /name="google-adsense-account" content="ca-pub-1234567890123456"/);
+  assert.equal(readFileSync(join(dir, 'ads.txt'), 'utf8'), 'google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n');
+  for (const publisherId of ['pub-123', 'ca-pub-123', 'ca-pub-1234567890123456"><script>']) assert.throws(() => preparePages(dir, 'https://among.example/', { publisherId }));
   assert.throws(() => preparePages(dir, 'https://among.example/', { contactEmail: 'a@example.com\nBcc:attacker@example.com' }));
 });
 

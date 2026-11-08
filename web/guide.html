@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-64.png?v=20261107-3" type="image/png">
 <link rel="stylesheet" href="fonts.css?v=20261107-3">
 <link rel="stylesheet" href="brand.css?v=20261107-4">
-<link rel="stylesheet" href="doc.css?v=20261107-4">
+<link rel="stylesheet" href="doc.css?v=20261108-1">
 <script src="config.js"></script>
 <script src="doc.js" defer></script>
 <script type="module" src="guide-calculator.js"></script>
@@ -35,8 +35,8 @@
   <p class="eyebrow">AMONG 이용 가이드</p>
   <h1>할인 숫자보다,<br>내가 내는 금액부터</h1>
   <p class="lead">같은 30%라도 할인 한도와 주문 방식에 따라 결제 금액이 달라져요. AMONG에서 혜택을 비교할 때 필요한 계산과 확인 순서를 정리했습니다.</p>
-  <p class="meta">AMONG 작성 · 2026년 10월 29일 · 아래 금액은 계산을 설명하기 위한 예시이며 실제 행사가 아닙니다.</p>
-  <nav class="reading-nav" aria-label="가이드 목차"><a href="#price">가격과 할인</a><a href="#calculator">할인 계산기</a><a href="#oneplus">1+1과 세트</a><a href="#points">포인트 적립</a><a href="#conditions">사용 조건</a><a href="#verify">출처 확인</a></nav>
+  <p class="meta">AMONG 작성 · 2026년 11월 8일 업데이트 · 아래 금액은 계산을 설명하기 위한 예시이며 실제 행사가 아닙니다.</p>
+  <nav class="reading-nav" aria-label="가이드 목차"><a href="#price">가격과 할인</a><a href="#calculator">할인 계산기</a><a href="#order-total">포장·배달 비교</a><a href="#oneplus">1+1과 세트</a><a href="#points">포인트 적립</a><a href="#conditions">사용 조건</a><a href="#verify">출처 확인</a></nav>
 
   <h2 id="price">1. 쿠폰가·정액·정률은 같은 주문으로 비교해요</h2>
   <p><strong>쿠폰가</strong>는 특정 상품을 살 때 내는 가격입니다. <strong>정액 할인</strong>은 주문에서 일정 금액을 빼고, <strong>정률 할인</strong>은 할인 대상 금액의 일정 비율을 뺍니다. 상품이나 주문 구성이 다르면 할인율만 나란히 놓아도 실제 차이를 알기 어렵습니다.</p>
@@ -57,6 +57,21 @@
     <p class="small">배송비·추가금·최소 주문 조건·중복 할인·포인트 적립은 포함하지 않습니다. 할인액의 원 미만은 버림으로 계산하며, 실제 결제처의 반올림 방식과 다를 수 있습니다. 입력값은 저장하거나 전송하지 않습니다.</p>
     <noscript><p>계산기를 사용하려면 자바스크립트를 켜 주세요. 위 계산 예시는 그대로 읽을 수 있습니다.</p></noscript>
   </section>
+
+  <h2 id="order-total">포장과 배달, 같은 메뉴라면 얼마를 내나요?</h2>
+  <p>같은 메뉴를 두 주문 방식에서 각각 12000원에 판다고 가정해 볼게요. 배달 주문에만 2000원 쿠폰을 쓸 수 있고 배달비는 3000원입니다.</p>
+  <table class="order-comparison">
+    <caption>12000원 메뉴 하나를 주문하는 예시</caption>
+    <thead><tr><th scope="col">결제 항목</th><th scope="col">포장</th><th scope="col">배달</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">메뉴 가격</th><td>12000원</td><td>12000원</td></tr>
+      <tr><th scope="row">쿠폰 할인</th><td>0원</td><td>−2000원</td></tr>
+      <tr><th scope="row">배달비</th><td>0원</td><td>+3000원</td></tr>
+    </tbody>
+    <tfoot><tr><th scope="row">최종 결제</th><td>12000원</td><td>13000원</td></tr></tfoot>
+  </table>
+  <p>이 주문은 포장이 1000원 저렴해요. 배달비가 2000원이면 두 결제액이 같아집니다. 실제 주문에서는 앱에 표시된 메뉴 가격과 배달비를 각각 넣어 비교하세요.</p>
+  <p><strong>최소 주문금액을 채워야 한다면?</strong> 12000원 장바구니에 4000원짜리 메뉴를 더 담아 3000원 쿠폰을 쓰면 13000원을 냅니다. 원래 살 메뉴만 주문할 때보다 지출이 1000원 늘어요. 추가 메뉴도 필요했는지가 선택 기준입니다.</p>
 
   <h2 id="oneplus">2. 1+1은 두 개가 필요할 때 유리해요</h2>
   <p>동일한 6000원 상품 두 개를 6000원에 사면 두 개를 모두 정가로 살 때보다 50% 저렴합니다. 하지만 원래 한 개만 필요했다면 지출은 여전히 6000원입니다. 한 개를 4500원에 살 수 있는 쿠폰과는 필요한 수량을 기준으로 비교해야 합니다.</p>

@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url';
 export const PUBLIC_PAGES = ['index.html', 'guide.html', 'about.html', 'partners.html', 'privacy.html', 'terms.html'];
 
 export function preparePages(directory, baseUrl, { publisherId = '', contactEmail = '' } = {}) {
-  publisherId = publisherId.trim();
+  publisherId = publisherId.trim().replace(/^pub-/, 'ca-pub-');
   contactEmail = contactEmail.trim();
-  if (publisherId && !/^ca-pub-\d{16}$/.test(publisherId)) throw new Error('ADSENSE_PUBLISHER_ID는 ca-pub-와 16자리 숫자여야 합니다.');
+  if (publisherId && !/^ca-pub-\d{16}$/.test(publisherId)) throw new Error('ADSENSE_PUBLISHER_ID는 pub- 또는 ca-pub- 뒤에 16자리 숫자가 필요합니다.');
   if (contactEmail && !/^[^\s@<>"']+@[^\s@<>"']+\.[A-Za-z]{2,}$/.test(contactEmail)) throw new Error('CONTACT_EMAIL 형식이 아닙니다.');
   const base = new URL(baseUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash) throw new Error('유효한 HTTPS 배포 주소가 필요합니다.');
@@ -44,6 +44,9 @@ export function preparePages(directory, baseUrl, { publisherId = '', contactEmai
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const directory = fileURLToPath(new URL('../../web/', import.meta.url));
-  preparePages(directory, process.env.PAGES_BASE_URL || 'https://olsd0.github.io/among/', { publisherId: process.env.ADSENSE_PUBLISHER_ID || '', contactEmail: process.env.CONTACT_EMAIL || '' });
-  console.log(`공개 페이지 ${PUBLIC_PAGES.length}개: canonical · sitemap · robots · 광고 소유권 설정 생성 완료`);
+  const urls = preparePages(directory, process.env.PAGES_BASE_URL || 'https://olsd0.github.io/among/', { publisherId: process.env.ADSENSE_PUBLISHER_ID || '', contactEmail: process.env.CONTACT_EMAIL || '' });
+  const hasPublisher = Boolean(process.env.ADSENSE_PUBLISHER_ID?.trim());
+  const root = new URL(urls[0]);
+  console.log(`배포 주소 ${root.href} · 공개 페이지 ${urls.length}개 · 사이트맵 및 robots.txt 생성`);
+  console.log(`AdSense 확인 메타 ${hasPublisher ? '있음' : '미설정'} · ads.txt ${hasPublisher && root.pathname === '/' ? '생성' : '생성 안 함'} · 공개 문의 메일 ${process.env.CONTACT_EMAIL?.trim() ? '있음' : '미설정'}`);
 }
