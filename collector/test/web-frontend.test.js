@@ -448,7 +448,12 @@ test('가이드는 자바스크립트 없이 읽히고 작은 화면에서도 �
     assert.ok(await page.locator('a[href="guide.html"]').count());
   }
   await page.goto(`${site.base}/guide.html`);
-  assert.equal(await page.locator('main h2').count(), 6);
+  const sections = ['price', 'calculator', 'order-total', 'oneplus', 'points', 'conditions', 'verify'];
+  for (const id of sections) {
+    assert.equal(await page.locator(`main h2[id="${id}"]`).count(), 1);
+    assert.equal(await page.locator(`.reading-nav a[href="#${id}"]`).count(), 1);
+  }
+  assert.match(await page.locator('.order-comparison tfoot').innerText(), /13000원/);
   assert.ok((await page.locator('main').innerText()).includes('실제 행사가 아닙니다'));
 });
 
