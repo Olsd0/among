@@ -1,12 +1,18 @@
-// Pages의 실제 배포 주소를 검색 메타데이터의 단일 기준으로 사용한다.
-// 별도 도메인 환경변수나 매일 실행하는 작업은 필요 없다.
+// 배포 주소를 검색 메타데이터(canonical·og:url·사이트맵·robots)의 단일 기준으로 사용한다.
+// GitHub Pages: Pages가 알려 주는 주소. Cloudflare Pages(www.amongpick.com, 11/08): build-cloudflare.js가 SITE_URL로 부른다.
+// pretty: Cloudflare Pages는 guide.html을 /guide로 308 이동시키므로 대표 주소도 확장자 없는 주소로 쓴다.
 import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const PUBLIC_PAGES = ['index.html', 'guide.html', 'about.html', 'partners.html', 'privacy.html', 'terms.html'];
 
-export function preparePages(directory, baseUrl, { publisherId = '', contactEmail = '' } = {}) {
+export function pageUrl(page, base, pretty = false) {
+  if (page === 'index.html') return new URL('./', base).href;
+  return new URL(pretty ? page.replace(/\.html$/, '') : page, base).href;
+}
+
+export function preparePages(directory, baseUrl, { publisherId = '', contactEmail = '', pretty = false } = {}) {
   publisherId = publisherId.trim().replace(/^pub-/, 'ca-pub-');
   contactEmail = contactEmail.trim();
   if (publisherId && !/^ca-pub-\d{16}$/.test(publisherId)) throw new Error('ADSENSE_PUBLISHER_ID는 pub- 또는 ca-pub- 뒤에 16자리 숫자가 필요합니다.');
@@ -18,7 +24,7 @@ export function preparePages(directory, baseUrl, { publisherId = '', contactEmai
   const escape = (s) => s.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const urls = [];
   for (const page of pages) {
-    const url = new URL(page === 'index.html' ? './' : page, base).href;
+    const url = pageUrl(page, base, pretty);
     urls.push(url);
     const path = resolve(directory, page);
     let html = readFileSync(path, 'utf8').replace(/\n?<!-- deploy-meta -->[\s\S]*?<!-- \/deploy-meta -->\n?/g, '\n');
@@ -35,7 +41,8 @@ export function preparePages(directory, baseUrl, { publisherId = '', contactEmai
     writeFileSync(path, html.replace('</head>', metadata + '</head>'));
   }
   writeFileSync(resolve(directory, 'sitemap.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls.map((url) => `  <url><loc>${escape(url)}</loc></url>`).join('\n') + '\n</urlset>\n');
-  writeFileSync(resolve(directory, 'robots.txt'), `User-agent: *\nAllow: ${base.pathname}\nDisallow: ${base.pathname}admin.html\nDisallow: ${base.pathname}admin.js\n\nSitemap: ${new URL('sitemap.xml', base).href}\n`);
+  // 관리 화면은 admin.html·admin(확장자 없는 주소)·admin.js 등 모두 'admin'으로 시작한다.
+  writeFileSync(resolve(directory, 'robots.txt'), `User-agent: *\nAllow: ${base.pathname}\nDisallow: ${base.pathname}admin\n\nSitemap: ${new URL('sitemap.xml', base).href}\n`);
   // ads.txt는 사이트 루트에서만 유효하다. 프로젝트 하위 경로에서는 메타로 소유권을 확인한다.
   if (publisherId && base.pathname === '/') writeFileSync(resolve(directory, 'ads.txt'), `google.com, ${publisherId.replace('ca-', '')}, DIRECT, f08c47fec0942fa0\n`);
   else rmSync(resolve(directory, 'ads.txt'), { force: true });
@@ -44,7 +51,7 @@ export function preparePages(directory, baseUrl, { publisherId = '', contactEmai
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const directory = fileURLToPath(new URL('../../web/', import.meta.url));
-  const urls = preparePages(directory, process.env.PAGES_BASE_URL || 'https://olsd0.github.io/among/', { publisherId: process.env.ADSENSE_PUBLISHER_ID || '', contactEmail: process.env.CONTACT_EMAIL || '' });
+  const urls = preparePages(directory, process.env.PAGES_BASE_URL || 'https://olsd0.github.io/among/', { publisherId: process.env.ADSENSE_PUBLISHER_ID || '', contactEmail: process.env.CONTACT_EMAIL || '', pretty: process.env.PRETTY_URLS === '1' });
   const hasPublisher = Boolean(process.env.ADSENSE_PUBLISHER_ID?.trim());
   const root = new URL(urls[0]);
   console.log(`배포 주소 ${root.href} · 공개 페이지 ${urls.length}개 · 사이트맵 및 robots.txt 생성`);

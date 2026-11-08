@@ -11,7 +11,7 @@ test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과
   const pages = PUBLIC_PAGES;
   for (const p of pages) copyFileSync(new URL(`../../web/${p}`, import.meta.url), join(dir, p));
   preparePages(dir, 'https://olsd0.github.io/among');
-  assert.match(readFileSync(join(dir, 'robots.txt'), 'utf8'), /Disallow: \/among\/admin.html/);
+  assert.match(readFileSync(join(dir, 'robots.txt'), 'utf8'), /Disallow: \/among\/admin\n/, 'admin.html·admin(확장자 없는 주소)·admin.js 모두');
   preparePages(dir, 'https://among.example/');
   for (const p of pages) {
     const html = readFileSync(join(dir, p), 'utf8');
@@ -25,7 +25,7 @@ test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과
   const sitemap = readFileSync(join(dir, 'sitemap.xml'), 'utf8');
   assert.equal((sitemap.match(/<loc>/g) || []).length, PUBLIC_PAGES.length);
   assert.ok(!sitemap.includes('admin'));
-  assert.match(readFileSync(join(dir, 'robots.txt'), 'utf8'), /Disallow: \/admin.html/);
+  assert.match(readFileSync(join(dir, 'robots.txt'), 'utf8'), /Disallow: \/admin\n/);
   const before = readFileSync(join(dir, 'index.html'), 'utf8');
   preparePages(dir, 'https://among.example/');
   assert.equal(readFileSync(join(dir, 'index.html'), 'utf8'), before, '생성은 반복해도 동일하다');

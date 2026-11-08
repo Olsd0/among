@@ -2,14 +2,18 @@
 
 어몽의 공개 자료를 기준으로 정리한 배포 절차다. 외부의 ‘모두의 창업’ 프로젝트 자료와 운영자 실명·사업자 정보는 이 저장소에서 확인하지 못했다. 확인되지 않은 소속·성과·방문자 수·제휴 관계는 게시하지 않는다.
 
-## amongpick.com 심사 준비 (2026-11-08)
+## amongpick.com 운영 (2026-11-08 대표 결정: Cloudflare 무료 요금제로 이전)
 
-대표 호스트는 `www.amongpick.com`이다. 11월 8일 확인 시 기존 Pages 홈은 열렸고, 새 호스트는 DNS 주소를 찾을 수 없었다. 당시 운영 배포에는 공개 문의 메일과 AdSense 게시자 ID가 설정되어 있지 않았다.
+대표 주소는 `https://www.amongpick.com/`이다. GitHub Pages는 상거래·수익 목적 사이트의 무료 호스팅을 제한하므로 광고·제휴 수익을 계획한 어몽은 Cloudflare Pages(무료)로 옮긴다. 정적 파일·DNS·HTTPS 모두 무료라 추가 결제는 없다.
 
-1. [저장소 Pages 설정](https://github.com/Olsd0/among/settings/pages)에서 Custom domain을 `www.amongpick.com`으로 저장한다.
-2. 가비아 DNS에 `www`의 CNAME 값으로 `olsd0.github.io.`를 입력한다. 루트 도메인도 대표 호스트로 연결되도록 `@`에 GitHub Pages의 A 레코드 네 개를 등록한다. 주소는 `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`이다. 기존 메일·인증 레코드는 그대로 둔다.
-3. 인증서 발급 후 Enforce HTTPS를 켜고, `https://amongpick.com/`에서 `https://www.amongpick.com/`으로 이동하는지 확인한다. [저장소 변수](https://github.com/Olsd0/among/settings/variables/actions)에 공개용 `CONTACT_EMAIL`과 본인 계정의 `ADSENSE_PUBLISHER_ID`를 설정한 뒤 Pages를 다시 배포한다.
-4. 배포 로그에서 대표 주소와 메타·ads.txt·문의 메일 상태를 확인한다. 대표 주소의 홈, `/sitemap.xml`, `/ads.txt`, `/about.html#contact`를 열어 실제 결과를 확인한 뒤 AdSense 사이트 메뉴에서 `amongpick.com`을 추가하고 검토를 요청한다.
+- **도메인**: 가비아에 등록(등록기관은 가비아 유지), 네임서버만 Cloudflare로 바꿔 DNS를 Cloudflare에서 관리한다. 루트 `amongpick.com`은 `www`로 301 이동한다.
+- **배포**: Cloudflare Pages 프로젝트가 GitHub `Olsd0/among`의 `main`을 받아 빌드한다(미리보기 배포는 끔). 빌드 명령 `node --test collector/test/web-security.test.js && node collector/scripts/build-cloudflare.js`, 결과 폴더 `web`, Node 22. 저장소에 비밀값을 두지 않는다(Cloudflare GitHub 앱에 이 저장소 읽기만 허용).
+- **공개 설정**: Cloudflare 프로젝트 환경변수(공개값)로 `SITE_URL`(기본 `https://www.amongpick.com/`), `CONTACT_EMAIL`, `ADSENSE_PUBLISHER_ID`를 넣는다. API 주소는 `web/config.js`의 값을 쓴다.
+- **주소 형식**: Cloudflare Pages는 `guide.html`을 `/guide`로 308 이동시키므로 canonical·og:url·사이트맵은 확장자 없는 주소로 만든다(`prepare-pages.js`의 `pretty`). 화면 안 링크는 그대로 둔다.
+- **보안 헤더** (`web/_headers`): 다른 사이트 안에 넣기 금지(frame-ancestors·X-Frame-Options), nosniff, HSTS 1년(미리 등록·하위 도메인 강제 없음), 관리 화면 검색 제외·저장 금지, `*.pages.dev` 기본 주소 검색 제외. 페이지별 CSP는 각 HTML의 meta 그대로.
+- **Cloudflare 영역 설정**: 항상 HTTPS, 최소 TLS 1.2, 이메일 주소 난독화 끔(HTML·CSP를 바꾸지 않게), 자동 스크립트 삽입 기능(Rocket Loader·웹 분석 자동 삽입) 끔.
+- **옛 주소**: 새 주소 확인 뒤 GitHub Pages는 `collector/scripts/build-moved-site.js` 결과를 배포한다. 옛 `olsd0.github.io/among/`의 모든 경로를 같은 경로·검색어·#의 새 주소로 보내고, 옛 서비스 워커와 캐시를 지운다. 이동 목적지는 새 도메인 안으로만 제한한다.
+- **새 주소에서 다시 할 일**: 쿠팡 파트너스 활동 매체에 `www.amongpick.com` 등록, 관리 화면 토큰은 새 주소에서 다시 입력. 구독·찜·최저 알림은 브라우저의 주소별 저장소라 새 주소에서 다시 선택해야 한다.
 
 ## 기존 준비 사항
 
@@ -21,13 +25,13 @@
 
 ## 심사 제출 전에 실제로 채울 정보
 
-1. **운영 문의 이메일**: GitHub 저장소 Settings → Secrets and variables → Actions → Variables에 `CONTACT_EMAIL`을 등록한다. 소유하고 실제 수신 가능한 주소여야 한다. 사이트 소개·개인정보·광고 제휴 페이지에 표시되며, 배포 HTML에도 정적으로 기록한다. 현재 값이 없어 문의 접수는 아직 준비 상태다.
+1. **운영 문의 이메일**: Cloudflare Pages 프로젝트 설정 → 환경변수에 `CONTACT_EMAIL`을 등록한다(옛 GitHub Pages용은 저장소 Variables). 소유하고 실제 수신 가능한 주소여야 한다. 사이트 소개·개인정보·광고 제휴 페이지에 표시되며, 배포 HTML에도 정적으로 기록한다. 현재 값이 없어 문의 접수는 아직 준비 상태다.
 2. **운영자 표시**: 공개할 운영 주체·개인정보 보호책임자 정보와 실제 문의 처리 방식을 확인해 소개·개인정보 페이지에 반영한다. 현재 일반 명칭인 ‘AMONG 운영자’를 사용한다. 사업자번호·인증·지원사업 선정 사실은 확인 없이 기재하지 않는다.
-3. **AdSense 계정**: 본인 계정의 공개 게시자 ID(`pub-` 또는 `ca-pub-` 뒤 16자리)를 저장소 변수 `ADSENSE_PUBLISHER_ID`에 등록한다. 비밀번호·API 키가 아니며 실제 계정 값만 사용한다.
-4. **도메인과 HTTPS**: GitHub Pages의 Custom domain 및 DNS를 설정하고 HTTPS 인증서 발급을 확인한 뒤 Pages 워크플로를 다시 실행한다. `actions/configure-pages`가 제공한 실제 배포 주소를 canonical·사이트맵·공유 주소에 반영한다. 임의의 CNAME이나 DNS를 생성하지 않았다.
+3. **AdSense 계정**: 본인 계정의 공개 게시자 ID(`pub-` 또는 `ca-pub-` 뒤 16자리)를 Cloudflare Pages 환경변수 `ADSENSE_PUBLISHER_ID`에 등록한다. 비밀번호·API 키가 아니며 실제 계정 값만 사용한다.
+4. **도메인과 HTTPS**: 위 'amongpick.com 운영'대로 Cloudflare Pages에 `www.amongpick.com`·`amongpick.com`을 연결하고 인증서·301 이동·보안 헤더를 실제 응답으로 확인한다. canonical·사이트맵은 빌드가 대표 주소로 만든다.
 5. **실제 공개 화면**: 공식 데이터가 로드되는지, 행사 기간과 최근 확인 시각이 유효한지, 출처·문의·정책 링크가 정상인지 확인한다. 로컬 예시 화면과 모의 API 테스트만으로 운영 데이터 최신성을 판단하지 않는다. 확인 시각을 현재 시각으로 바꿔 오래된 자료를 최신처럼 보이게 하지 않는다.
 
-## 새 도메인을 연결할 때
+## (옛 방식) GitHub Pages에 새 도메인을 연결할 때 — 11/08부터 쓰지 않음
 
 1. 사용할 도메인을 등록한 뒤 GitHub **계정 Settings → Pages → Add a domain**에서 소유권 확인을 시작한다. 등록기관 DNS에 GitHub가 표시하는 TXT 이름과 값을 그대로 넣고 **Verify**가 끝나면 TXT 레코드를 유지한다.
 2. **Olsd0/among → Settings → Pages → Custom domain**에 실제 서비스 호스트를 저장한 다음 DNS를 연결한다. 서브도메인(예: www)은 해당 호스트의 CNAME을 `olsd0.github.io`로, 루트 도메인은 등록기관이 지원하는 ALIAS/ANAME 또는 GitHub 공식 문서의 A/AAAA 레코드로 연결한다. 필요한 호스트만 설정한다. 와일드카드 DNS는 사용하지 않는다.

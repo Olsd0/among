@@ -5,3 +5,4 @@ collector/sources.json
 *.log
 .DS_Store
 HANDOFF.md
+moved/

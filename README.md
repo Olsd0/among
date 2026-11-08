@@ -33,7 +33,9 @@ Apps Script 웹앱 → 구글시트 (coupons · news · sources · run_log · ev
 | `.github/workflows/collect.yml` | 00시 예약 + 수동/버튼 실행, `mode=check` 점검 |
 | `.github/workflows/pages.yml` | `web/` GitHub Pages 배포 |
 | `web/` | 비교 화면(`index.html` + `app.js`), 지표 대시보드(`admin.html` + `admin.js`), 안내 페이지(`about`·`privacy`·`terms` + `doc.css`·`doc.js`), PWA 파일 |
-| `web/_headers` | 독립 도메인 + Cloudflare Pages/Netlify로 옮길 때 쓰는 보안 헤더 (GitHub Pages는 무시) |
+| `web/_headers` | www.amongpick.com(Cloudflare Pages) 응답 보안 헤더 (GitHub Pages는 무시) |
+| `collector/scripts/build-cloudflare.js` | Cloudflare Pages 빌드: 사본 확인 → 공개 설정 주입 → 대표 주소 메타·사이트맵 (docs/launch-readiness.md) |
+| `collector/scripts/build-moved-site.js` | 옛 olsd0.github.io/among/ 주소를 새 주소로 보내는 이동 안내 사이트 |
 | `SECURITY.md` · `.github/dependabot.yml` | 보안 신고 창구, 의존성·액션 업데이트 알림 |
 
 ## 로컬에서
