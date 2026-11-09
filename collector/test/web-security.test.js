@@ -10,11 +10,29 @@ test('모든 배포 HTML에서 외부 글꼴·인라인 코드·프레임 허용
   for (const name of ['index', 'admin', 'about', 'terms', 'guide', 'privacy', 'partners']) {
     const html = readWeb(name + '.html');
     const policy = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
-    for (const rule of ["script-src 'self'", "style-src 'self'", "style-src-attr 'none'", "font-src 'self'", "frame-src 'none'", "base-uri 'none'"]) {
+    for (const rule of ["script-src 'self'", "style-src 'self'", "style-src-attr 'none'", "font-src 'self'", name === 'index' ? "frame-src 'self'" : "frame-src 'none'", "base-uri 'none'"]) {
       assert.ok(policy.split(';').map(s => s.trim()).includes(rule), name + ' ' + rule);
     }
     assert.doesNotMatch(html, /unsafe-inline|unsafe-eval|<style\b|\sstyle=|cdn\.jsdelivr\.net/i, name);
   }
+});
+
+test('쿠팡 식품 베스트 배너 페이지: 쿠팡 주소와 해시가 맞는 코드만 실행, AMONG 파트너스 ID, 검색 제외', async () => {
+  const { createHash } = await import('node:crypto');
+  const html = readWeb('coupang-widget.html');
+  const policy = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
+  const directive = (name) => policy.split(';').map((s) => s.trim()).find((s) => s.startsWith(name + ' '))?.split(/\s+/).slice(1) || [];
+  assert.deepEqual(directive('default-src'), ["'none'"]);
+  const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.equal(inline.length, 1);
+  const hash = (text) => `'sha256-${createHash('sha256').update(text).digest('base64')}'`;
+  assert.deepEqual(directive('script-src').sort(), ['https://ads-partners.coupang.com', 'https://partners.coupangcdn.com', hash(inline[0])].sort());
+  assert.deepEqual(directive('frame-src'), ['https://ads-partners.coupang.com']);
+  assert.equal(directive('style-src')[0], hash(html.match(/<style>([\s\S]*?)<\/style>/)[1]));
+  assert.match(inline[0], /"trackingCode":"AF1327603"/, 'AMONG 파트너스 ID만');
+  assert.deepEqual([...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]), ['https://ads-partners.coupang.com/g.js']);
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
+  assert.doesNotMatch(html, /unsafe-inline|unsafe-eval|\sstyle=/);
 });
 
 test('관리 요청은 공식 배포 주소와 최상위 창에서만 토큰을 본문으로 보내고 기록을 남기지 않는다', async () => {

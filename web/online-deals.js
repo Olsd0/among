@@ -17,6 +17,17 @@ export function shortcutLinks(overrides = {}) {
     return { key, label, url, affiliate: odIsAffiliateLink(url) };
   }) }));
 }
+// 쿠팡 식품 베스트 (11/09 대표 요청: 매일 같은 품목 말고 인기 상품도) — 쿠팡 파트너스 다이나믹 배너(카테고리 베스트 · 식품).
+// 쿠팡이 상품을 고르고 바꾼다(AMONG이 확인한 가격이 아님). 쿠팡 스크립트는 같은 사이트의 coupang-widget.html 안에서만 실행한다.
+// config.onlineDeals.foodBest = { page: 'coupang-widget.html', from: 'YYYY-MM-DD' } — from(한국 날짜)부터 보인다(개인정보처리방침 사전 공지 기준).
+const FOOD_BEST_PAGE = /^coupang-widget\.html$/;
+const kstDate = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
+export function foodBestFrame(cfg, now = Date.now()) {
+  if (!cfg || typeof cfg !== 'object' || !FOOD_BEST_PAGE.test(String(cfg.page || ''))) return '';
+  const from = String(cfg.from || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || kstDate(now) < from) return '';
+  return cfg.page;
+}
 const API_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -175,6 +186,7 @@ export function createOnlineDealsUI(root, options = {}) {
   const rel = affiliate => (affiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer');
   let payload = { items: [], picks: [] }, active = false, loaded = false, loading = false, failed = false, cat = 'all', item = '', watching = new Set();
   let request = null, expiryTimer = 0, controller = null, destroyed = false;
+  const foodBest = foodBestFrame(options.foodBest);
   root.classList.add('od-view');
   root.setAttribute('aria-labelledby', 'onlineDealsTitle');
   root.innerHTML = `<div class="od-heading"><p class="od-eyebrow">자취 먹거리 장보기도, 한곳에서</p><h2 id="onlineDealsTitle">온라인 특가</h2><p>자취 먹거리 특가를 쿠폰처럼 사진과 가격으로 둘러보세요.</p></div>
@@ -183,6 +195,9 @@ export function createOnlineDealsUI(root, options = {}) {
       <p class="od-watch-help">알림을 켠 상품이 AMONG이 확인한 최근 30일 가격 중 가장 낮아지면, AMONG을 열 때 맨 위에 알려 드려요. 알림은 이 기기에만 저장돼요.</p>
       <ul class="od-picks-list od-watch-list" role="list"></ul><p class="od-watch-gone" hidden></p></section>
     <p class="od-sr-only od-watch-live" role="status" aria-live="polite"></p>
+    ${foodBest ? `<section class="od-best" aria-labelledby="odBestTitle"><div class="od-list-heading"><h3 id="odBestTitle">쿠팡 식품 베스트</h3><span class="od-ad-label">제휴광고</span></div>
+      <p class="od-best-help">쿠팡이 식품 인기 상품을 골라 자동으로 바꿔 보여 줘요. AMONG이 확인한 가격이 아니에요. 옆으로 넘겨 보세요.</p>
+      <iframe class="od-best-frame" src="${esc(foodBest)}" title="쿠팡 식품 베스트 (제휴광고, 쿠팡 제공)" loading="lazy" width="680" height="140" scrolling="auto"></iframe></section>` : ''}
     <section class="od-picks" aria-labelledby="odPicksTitle"><div class="od-list-heading"><h3 id="odPicksTitle">AMONG이 고른 쿠팡 특가</h3><p class="od-pick-count"></p></div>
       <div class="od-cats" role="group" aria-label="항목" hidden></div>
       <div class="od-status" role="status" aria-live="polite"></div><ul class="od-picks-list" role="list"></ul>
@@ -248,7 +263,7 @@ export function createOnlineDealsUI(root, options = {}) {
     const picks = all.filter(p => !p.item), itemPicks = all.filter(p => p.item);
     root.setAttribute('aria-busy', String(loading));
     // 제휴 링크가 있는 공급처의 고지 문구를 목록보다 먼저 보여 준다 (화면이 가진 목록 기준, 서버 문구를 그대로 쓰지 않음).
-    const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate || all.length ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
+    const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate || foodBest || all.length ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
     const disclosure = root.querySelector('.od-disclosure');
     disclosure.hidden = !notes.length;
     disclosure.innerHTML = notes.map(n => `<p>${esc(n)}</p>`).join('');

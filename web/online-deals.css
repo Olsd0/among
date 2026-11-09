@@ -99,3 +99,8 @@ article.od-card .body { cursor: auto; }
   .od-watch-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .od-pick-li .foot { padding-left: 40px; }
 }
+/* 쿠팡 식품 베스트 (다이나믹 배너): 쿠팡이 정한 너비(680)를 넘으면 안에서 옆으로 넘긴다 */
+.od-best { margin: 0 0 22px; }
+.od-best .od-list-heading { display: flex; align-items: center; gap: 8px; }
+.od-best-help { margin: 4px 0 10px; color: var(--muted); font-size: 13px; }
+.od-best-frame { display: block; width: 100%; max-width: 680px; height: 140px; border: 0; border-radius: 12px; background: var(--surface); }

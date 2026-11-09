@@ -57,7 +57,7 @@ async function setup(t, options = {}) {
     if (url.origin === site.base && url.pathname.endsWith('/config.js')) {
       return route.fulfill({ contentType: 'text/javascript', body: `window.AMONG_CONFIG = ${JSON.stringify({
         apiUrl: 'https://script.google.com/macros/s/test/exec', contactEmail: '',
-        onlineDeals: { enabled: options.enabled !== false, dataUrl: './online-deals.json', goldboxUrl: options.goldboxUrl || '', shortcutLinks: options.shortcutLinks || {} },
+        onlineDeals: { enabled: options.enabled !== false, dataUrl: './online-deals.json', goldboxUrl: options.goldboxUrl || '', shortcutLinks: options.shortcutLinks || {}, ...(options.foodBest ? { foodBest: options.foodBest } : {}) },
       })};` });
     }
     if (options.delayModule && url.origin === site.base && url.pathname.endsWith('/online-deals.js')) {
@@ -808,4 +808,29 @@ test('30일 최저·최저 알림: 기록 3일부터 표시, 알림을 켠 상�
   assert.ok(await card.locator('[data-od-watch]').evaluate(el => el === document.activeElement), '알림 목록에서 끄면 본 목록 버튼으로 초점');
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('among_price_watch') || '[]')), []);
   assert.deepEqual(errors, []);
+});
+
+test('쿠팡 식품 베스트 배너는 시작일부터 온라인 특가 안에서만 같은 사이트 페이지(iframe)로 불러오고, 홈에서는 불러오지 않는다', { timeout: 30000 }, async t => {
+  const { page, context, requests, errors } = await setup(t, { foodBest: { page: 'coupang-widget.html', from: '2026-01-01' } });
+  // 쿠팡 g.js 대신 호출만 기록하는 대역 (보안 정책이 쿠팡 주소·해시 코드를 허용하는지 확인)
+  await context.route('https://ads-partners.coupang.com/g.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.PartnersCoupang={G:function(o){document.title+=" ok:"+o.id+":"+o.trackingCode}}' }));
+  await page.goto(site.base + '/index.html');
+  await page.waitForTimeout(800);
+  assert.equal(requests.some(u => /coupang-widget|ads-partners\.coupang\.com/.test(u)), false, '홈에서는 쿠팡 배너를 불러오지 않음');
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  const frame = page.locator('.od-best-frame');
+  await frame.waitFor();
+  assert.equal(await frame.getAttribute('src'), 'coupang-widget.html');
+  assert.match(await page.locator('.od-best').innerText(), /쿠팡 식품 베스트[\s\S]*제휴광고[\s\S]*AMONG이 확인한 가격이 아니에요/);
+  assert.match(await page.locator('.od-disclosure').innerText(), /쿠팡 파트너스 활동의 일환/);
+  await frame.scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.querySelector('.od-best-frame')?.contentDocument?.title?.includes('ok:1048515:AF1327603'), null, { timeout: 8000 });
+  assert.deepEqual(errors, []);
+});
+
+test('쿠팡 식품 베스트 배너는 시작일 전이거나 설정이 다르면 보이지 않는다', { timeout: 30000 }, async t => {
+  const { page } = await setup(t, { foodBest: { page: 'coupang-widget.html', from: '2099-01-01' } });
+  await page.goto(site.base + '/index.html?view=onlineDeals');
+  await page.locator('#onlineDealsTitle').waitFor();
+  assert.equal(await page.locator('.od-best').count(), 0);
 });

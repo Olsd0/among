@@ -22,3 +22,12 @@
 # 미리보기·기본 주소(among-xxx.pages.dev)는 검색에 올리지 않는다. 대표 주소는 www.amongpick.com
 https://:project.pages.dev/*
   X-Robots-Tag: noindex
+
+# 쿠팡 파트너스 다이나믹 배너 페이지: 온라인 특가 화면(같은 사이트)의 iframe 안에서만 열린다.
+# 위 /* 규칙의 '다른 사이트 안에 넣기 금지'를 떼고 같은 사이트 안에서만 허용한다(다른 사이트가 우리 배너를 넣어 클릭을 부풀리지 못하게).
+/coupang-widget*
+  ! X-Frame-Options
+  ! Content-Security-Policy
+  Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'none'
+  X-Frame-Options: SAMEORIGIN
+  X-Robots-Tag: noindex, nofollow

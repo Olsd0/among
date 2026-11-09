@@ -14,5 +14,7 @@ window.AMONG_CONFIG = {
   //             제휴 링크가 있으면 화면 맨 위에 파트너스 고지 문구가 보인다. 비우면 일반 링크(고지 없음).
   // shortcutLinks: '자취 필수품, 항목별로' 바로가기의 제휴 링크. 키는 water·ramen·rice·frozen·retort·chicken·protein·canned (11/06 먹거리만).
   //             값이 없으면 쿠팡 일반 검색 링크(수수료 없음). 다른 파트너스 ID가 붙은 링크는 화면이 거절한다.
-  onlineDeals: { enabled: true, dataUrl: './online-deals.json', goldboxUrl: 'https://link.coupang.com/a/ip9MqvCNie', shortcutLinks: {} },
+  // foodBest: 쿠팡 파트너스 다이나믹 배너(카테고리 베스트 · 식품, 배너 ID 1048515)를 온라인 특가 맨 위에. 쿠팡 코드는 coupang-widget.html 안에만 있다.
+  //           from(한국 날짜)부터 보인다 — 개인정보처리방침 11/09 공고(시행 11/16)의 '시행 7일 전 공지' 기준.
+  onlineDeals: { enabled: true, dataUrl: './online-deals.json', goldboxUrl: 'https://link.coupang.com/a/ip9MqvCNie', shortcutLinks: {}, foodBest: { page: 'coupang-widget.html', from: '2026-11-16' } },
 };

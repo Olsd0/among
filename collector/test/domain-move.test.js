@@ -65,6 +65,7 @@ test('Cloudflare 응답 보안 헤더: 다른 사이트 안에 넣기 금지·HS
   for (const line of text.split('\n')) {
     if (!line.trim() || line.startsWith('#')) continue;
     if (!/^\s/.test(line)) { current = line.trim(); rules[current] = {}; continue; }
+    if (line.trim().startsWith('! ')) { rules[current]['!' + line.trim().slice(2)] = true; continue; }
     const at = line.indexOf(':');
     rules[current][line.slice(0, at).trim()] = line.slice(at + 1).trim();
   }
@@ -79,6 +80,11 @@ test('Cloudflare 응답 보안 헤더: 다른 사이트 안에 넣기 금지·HS
   assert.equal(rules['/admin*']['X-Robots-Tag'], 'noindex, nofollow');
   assert.equal(rules['/admin*']['Cache-Control'], 'no-store');
   assert.equal(rules['https://:project.pages.dev/*']['X-Robots-Tag'], 'noindex');
+  const widget = rules['/coupang-widget*'];
+  assert.ok(widget['!X-Frame-Options'] && widget['!Content-Security-Policy'], '쿠팡 배너 페이지만 /* 의 프레임 금지를 뗀다');
+  assert.match(widget['Content-Security-Policy'], /frame-ancestors 'self'/, '같은 사이트 안에서만');
+  assert.equal(widget['X-Frame-Options'], 'SAMEORIGIN');
+  assert.equal(Object.keys(rules).filter((k) => Object.keys(rules[k]).some((h) => h.startsWith('!'))).join(), '/coupang-widget*', '다른 경로는 프레임 금지 유지');
 });
 
 test('옛 GitHub 주소 이동 안내: 같은 경로·검색어·#를 새 도메인으로만 보내고, 옛 서비스 워커를 지운다', (t) => {

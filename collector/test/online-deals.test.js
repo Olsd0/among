@@ -1,7 +1,7 @@
 // 온라인 특가 화면 모듈 (web/online-deals.js) — 서버 응답 재검사와 카드 문구
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeOnlineDeals, onlineDealCard, shortcutLinks, shortcutSearchUrl, OD_SHORTCUTS } from '../../web/online-deals.js';
+import { normalizeOnlineDeals, onlineDealCard, shortcutLinks, shortcutSearchUrl, OD_SHORTCUTS, foodBestFrame } from '../../web/online-deals.js';
 import { odLink } from '../../web/online-deals-core.js?v=20261105-2';
 
 const now = Date.parse('2026-11-05T12:00:00+09:00');
@@ -67,4 +67,13 @@ test('항목별 바로가기: 쿠팡 검색 결과 일반 링크가 기본, AMON
     ['retort', false, shortcutSearchUrl('레토르트')],
   ]);
   assert.equal(flat(shortcutLinks(null)).length, 8);
+});
+
+test('쿠팡 식품 베스트: 한국 날짜로 시작일부터, 정해진 같은 사이트 페이지만', () => {
+  const cfg = { page: 'coupang-widget.html', from: '2026-11-16' };
+  assert.equal(foodBestFrame(cfg, Date.parse('2026-11-15T23:59:00+09:00')), '');
+  assert.equal(foodBestFrame(cfg, Date.parse('2026-11-16T00:00:00+09:00')), 'coupang-widget.html');
+  assert.equal(foodBestFrame({ ...cfg, page: 'https://evil.example/x.html' }, Date.parse('2026-12-01T00:00:00+09:00')), '');
+  assert.equal(foodBestFrame({ page: 'coupang-widget.html' }, Date.now()), '', '시작일 없으면 보이지 않음');
+  assert.equal(foodBestFrame(null), '');
 });
