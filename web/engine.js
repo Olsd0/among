@@ -460,6 +460,42 @@ export function computeCouponPrice({ regular_price, coupon_price, discount_type,
 const PRIZE_WORDS = /추첨|응모|당첨|경품|초청|예매권|관람권|영화\s*티켓|뮤지컬|공연\s*티켓|콘서트|팔로우|댓글|인증샷|리그램|해시태그/;
 const HARD_BENEFIT = /\d+\s*%|\d[\d,]*\s*원|\d+\s*천\s*원|1\s*\+\s*1|반값|할인/;
 const PROMO_WORDS = /할인|특가|적립|캐시백|쿠폰|이벤트|프로모션|행사|세일|반값|단돈|딜|해피|스낵|1\s*\+\s*1|증정|무료|%|원에|인하|혜택|한정|기념|오픈|첫\s*주문|신규|멤버십|데이|타임/;
+
+// 11/09 대표 결정 ("버거킹 와퍼 3900원같은 이벤트는 핫딜정보에 올려"): 브랜드 공식 이벤트 목록의 가격 행사
+// (○○원·○% 할인·1+1·반값)는 목록 배너에 끝나는 날이 없어도 핫딜로 올린다.
+// 공식 목록에서 내려가면 다음 수집 때 빠지고(gone), 48시간 넘게 다시 확인되지 않으면 화면에서도 빠진다(verificationStatus).
+// 가입·멤버십·통신사·등급·스탬프·적립처럼 늘 있는 혜택은 그대로 보류한다.
+const PRICE_DEAL = /\d[\d,]*\s*원(?!\s*(?:이상|당|마다))|\d+\s*천\s*원(?!\s*(?:이상|당|마다))|\d+\s*%|1\s*\+\s*1|반값|원쁠원|원플원/;
+const EVERGREEN_DEAL = /신규\s*(?:회원|가입|고객)|회원\s*가입|가입\s*(?:혜택|시|하면|쿠폰|축하)|웰컴|첫\s*(?:주문|구매|방문|결제)|멤버십|통신사|등급|스탬프|생일|매일|상시|언제나|구독|적립|포인트|캐시백|페이백/;
+/** 끝나는 날이 공개되지 않은 공식 이벤트 목록의 가격 행사인지 (라벨·제목에 가격 혜택이 있고 상시 혜택이 아님) */
+export function isOngoingDeal(n = {}) {
+  const head = `${n.discount_label || ''} ${n.title || ''}`.normalize('NFKC');
+  return PRICE_DEAL.test(head) && !EVERGREEN_DEAL.test(`${head} ${n.summary || ''}`.normalize('NFKC'));
+}
+
+/** 제목·근거의 달 표시('26년 11월 와퍼 3900원 프로모션', '11월 행사') → 'YYYY-MM'. 날짜('11월 11일')는 달 표시가 아니다 */
+export function monthTag(text, now = new Date()) {
+  const s = String(text || '').normalize('NFKC');
+  const today = todayKST(now);
+  const thisYear = +today.slice(0, 4);
+  let y, mo;
+  let m = s.match(/(?:^|[^\d])(20\d{2}|\d{2})\s*년\s*(\d{1,2})\s*월(?!\s*\d)/);
+  if (m) { y = +m[1] < 100 ? 2000 + +m[1] : +m[1]; mo = +m[2]; }
+  else if ((m = s.match(/(?:^|[^\d./])(\d{1,2})\s*월(?!\s*\d)[^\n]{0,15}?(?:프로모션|행사|이벤트|한정|특가|할인|혜택)/))) {
+    mo = +m[1]; y = thisYear;
+    const gap = mo - +today.slice(5, 7);
+    if (gap < -6) y += 1; else if (gap > 6) y -= 1;   // 12월에 '1월 행사'는 내년 1월
+  } else return null;
+  return mo >= 1 && mo <= 12 ? `${y}-${pad(mo)}` : null;
+}
+
+/** 날짜가 하나뿐인 '○○데이' 제목('11월 11일 두배로 데이') → 그 하루 'YYYY-MM-DD'. 시작·끝 표시('부터', '~')가 붙으면 아님 */
+export function titleDay(title, now = new Date()) {
+  const s = String(title || '').normalize('NFKC');
+  if (!/데이|day|당일|하루/i.test(s) || /[~∼〜]|부터|까지/.test(s)) return null;
+  const all = [...s.matchAll(/(?:^|[^\d./])(\d{1,2})\s*월\s*(\d{1,2})\s*일(?!\s*(?:부터|까지|[~∼〜-]|\d))/g)];
+  return all.length === 1 ? parseDate(`${all[0][1]}/${all[0][2]}`, now) : null;
+}
 function squash(s) { return String(s || '').replace(/[\s,·•\-–—~()\[\]"'“”‘’]/g, '').toLowerCase(); }
 
 function priceVariants(n) {
@@ -1243,8 +1279,16 @@ export function normalizeNews(raw = {}, ctx = {}) {
     confidence: Math.max(0, Math.min(1, toNumber(raw.confidence) ?? 0.5)),
     issues: [],
   };
+  // 제목에 날짜가 하나뿐인 '○○데이'는 그 하루 행사로 (11/09 실제: 파파이스 '11월 11일 두배로 데이'가 기간 없이 보류됨)
+  if (!n.start_date && !n.end_date) {
+    const day = titleDay(n.title, now);
+    if (day) { n.start_date = day; n.end_date = day; n.issues.push('기간은 제목의 날짜로 읽음'); }
+  }
+  // 끝나는 날 없이 달만 적힌 행사('26년 10월 와주 2900원 프로모션')는 그 달이 지나면 끝난 것으로 본다
+  const tag = n.end_date ? null : monthTag(`${n.title} ${n.evidence}`, now);
   const reject = [];
   if (!n.title) reject.push('제목 없음');
+  if (tag && tag < today.slice(0, 7)) reject.push('이미 종료');
   if (!n.brand) reject.push('지원하지 않는 브랜드');
   // 여러 브랜드가 섞인 출처(멤버십·결제)에서 우리 브랜드가 아닌 소식은 외식·카페 업종일 때만 (영화·쇼핑·여행 등 제외)
   else if (!fixed && !known && !/카페|커피|버거|치킨|피자|베이커리|빵|디저트|아이스크림|도넛|외식|음료|라떼/.test(allText)) reject.push('다루지 않는 업종');
@@ -1270,7 +1314,12 @@ export function normalizeNews(raw = {}, ctx = {}) {
   }
   if (n.confidence < RULES.minConfidence) hold.push('신뢰도 낮음');
   // 핫딜은 기간이 있는 행사만 (끝나는 날이 있거나 요일마다 돌아오는 행사). 상시 혜택·가입 혜택은 쿠폰 목록에만
-  if (!n.end_date && weeklyDay(allText) === null) hold.push('기간 없는 상시 행사');
+  // 예외: 브랜드 공식 출처(여러 브랜드가 섞인 멤버십·결제 출처 제외)의 가격 행사 — 공식 목록에 있는 동안 핫딜 (11/09 대표 결정)
+  if (!n.end_date && weeklyDay(allText) === null) {
+    if (tag && tag > today.slice(0, 7)) hold.push('다음 달 행사');
+    else if (fixed && isOngoingDeal(n)) n.issues.push('끝나는 날 미공개 — 공식 이벤트 목록 기준');
+    else hold.push('기간 없는 상시 행사');
+  }
   // 두 달 반이 넘는 행사는 상시 혜택에 가깝다 (쿠폰 목록에는 그대로, 핫딜로는 올리지 않음)
   else if (n.start_date && n.end_date && diffDays(n.end_date, n.start_date) > 75 && weeklyDay(allText) === null) hold.push('기간이 긴 상시성 행사');
   if (period?.end && !ed0) n.issues.push('기간은 근거 문구에서 읽음');
@@ -1386,7 +1435,8 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
     // 요일 행사('매주 수요일 반올림데이')는 그 요일에만 올린다
     const wd = weeklyDay(`${n.title} ${n.summary || ''}`);
     if (wd !== null && wd !== todayDow) continue;
-    if (wd === null && !n.end_date) continue;
+    // 끝나는 날이 없는 소식은 공식 이벤트 목록의 가격 행사만 (수집기가 그런 것만 게시한다 — 같은 기준으로 한 번 더)
+    if (wd === null && !n.end_date && !isOngoingDeal(n)) continue;
     const facts = headlineFacts(n);
     if (!happyPointHeadlineAllowed(n, facts)) continue;
     const rel = (n.related_ids || []).map((id) => byId.get(id)).filter(Boolean);

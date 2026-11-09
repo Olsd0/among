@@ -3,7 +3,7 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261109-1';
+} from './engine.js?v=20261109-2';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261104-1';
@@ -499,7 +499,7 @@ function visualImg(v, i) {
 /** 공지의 확인된 행사 기간 한 줄 (끝나는 날이 가까우면 D-n을 함께) */
 function noticePeriod(n, today = todayKST()) {
   const d = daysLeft(n.end_date, today);
-  if (n.start_date && n.start_date > today) return { text: `${md(n.start_date)} 시작`, due: false };
+  if (n.start_date && n.start_date > today) return { text: n.start_date === n.end_date ? `${md(n.start_date)} 하루` : `${md(n.start_date)} 시작`, due: false };
   if (d === 0) return { text: '오늘 마감', due: true };
   if (d !== null && d <= 3) return { text: `D-${d} · ${md(n.end_date)}까지`, due: true };
   if (d !== null) return { text: `${md(n.end_date)}까지`, due: false };
@@ -1098,7 +1098,11 @@ function openNews(id) {
   const v = noticeVisual(n, true);
   const img = v?.src || '';
   const d = daysLeft(n.end_date, today);
-  const period = n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}` : n.start_date ? `${md(n.start_date)}부터` : '끝나는 날 공지 없음';
+  // 끝나는 날이 공개되지 않은 행사는 공식 페이지에서 마지막으로 확인한 날을 함께 적는다 (11/09 공식 이벤트 목록의 가격 행사)
+  const seen = Number.isFinite(Date.parse(n.checked_at || '')) ? todayKST(new Date(n.checked_at)) : '';
+  const period = n.end_date && n.start_date === n.end_date ? `${md(n.end_date)} 하루${d === 0 ? ' (오늘)' : d > 0 ? ` (${d}일 뒤)` : ''}`
+    : n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}`
+    : `${n.start_date ? `${md(n.start_date)}부터 · ` : ''}끝나는 날 공지 없음${seen ? ` · ${md(seen)} 공식 페이지에서 진행 중 확인` : ''}`;
   const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
   const src = noticeSource(n);
   const target = noticeLinkTarget(src);

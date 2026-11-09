@@ -222,3 +222,51 @@ test('결제 캠페인 소식은 프로그램 이름으로, 기간이 길어도 
   assert.equal(h[0].reason, '오늘(수)만');
   assert.equal(pickHeadlines([], [{ ...weekly, id: 'w' }], { today: '2026-10-29' }).length, 0, '목요일에는 안 보임');
 });
+
+test('11/09 대표 결정: 공식 이벤트 목록의 가격 행사(버거킹 와퍼 3,900원)는 끝나는 날이 없어도 핫딜, 상시 혜택·지난달 행사는 아님', async () => {
+  const { monthTag, titleDay, isOngoingDeal } = await import('../src/engine.js');
+  const now = new Date('2026-11-09T05:00:00Z'); // KST 11/09 14:00
+  const today = '2026-11-09';
+  const bk = { now, brand: '버거킹', category: '햄버거', sourceId: 'bk-event', sourceUrl: 'https://www.burgerking.co.kr/event/ongoing', pageText: '26년 11월 와퍼 3900원 프로모션 26년 10월 와주 2900원 프로모션 아침 식사 스탬프 이벤트 (5끼 먹으면 1끼 무료!)' };
+  const raw = (o) => ({ summary: '', programs: [], evidence_source: 'image', confidence: 0.9, ...o });
+  // 실제 11/09 00:13 수집 결과 그대로 — 그때는 '기간 없는 상시 행사'로 보류됐다
+  const whopper = normalizeNews(raw({ title: '26년 11월 와퍼 3900원 프로모션', summary: '26년 11월을 맞아 와퍼를 3,900원에 판매하는 프로모션이 진행 중입니다.', discount_label: '3900원', evidence: '26년 11월 와퍼 3900원 프로모션' }), bk);
+  assert.equal(whopper.status, 'published');
+  assert.equal(whopper.end_date, null, '끝나는 날을 지어내지 않는다');
+  assert.ok(whopper.issues.includes('끝나는 날 미공개 — 공식 이벤트 목록 기준'));
+  const october = normalizeNews(raw({ title: '26년 10월 와주 2900원 프로모션', discount_label: '2900원', evidence: '26년 10월 와주 2900원 프로모션' }), bk);
+  assert.equal(october.status, 'rejected', '지난달 행사');
+  assert.ok(october.issues.includes('이미 종료'));
+  const december = normalizeNews(raw({ title: '12월 와퍼 2+1 행사', discount_label: '3900원', evidence: '12월 와퍼 행사' }), bk);
+  assert.equal(december.status, 'pending');
+  assert.ok(december.issues.includes('다음 달 행사'));
+  const stamp = normalizeNews(raw({ title: '아침 식사 스탬프 이벤트', summary: '아침 식사 5끼를 먹으면 1끼 무료', discount_label: '', evidence: '아침 식사 스탬프 이벤트 (5끼 먹으면 1끼 무료!)' }), bk);
+  assert.equal(stamp.status, 'pending', '가격 혜택이 아닌 상시 프로그램');
+  // 가입·멤버십·적립 혜택은 가격이 적혀 있어도 상시 혜택
+  const kfc = { now, brand: 'KFC', category: '치킨', sourceId: 'kfc-promo', sourceUrl: 'https://k.kr', pageText: 'KFC 신규 회원 웰컴 쿠폰팩 징거 단품 1천원' };
+  assert.equal(normalizeNews(raw({ title: 'KFC 신규 회원 웰컴 쿠폰팩', summary: '신규 회원 가입 시 징거 단품 1천원', discount_label: '1천원', evidence: 'KFC 신규 회원 웰컴 쿠폰팩' }), kfc).status, 'pending');
+  // 여러 브랜드가 섞인 결제·멤버십 출처의 기간 없는 행사는 그대로 보류
+  const npay = { now, brand: '', category: '카페', programs: ['네이버페이'], sourceId: 'npay-cafe', sourceUrl: 'https://n.kr', pageText: '던킨 두바이도넛 50% 할인' };
+  assert.equal(normalizeNews(raw({ brand: '던킨', title: '던킨 두바이도넛 50% 할인', discount_label: '50% 할인', programs: ['네이버페이'], evidence: '던킨 두바이도넛 50% 할인' }), npay).status, 'pending');
+  // 제목에 날짜 하나뿐인 '○○데이'는 그 하루
+  const pop = { now, brand: '파파이스', category: '치킨', sourceId: 'popeyes-event', sourceUrl: 'https://p.kr', pageText: '11월 11일 두배로 데이 치킨 1+1' };
+  const day = normalizeNews(raw({ title: '11월 11일 두배로 데이', summary: '11월 11일 단 하루 치킨 1+1', discount_label: '1+1', evidence: '11월 11일 두배로 데이' }), pop);
+  assert.equal(day.status, 'published');
+  assert.equal(day.start_date, '2026-11-11');
+  assert.equal(day.end_date, '2026-11-11');
+  assert.equal(titleDay('11월 11일부터 두배로 데이', now), null, '시작일만 적힌 것은 하루 행사가 아님');
+  assert.equal(titleDay('11월 11일 출시 기념 할인', now), null, '데이·당일·하루 표시가 없으면 읽지 않음');
+  assert.equal(titleDay('11월 11일 ~ 11월 12일 데이', now), null);
+  assert.equal(monthTag('26년 11월 와퍼 3900원 프로모션', now), '2026-11');
+  assert.equal(monthTag('11월 11일 두배로 데이', now), null, '날짜는 달 표시가 아님');
+  assert.equal(monthTag('1월 행사', new Date('2026-12-20T00:00:00Z')), '2027-01');
+  assert.equal(isOngoingDeal({ title: '버거 2종 7,900원 할인', discount_label: '7,900원' }), true);
+  assert.equal(isOngoingDeal({ title: '2만원 이상 주문 시 콜라 증정', discount_label: '콜라 증정' }), false, '최소 주문 금액은 가격 혜택이 아님');
+  assert.equal(isOngoingDeal({ title: '구매금액 100원당 5포인트 적립', discount_label: '' }), false);
+  // 오늘의 핫딜: 끝나는 날 없는 공식 가격 행사는 올리고, 다른 기간 없는 소식은 그대로 뺀다
+  const pub = (n, id) => ({ ...n, id, status: 'published', first_seen: '2026-11-08T15:23:18Z', related_ids: [] });
+  const h = pickHeadlines([], [pub(whopper, 'bk'), { id: 'x', status: 'published', brand: 'KFC', title: '앱 회원 혜택 안내', discount_label: '', end_date: null, programs: [], related_ids: [] }], { today });
+  assert.deepEqual(h.map((x) => x.id), ['bk']);
+  assert.equal(h[0].label, '3900원');
+  assert.equal(pickHeadlines([], [pub(day, 'pp')], { today })[0].reason, '11/11 시작');
+});
