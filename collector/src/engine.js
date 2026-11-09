@@ -1459,9 +1459,9 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
       label: formatMoneyLabel(n.discount_label), start_date: n.start_date || null, end_date: n.end_date || null,
       image_url: noticeImageFor(n, n.image_url, today), programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
-      // 공식 목록의 메뉴 하나 특가('와퍼 3900원')는 정상가를 몰라 할인율을 셀 수 없지만, 대표 결정(11/09)대로 핫딜 칸에 들도록
-      // 30~49% 할인과 같은 칸으로 본다. 화면에 할인율을 지어 붙이지는 않는다(라벨은 공식 가격 그대로).
-      tier: /^\d[\d,]*\s*원$/.test(String(n.discount_label || '').trim()) && isOngoingDeal(n) ? Math.min(1, headlineTier(facts, best)) : headlineTier(facts, best),
+      // 공식 목록의 메뉴 특가('와퍼 3900원')는 정상가를 몰라 할인율을 셀 수 없지만, 대표 결정(11/09 "이런 이벤트는 핫딜정보에 올려")대로
+      // 맨 앞 칸(큰 할인과 같은 칸)에 둔다 — 같은 칸 안의 순서는 점수대로. 화면에 할인율을 지어 붙이지는 않는다(라벨은 공식 가격 그대로).
+      tier: /^\d[\d,]*\s*원$/.test(String(n.discount_label || '').trim()) && isOngoingDeal(n) ? 0 : headlineTier(facts, best),
       usable: mineOrOpen(n),
     });
   }
