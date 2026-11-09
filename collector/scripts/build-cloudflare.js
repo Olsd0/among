@@ -9,6 +9,9 @@ import vm from 'node:vm';
 import { preparePages } from './prepare-pages.js';
 
 export const SITE_URL = 'https://www.amongpick.com/';
+// AMONG 애드센스 계정의 게시자 ID (공개값, 11/09 계정 화면에서 확인). Cloudflare 환경변수 ADSENSE_PUBLISHER_ID가 있으면 그 값이 우선.
+// 대표 주소(www.amongpick.com)로 빌드할 때만 기본값을 쓰고, 다른 주소로 빌드하면 환경변수로만 넣는다.
+export const ADSENSE_PUBLISHER_ID = 'pub-3507520612481684';
 // collector와 web에 같은 내용이 있어야 하는 파일 (pages.yml의 '사본 확인'과 같은 목록)
 export const COPIES = ['engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'app-coupons.js', 'online-deals-core.js'];
 
@@ -39,8 +42,9 @@ export function buildSite(rootDir, env = {}) {
   const configPath = resolve(webDir, 'config.js');
   const { text, cfg } = injectConfig(readFileSync(configPath, 'utf8'), env);
   writeFileSync(configPath, text);
-  const urls = preparePages(webDir, site.href, { publisherId: env.ADSENSE_PUBLISHER_ID || '', contactEmail: env.CONTACT_EMAIL || '', pretty: true });
-  return { site: site.href, urls, api: Boolean(cfg.apiUrl), contact: Boolean(cfg.contactEmail), publisher: Boolean(String(env.ADSENSE_PUBLISHER_ID || '').trim()) };
+  const publisherId = String(env.ADSENSE_PUBLISHER_ID || '').trim() || (site.href === SITE_URL ? ADSENSE_PUBLISHER_ID : '');
+  const urls = preparePages(webDir, site.href, { publisherId, contactEmail: env.CONTACT_EMAIL || '', pretty: true });
+  return { site: site.href, urls, api: Boolean(cfg.apiUrl), contact: Boolean(cfg.contactEmail), publisher: Boolean(publisherId) };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

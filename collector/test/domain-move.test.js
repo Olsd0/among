@@ -41,10 +41,16 @@ test('Cloudflare 빌드: 사본 확인 → 설정 주입(공개값만, 형식 �
   assert.equal(out.site, SITE_URL);
   assert.equal(out.api, /apiUrl: 'https:\/\/script\.google\.com/.test(before), '저장소 설정의 API 주소 유지');
   assert.match(readFileSync(join(dir, 'web/about.html'), 'utf8'), /<link rel="canonical" href="https:\/\/www\.amongpick\.com\/about">/);
-  assert.equal(existsSync(join(dir, 'web/ads.txt')), false, '게시자 ID 없으면 ads.txt 없음');
+  assert.equal(out.publisher, true, '대표 주소 빌드는 AMONG 계정 게시자 ID를 기본으로 사용');
+  assert.equal(readFileSync(join(dir, 'web/ads.txt'), 'utf8'), 'google.com, pub-3507520612481684, DIRECT, f08c47fec0942fa0\n');
+  assert.match(readFileSync(join(dir, 'web/index.html'), 'utf8'), /name="google-adsense-account" content="ca-pub-3507520612481684"/);
+  const other = temp(t);
+  copyRepo(other);
+  assert.equal(buildSite(other, { SITE_URL: 'https://preview.example.com/' }).publisher, false, '다른 주소 빌드에는 기본 ID를 넣지 않음');
+  assert.equal(existsSync(join(other, 'web/ads.txt')), false, '게시자 ID 없으면 ads.txt 없음');
   buildSite(dir, { CONTACT_EMAIL: 'hello@example.com', ADSENSE_PUBLISHER_ID: 'pub-1234567890123456' });
   assert.match(readFileSync(join(dir, 'web/about.html'), 'utf8'), /mailto:hello@example\.com/);
-  assert.equal(readFileSync(join(dir, 'web/ads.txt'), 'utf8'), 'google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n', '루트 도메인이라 ads.txt 생성');
+  assert.equal(readFileSync(join(dir, 'web/ads.txt'), 'utf8'), 'google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n', '환경변수 게시자 ID가 기본값보다 우선');
   assert.throws(() => injectConfig(before, { APPS_SCRIPT_URL: 'https://evil.example/exec' }), /APPS_SCRIPT_URL/);
   assert.throws(() => injectConfig(before, { CONTACT_EMAIL: 'a@example.com\nBcc:x@example.com' }), /CONTACT_EMAIL/);
   for (const SITE_URL of ['http://www.amongpick.com/', 'https://www.amongpick.com/among/', 'https://www.amongpick.com/?a=1']) assert.throws(() => buildSite(dir, { SITE_URL }), /SITE_URL/);
