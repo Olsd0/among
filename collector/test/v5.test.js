@@ -268,5 +268,15 @@ test('11/09 대표 결정: 공식 이벤트 목록의 가격 행사(버거킹 �
   const h = pickHeadlines([], [pub(whopper, 'bk'), { id: 'x', status: 'published', brand: 'KFC', title: '앱 회원 혜택 안내', discount_label: '', end_date: null, programs: [], related_ids: [] }], { today });
   assert.deepEqual(h.map((x) => x.id), ['bk']);
   assert.equal(h[0].label, '3900원');
+  assert.equal(h[0].tier, 1, '정상가를 몰라도 공식 메뉴 특가는 30~49% 할인과 같은 칸 (8장 안에 들도록)');
+  // 실제 11/09 23시 게시 소식과 겨뤄도 8장 안에 든다 (전에는 10번째)
+  const rivals = [
+    ['a', '피자헛', 'LGU+ 유플투쁠 포장 최대 55% 할인', '', '2026-11-09'], ['b', '폴바셋', '유자 시즌 음료 등 50% 할인', '50%', '2026-11-11'],
+    ['c', '피자헛', '11월 반값다 피자헛 평일 반값 및 주말 1+1', '반값 / 1+1', '2026-11-30'], ['d', '파리바게뜨', '수능 기획전 40% 할인', '40%', '2026-11-11'],
+    ['e', '파파존스', '파파스데이 30% 할인', '30%', '2026-11-18'], ['f', '파파존스', '로드나인 콜라보 프로모션', '', '2026-12-23'],
+    ['g', '배스킨라빈스', '젤라또 파자마 사전예약 할인', '최대 22%', '2026-11-10'], ['h', 'KFC', '닭껍질튀김 특가 할인', '3900원부터', '2026-11-09'],
+    ['i', '스타벅스', 'e-스티커 더블 적립 이벤트', '더블 적립', '2026-11-12'],
+  ].map(([id, brand, title, discount_label, end_date]) => ({ id, status: 'published', brand, title, discount_label, end_date, programs: [], related_ids: [], first_seen: '2026-11-01T00:00:00Z' }));
+  assert.ok(pickHeadlines([], [...rivals, pub(whopper, 'bk')], { today }).some((x) => x.id === 'bk'));
   assert.equal(pickHeadlines([], [pub(day, 'pp')], { today })[0].reason, '11/11 시작');
 });
