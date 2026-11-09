@@ -42,6 +42,8 @@ test('Cloudflare 빌드: 사본 확인 → 설정 주입(공개값만, 형식 �
   assert.equal(out.api, /apiUrl: 'https:\/\/script\.google\.com/.test(before), '저장소 설정의 API 주소 유지');
   assert.match(readFileSync(join(dir, 'web/about.html'), 'utf8'), /<link rel="canonical" href="https:\/\/www\.amongpick\.com\/about">/);
   assert.equal(out.publisher, true, '대표 주소 빌드는 AMONG 계정 게시자 ID를 기본으로 사용');
+  assert.equal(out.contact, true, '저장소 설정의 문의 메일 사용');
+  for (const page of ['about.html', 'privacy.html', 'terms.html', 'partners.html']) assert.match(readFileSync(join(dir, 'web', page), 'utf8'), /<a href="mailto:hello@amongpick\.com">hello@amongpick\.com<\/a>/, page + ' 정적 문의처');
   assert.equal(readFileSync(join(dir, 'web/ads.txt'), 'utf8'), 'google.com, pub-3507520612481684, DIRECT, f08c47fec0942fa0\n');
   assert.match(readFileSync(join(dir, 'web/index.html'), 'utf8'), /name="google-adsense-account" content="ca-pub-3507520612481684"/);
   const other = temp(t);

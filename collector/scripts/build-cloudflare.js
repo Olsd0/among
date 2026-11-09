@@ -43,7 +43,8 @@ export function buildSite(rootDir, env = {}) {
   const { text, cfg } = injectConfig(readFileSync(configPath, 'utf8'), env);
   writeFileSync(configPath, text);
   const publisherId = String(env.ADSENSE_PUBLISHER_ID || '').trim() || (site.href === SITE_URL ? ADSENSE_PUBLISHER_ID : '');
-  const urls = preparePages(webDir, site.href, { publisherId, contactEmail: env.CONTACT_EMAIL || '', pretty: true });
+  // 문의 메일: 환경변수 CONTACT_EMAIL이 있으면 그 값, 없으면 web/config.js의 contactEmail (정적 HTML에도 같은 주소)
+  const urls = preparePages(webDir, site.href, { publisherId, contactEmail: cfg.contactEmail || '', pretty: true });
   return { site: site.href, urls, api: Boolean(cfg.apiUrl), contact: Boolean(cfg.contactEmail), publisher: Boolean(publisherId) };
 }
 

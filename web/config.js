@@ -4,7 +4,7 @@
 // contactEmail: 서비스 소개·개인정보처리방침·이용약관에 보이는 문의 메일 (비우면 '준비 중' 안내).
 window.AMONG_CONFIG = {
   apiUrl: 'https://script.google.com/macros/s/AKfycbyF_tCoI5S-k1zZOvTbH9YNB7gaW7poFks4meja13ggJX8T29RUEZbONotyzaoiUoXQ/exec',
-  contactEmail: '',
+  contactEmail: 'hello@amongpick.com', // 11/09 대표가 Cloudflare 이메일 라우팅으로 만든 주소 (받은 메일은 대표 Gmail로 전달)
   // 직접 계약한 광고만 입력. 필드와 게재 절차는 docs/launch-readiness.md 참고.
   sponsorship: null,
   // 시험 운영. false로 바꾸면 온라인 특가 탭을 숨기고 기존 앱 쿠폰 메뉴를 복원한다.
