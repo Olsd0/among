@@ -1447,3 +1447,48 @@ export function summarize(coupons) {
   s.auto_publish_rate = decided ? +(s.published / decided).toFixed(3) : null;
   return s;
 }
+
+// ---------- 공지 원문 링크의 실제 목적지 ----------
+// 수집 출처 중에는 행사 상세가 아니라 여러 행사를 모은 '목록'(T멤버십 혜택 모음, 브랜드 이벤트 목록)이나 홈페이지만 있는 곳이 있다.
+// 그런 주소를 '공식 원문'이라고 부르면 상세 공지로 오해하므로, 버튼 이름을 실제 목적지에 맞춘다.
+// 키: 'www.'를 뺀 호스트 + 경로(소문자, 끝 '/' 제거). 값: [이름, 목록 주소에 붙을 수 있는 검색어 이름]
+// 목록에 없는 검색어(예: 게시글 번호 wr_id)가 붙으면 상세 글로 본다. 새 수집 출처를 더하면 여기에도 더한다(테스트가 확인).
+const MEMBERSHIP_LIST = { T: 'T멤버십 혜택 목록', KT: 'KT 멤버십 혜택 목록', U: 'U+ 멤버십 혜택 목록', N: '네이버페이 혜택 목록' };
+const EVENT_LIST = '공식 이벤트 목록';
+const LIST_PAGES = {
+  'm.tworld.co.kr/v6/benefit': [MEMBERSHIP_LIST.T], 'tworld.co.kr/v6/benefit': [MEMBERSHIP_LIST.T],
+  'm.tworld.co.kr/membership/benefit/brand': [MEMBERSHIP_LIST.T], 'tworld.co.kr/membership/benefit/brand': [MEMBERSHIP_LIST.T],
+  'membership.kt.com/discount/partner/partnerlist.do': [MEMBERSHIP_LIST.KT],
+  'm.lguplus.com/benefit-membership': [MEMBERSHIP_LIST.U, ['urcmbspdivscd', 'urcmbspbnftdivscd']], 'm.lguplus.com/membership/intro': [MEMBERSHIP_LIST.U],
+  'lguplus.com/benefit-membership': [MEMBERSHIP_LIST.U, ['urcmbspdivscd', 'urcmbspbnftdivscd']], 'lguplus.com/membership/intro': [MEMBERSHIP_LIST.U],
+  'campaign2.naver.com/npay/cafe': [MEMBERSHIP_LIST.N],
+  'mcdonalds.co.kr/kor/promotion/list': [EVENT_LIST], 'burgerking.co.kr/event/ongoing': [EVENT_LIST],
+  'kfckorea.com/promotion/promotionlist/a801': [EVENT_LIST], 'popeyes.co.kr/event': [EVENT_LIST],
+  'momstouch.co.kr/promotion/list.php': [EVENT_LIST], 'lotteeatz.com/event/main': [EVENT_LIST],
+  'starbucks.co.kr/whats_new/campaign_list.do': [EVENT_LIST], 'ediya.com/contents/event.html': [EVENT_LIST, ['tb_name']],
+  'mega-mgccoffee.com/bbs': [EVENT_LIST, ['bbs_category']], 'paikdabang.com/news': [EVENT_LIST, ['cate']],
+  'hollys.co.kr/news/event/list.do': [EVENT_LIST], 'baristapaulbassett.co.kr/whatsnews/event/list.pb': [EVENT_LIST],
+  'baristapaulbassett.co.kr/society/partnership.pb': ['폴 바셋 제휴 혜택 목록'],
+  'bbq.co.kr/events': [EVENT_LIST], 'bhc.co.kr/event/currentevent': [EVENT_LIST],
+  'm.kyochon.com/event/event_list': [EVENT_LIST], 'kyochon.com/event/event_list': [EVENT_LIST],
+  'goobne.co.kr/brd/event/list_p': [EVENT_LIST], 'puradakchicken.com/news/event.asp': [EVENT_LIST], 'puradakchicken.com/mobile/news/event.asp': [EVENT_LIST],
+  'web.dominos.co.kr/event/list': [EVENT_LIST, ['gubun']], 'pizzahut.co.kr/cs/event': [EVENT_LIST], 'pji.co.kr/event/ongoing': [EVENT_LIST],
+  'mrpizza.co.kr/bbs/board.php': [EVENT_LIST, ['bo_table']], 'order.banolimpizza.com/event/list': [EVENT_LIST, ['eventstatus']],
+  'baskinrobbins.co.kr/play/event/list.php': [EVENT_LIST], 'baskinrobbins.co.kr/m/play/event/list.php': [EVENT_LIST],
+  'paris.co.kr/promotion': [EVENT_LIST, ['cat']], 'dunkindonuts.co.kr/event': [EVENT_LIST],
+};
+/**
+ * 공지 원문 주소 → { kind, label }. kind: 'detail'(행사 상세·확인 안 된 주소) | 'list'(행사 목록) | 'home'(홈페이지).
+ * label은 버튼에 쓰는 목적지 이름이다. 모르는 주소는 지금처럼 '공식 원문'.
+ */
+export function noticeLinkTarget(value) {
+  let url;
+  try { url = new URL(value); } catch { return { kind: 'detail', label: '공식 원문' }; }
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+  const path = decodeURIComponent(url.pathname).toLowerCase().replace(/\/+$/, '');
+  const keys = [...url.searchParams.keys()].map((k) => k.toLowerCase());
+  if (!path && !keys.length) return { kind: 'home', label: '공식 홈페이지' };
+  const hit = LIST_PAGES[`${hostname}${path}`];
+  if (hit && keys.every((k) => (hit[1] || []).includes(k))) return { kind: 'list', label: hit[0] };
+  return { kind: 'detail', label: '공식 원문' };
+}

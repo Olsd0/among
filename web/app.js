@@ -2,8 +2,8 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
-  isSideMenu,
-} from './engine.js?v=20261105-1';
+  isSideMenu, noticeLinkTarget,
+} from './engine.js?v=20261109-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261104-1';
@@ -517,6 +517,7 @@ function hotCard(h, i) {
     const n = state.news.find(n => n.id === h.id) || h;
     const v = noticeVisual(n);
     const source = noticeSource(n);
+    const target = noticeLinkTarget(source);
     // 공지 카드: 공지 이미지 · 제목 · 확인된 행사 기간만. 할인 숫자·1+1·혜택 배지는 붙이지 않는다.
     // 마감 정보는 아래 기간 줄에 한 번만 (위 배지는 새 혜택·요일 한정·시작 예정만)
     const badge = /^(오늘 마감|D-\d+|\d+\/\d+까지|\d+\/\d+ 시작)$/.test(h.reason || '') ? '' : why;
@@ -526,7 +527,7 @@ function hotCard(h, i) {
         <span class="hot-visual">${noticePreview(n)}${visualImg(v, i)}</span>
         <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${badge ? `<span class="why${whyCls}">${esc(badge)}</span>` : ''}</span><span class="tt">${esc(title)}</span><span class="hot-meta">${p.text ? `<span class="period${p.due ? ' due' : ''}">${ICON.cal}${esc(p.text)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
       </button>
-      ${source ? `<a class="hot-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(h.brand)} 공식 공지 원문 보기 (새 탭)"><span class="source-host">${esc(host(source))}</span><span>공식 원문 ↗</span></a>` : '<span class="hot-source source-unavailable">원문 주소 확인 중</span>'}
+      ${source ? `<a class="hot-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(target.kind === 'detail' ? `${h.brand} 공식 공지 원문 보기 (새 탭)` : `${h.brand} 소식이 실린 ${target.label} 보기 (새 탭)`)}" data-link-kind="${target.kind}"><span class="source-host">${esc(host(source))}</span><span>${esc(target.label)} ↗</span></a>` : '<span class="hot-source source-unavailable">원문 주소 확인 중</span>'}
     </article>`;
   }
   const v = h.kind === 'coupon' ? couponVisual(hc || { brand: h.brand, menu: title }) : couponVisual({ brand: h.brand, menu: h.title });
@@ -1100,6 +1101,9 @@ function openNews(id) {
   const period = n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}` : n.start_date ? `${md(n.start_date)}부터` : '끝나는 날 공지 없음';
   const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
   const src = noticeSource(n);
+  const target = noticeLinkTarget(src);
+  // 상세 공지가 아니면(혜택·이벤트 목록, 홈페이지) 버튼과 안내문에 실제 목적지를 쓴다
+  const via = target.kind === 'detail' ? '' : ` 이 행사의 개별 공지 주소는 확인하지 못해 ${target.label}${/[가-힣]/.test(target.label.slice(-1)) && (target.label.slice(-1).charCodeAt(0) - 0xac00) % 28 ? '으로' : '로'} 연결해요.`;
   $('#newsBody').innerHTML = `
     <div class="news-hero news-notice${img ? ' has-ph' : ''}">
       ${noticePreview(n)}
@@ -1109,13 +1113,13 @@ function openNews(id) {
     </div>
     ${v?.official ? `<a class="notice-original" href="${esc(img)}" target="_blank" rel="noopener">공지 이미지 크게 보기 ↗</a>` : ''}
     <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 원문에서 확인해 주세요.</p>
-    ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer"><span>공식 원문</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
+    ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}"><span>${esc(target.label)}</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(period)}${need ? ` · ${esc(need)}` : ''}</p>
     <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
     ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}
-    <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">공식 공지 보기</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
-    <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.<span class="img-note">${v ? (v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
+    <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">${esc(target.kind === 'detail' ? '공식 공지 보기' : `${target.label} 보기`)}</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
+    <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
   if (!newsSheet.open) newsSheet.showModal();
   history.replaceState(null, '', `${location.pathname}?n=${encodeURIComponent(id)}`);
 }

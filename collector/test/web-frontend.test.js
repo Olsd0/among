@@ -671,3 +671,27 @@ test('내 조건 버튼은 고른 조건을 보여 주고, 시트의 닫기(✕)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `폭 ${width}`);
   }
 });
+
+test('공식 원문이 공통 T멤버십 목록이면 버튼을 실제 목적지(T멤버십 혜택 목록)로 표시하고, 상세 주소는 그대로 공식 원문', { timeout: 30000 }, async t => {
+  const now = '2026-11-09T03:00:00.000Z';
+  const list = { id: 'tday-pb', brand: '폴바셋', category: '카페', title: '폴 바셋 유자 시즌 음료 등 50% 할인', summary: 'T day 50%', discount_label: '50%', programs: ['SKT'], checked_at: now, first_seen: now, start_date: '2026-11-01', end_date: '2026-11-20', source_url: 'https://m.tworld.co.kr/v6/benefit', related_ids: [] };
+  const detail = { ...list, id: 'kfc-detail', brand: 'KFC', category: '햄버거', title: 'KFC 닭껍질튀김 특가 할인', programs: [], source_url: 'https://www.kfckorea.com/promotion/promotionList/detail/1129' };
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [list, detail] });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  const card = page.locator('[data-hot="news:tday-pb"]');
+  await card.waitFor();
+  const chip = card.locator('.hot-source');
+  assert.equal(await chip.getAttribute('href'), list.source_url, '목적지 주소는 그대로');
+  assert.match(await chip.innerText(), /T멤버십 혜택 목록/);
+  assert.doesNotMatch(await chip.innerText(), /공식 원문/);
+  assert.match(await chip.getAttribute('aria-label'), /폴바셋 소식이 실린 T멤버십 혜택 목록 보기/);
+  assert.match(await page.locator('[data-hot="news:kfc-detail"] .hot-source').innerText(), /공식 원문/);
+  await card.getByRole('button').click();
+  const link = page.locator('.notice-source-link');
+  await link.waitFor();
+  assert.match(await link.innerText(), /T멤버십 혜택 목록/);
+  assert.equal(await page.locator('[data-news-src="tday-pb"]').innerText(), 'T멤버십 혜택 목록 보기');
+  assert.match(await page.locator('.news-note').innerText(), /개별 공지 주소는 확인하지 못해 T멤버십 혜택 목록으로 연결해요/);
+});
