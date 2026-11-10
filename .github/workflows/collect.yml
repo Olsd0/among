@@ -125,6 +125,12 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
           BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
+          # 기간 팩트체크의 기사 확인 (11/10 대표 결정) — NAVER API HUB 키를 대표가 Secrets에 직접 등록하면 켜진다. 없으면 '연결 안 됨'
+          NAVER_API_KEY_ID: ${{ secrets.NAVER_API_KEY_ID }}
+          NAVER_API_KEY: ${{ secrets.NAVER_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          PERIOD_CHECK: ${{ vars.PERIOD_CHECK }}
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
           ONLY: ${{ inputs.only }}
           DRY_RUN: ${{ (inputs.mode == 'dry' || (github.event_name == 'schedule' && env.PUBLISH_APPROVED != 'true')) && '1' || '' }}

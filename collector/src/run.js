@@ -7,7 +7,10 @@ import { pathToFileURL } from 'node:url';
 import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, pickImage, pickNoticeImage, dropSharedNoticeImages, noticeImageFor } from './engine.js';
 import { couponId, contentHash, newsId, newsHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
-import { openBrowser, collectSource } from './fetch.js';
+import { openBrowser, collectSource, captureNoticeDetail, renderPage } from './fetch.js';
+import { checkPeriods, needsPeriod } from './period-check.js';
+import { officialReader } from './official-period.js';
+import { pressFromEnv } from './press-search.js';
 import { SheetClient } from './sheet.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -208,9 +211,36 @@ export async function runCollector(o = {}) {
     const rank = (n) => (n.status === 'published' ? 2 : n.status === 'pending' ? 1 : 0) + (n.confidence || 0) / 10;
     const newsById = new Map();
     for (const n of allNews) { const cur = newsById.get(n.id); if (!cur || rank(n) > rank(cur)) newsById.set(n.id, n); }
-    const news = dropSharedNoticeImages(mergeNews(linkNews([...newsById.values()], merged))
-      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? noticeImageFor(n, n.image_url) : '' })), noticeImage)
-      .map((n) => ({ ...n, hash: newsHash(n) }));
+    let news = dropSharedNoticeImages(mergeNews(linkNews([...newsById.values()], merged))
+      .map((n) => ({ ...n, image_url: n.status !== 'rejected' ? noticeImageFor(n, n.image_url) : '' })), noticeImage);
+    // 기간 팩트체크 (11/10 대표 결정): 끝나는 날이 없는 공식 소식 → 공식 상세 글자 → 공지 이미지 → 언론 기사(2곳 이상 일치)
+    // 소식 id는 이미 공식 원문 날짜로 정해졌으므로 바꾸지 않는다. 시간 예산이 남았을 때만, 한 번에 최대 10개.
+    const srcById = new Map(sources.map((x) => [x.id, x]));
+    const fixedSource = (id) => !!(srcById.get(id) && srcById.get(id).brand);
+    if (env.PERIOD_CHECK !== '0' && Date.now() < deadline - 60000 && news.some((n) => needsPeriod(n, { fixedSource }))) {
+      const known = new Map();
+      if (sheet) {
+        try { for (const k of (await sheet.post('news_periods')).periods || []) known.set(k.id, k); }
+        catch (e) { report.errors.push(`기간 기록 읽기 건너뜀: ${e.message}`); }
+      }
+      const srcMap = srcById;
+      const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ''; } };
+      const press = o.press || pressFromEnv(env);
+      const official = o.official || (llm.provider === 'mock' ? null : officialReader({
+        capture: (listUrl, imageUrl) => captureNoticeDetail(ctx, listUrl, imageUrl, { maxShots: 3 }),
+        render: (url) => renderPage(ctx, url, { maxShots: 6 }),
+        sources: srcMap, llm, now, log,
+      }));
+      const pc = await checkPeriods(news, {
+        now, known, official, press, log,
+        fixedSource,
+        officialHosts: (n) => [hostOf(srcMap.get(n.source_id)?.url), hostOf(n.source_url), hostOf(n.official_link)].filter(Boolean),
+      });
+      news = pc.news;
+      report.period = pc.summary;
+      log(`  기간 확인: 새로 확인 ${pc.summary.checked} · 채움 ${pc.summary.filled.length} · 못 채움 ${pc.summary.failed.length} · 저장된 기간 반영 ${pc.summary.reused} · 기사 확인 ${pc.summary.press}`);
+    }
+    news = news.map((n) => ({ ...n, hash: newsHash(n) }));
     report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };
     report.with_image = merged.filter((c) => c.status === 'published' && c.image_url).length;
 
@@ -262,6 +292,15 @@ export async function runCollector(o = {}) {
       try { ns = JSON.parse(readFileSync(join(outDir, 'news.json'), 'utf8')); } catch { /* 없음 */ }
       const nLines = ns.map((n) => [n.status, n.source_id, n.brand, n.title, n.discount_label, n.start_date || '', n.end_date || '', n.related_ids.length, n.image_url ? '사진' : '', (n.issues || []).join('/')].join('|').slice(0, 300));
       if (nLines.length) groups(nLines, 25).slice(0, 1).forEach((g, i) => console.log(`::notice title=소식 ${i + 1}::${g.map(block).join('%0A')}`));
+      const pc = report.period;
+      if (pc) {
+        const pLines = [
+          `새로 확인 ${pc.checked} · 채움 ${pc.filled.length} · 못 채움 ${pc.failed.length} · 저장된 기간 반영 ${pc.reused} · 기사 확인: ${pc.press}`,
+          ...pc.filled.map((x) => `채움|${x.brand}|${x.title}|${x.start}~${x.end}|${x.source}${(x.refs || []).length ? `|${x.refs.map((r) => r.outlet).join(',')}` : ''}`),
+          ...pc.failed.map((x) => `못 채움|${x.brand}|${x.title}|${x.reason}`),
+        ].map((l) => l.slice(0, 300));
+        console.log(`::notice title=기간 확인::${pLines.slice(0, 25).map(block).join('%0A')}`);
+      }
       const imgLines = cs.filter((c) => c.image_url).map((c) => `${c.brand}|${c.menu}|${c.image_url}`.slice(0, 300));
       if (imgLines.length) console.log(`::notice title=사진 ${imgLines.length}건::${imgLines.slice(0, 25).map(block).join('%0A')}`);
       const nImgLines = ns.filter((n) => n.status !== 'rejected' && n.image_url).map((n) => `${n.brand}|${n.title}|${n.image_url}`.slice(0, 300));

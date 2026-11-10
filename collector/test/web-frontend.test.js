@@ -695,3 +695,36 @@ test('공식 원문이 공통 T멤버십 목록이면 버튼을 실제 목적지
   assert.equal(await page.locator('[data-news-src="tday-pb"]').innerText(), 'T멤버십 혜택 목록 보기');
   assert.match(await page.locator('.news-note').innerText(), /개별 공지 주소는 확인하지 못해 T멤버십 혜택 목록으로 연결해요/);
 });
+
+test('11/10 핫딜 순서(마감 임박 → 진행 중 → 상시)와 기간 근거 표시: 공식 공지 이미지 · 언론 보도(언론사 링크) · 끝나는 날 공지 없음', { timeout: 30000 }, async (t) => {
+  const now = '2026-11-10T03:00:00.000Z';
+  const base = { category: '햄버거', summary: '행사', programs: [], checked_at: now, related_ids: [], source_url: 'https://example.test/event' };
+  const press = { ...base, id: 'bk', brand: '버거킹', title: '26년 11월 와퍼 3900원 프로모션', discount_label: '3900원', start_date: '2026-11-09', end_date: '2026-11-13', first_seen: '2026-11-08T15:23:18Z',
+    period_source: '언론 보도', period_refs: 'segye.com|https://www.segye.com/newsView/1|2026-11-09\nhankyung.com|https://www.hankyung.com/article/1|2026-11-09\nevil|javascript:alert(1)|x' };
+  const image = { ...base, id: 'pp', brand: '파파이스', title: '버거 2종 7,900원 할인', discount_label: '7,900원', start_date: '2026-11-03', end_date: '2026-11-30', first_seen: '2026-11-09T15:00:00Z', period_source: '공식 공지 이미지', period_refs: '' };
+  const undated = { ...base, id: 'mc', brand: '맥도날드', title: '시즌 한정 해피 스낵 1000원부터', discount_label: '1,000원부터', start_date: null, end_date: null, first_seen: '2026-11-09T15:00:00Z' };
+  const old = { ...base, id: 'ph', brand: '피자헛', title: '평일 반값 핫딜', discount_label: '반값', start_date: '2026-11-01', end_date: '2026-11-30', first_seen: '2026-11-01T00:00:00Z' };
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news: [undated, old, image, press] });
+  t.after(() => context.close());
+  await page.clock.setFixedTime(new Date(now));
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('[data-hot="news:bk"]').waitFor();
+  const order = await page.$$eval('#hotRail [data-hot]', (els) => els.map((e) => e.dataset.hot));
+  assert.deepEqual(order, ['news:bk', 'news:pp', 'news:ph', 'news:mc'], '11/13 마감 임박 → 공지 최신(11/3 시작) → 11/1 시작 → 끝나는 날 모름');
+  await page.locator('[data-hot="news:bk"]').getByRole('button').first().click();
+  await page.locator('#newsSheet').waitFor();
+  assert.match(await page.locator('.news-meta').innerText(), /11\/9 ~ 11\/13 \(언론 보도 2건 기준 · 공식 공지에서 다시 확인하세요\)/);
+  const refs = page.locator('.news-period-refs a');
+  assert.deepEqual(await refs.evaluateAll((as) => as.map((a) => [a.textContent, a.getAttribute('href'), a.rel])), [
+    ['segye.com (11/9)', 'https://www.segye.com/newsView/1', 'noopener noreferrer'],
+    ['hankyung.com (11/9)', 'https://www.hankyung.com/article/1', 'noopener noreferrer'],
+  ], 'https 기사 주소만');
+  await page.keyboard.press('Escape');
+  await page.goto(`${site.base}/index.html?n=pp`);
+  await page.locator('.news-meta').waitFor();
+  assert.match(await page.locator('.news-meta').innerText(), /11\/3 ~ 11\/30 \(공식 공지 이미지 기준\)/);
+  assert.equal(await page.locator('.news-period-refs').count(), 0);
+  await page.goto(`${site.base}/index.html?n=mc`);
+  await page.locator('.news-meta').waitFor();
+  assert.match(await page.locator('.news-meta').innerText(), /끝나는 날 공지 없음 · 11\/10 공식 페이지에서 진행 중 확인/);
+});

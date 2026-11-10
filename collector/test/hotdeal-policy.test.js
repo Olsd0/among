@@ -20,7 +20,7 @@ test('해피포인트는 1+1·50% 이상 할인만 통과하고 적립·일반 �
   assert.equal(qualifiesHappyPointHeadline({ programs: ['네이버페이'], discount_label: '50% 적립' }), true);
 });
 
-test('공지와 쿠폰 양쪽에 해피포인트 기준을 적용하고 큰 한정 행사 다음에 정기·소규모 공지를 둔다', () => {
+test('공지와 쿠폰 양쪽에 해피포인트 기준을 적용하고, 순서는 마감 임박 순 · 요일 행사(상시)는 뒤로 (11/10 대표 결정)', () => {
   const base = { status: 'published', start_date: '2026-10-26', end_date: '2026-10-30', first_seen: '2026-10-29T00:00:00Z', related_ids: [], programs: [] };
   const news = [
     { ...base, id: 'weekly', brand: '정기', title: '매주 목요일 1+1', discount_label: '1+1' },
@@ -35,18 +35,17 @@ test('공지와 쿠폰 양쪽에 해피포인트 기준을 적용하고 큰 한�
   ];
   const ids = pickHeadlines(coupons, news, { today: '2026-10-29', limit: 20 }).map((x) => x.id);
   assert.ok(!ids.includes('happy-low') && !ids.includes('c-low'));
-  for (const big of ['big', 'happy-big', 'c-big']) {
-    assert.ok(ids.indexOf(big) >= 0);
-    assert.ok(ids.indexOf(big) < ids.indexOf('weekly'));
-    assert.ok(ids.indexOf(big) < ids.indexOf('small'));
-  }
+  // 할인 크기가 아니라 끝나는 날 순서: 오늘 끝나는 소액 할인 → 내일 끝나는 것 → 11/1. 매주 목요일 행사는 상시라 맨 뒤
+  assert.deepEqual(ids, ['small', 'c-big', 'happy-big', 'big', 'weekly']);
   assert.ok(!pickHeadlines([], news, { today: '2026-10-30', limit: 20 }).some((x) => x.id === 'weekly'));
   assert.equal(news.length, 5, '원래 혜택 목록은 변경하지 않는다');
 });
 
-test('같은 페이지에 연결된 다른 상품의 50% 할인을 작은 공지 순위에 빌려 쓰지 않는다', () => {
+test('같은 페이지에 연결된 다른 상품의 50% 할인을 작은 공지에 빌려 쓰지 않고, 순서는 할인 크기와 무관하게 끝나는 날 순', () => {
   const small = { id: 'small', brand: 'KFC', title: '더블 커넬 위크 2배 적립', discount_label: '2배 적립', related_ids: ['other'], end_date: '2026-10-30' };
   const big = { id: 'big', brand: '설빙', title: '50% 적립', discount_label: '50% 적립', end_date: '2026-11-01' };
   const other = { id: 'other', brand: 'KFC', menu: 'KFC 닭껍질튀김', discount_type: 'price', discount_rate: 51, end_date: '2026-10-30' };
-  assert.deepEqual(pickHeadlines([other], [small, big], { today: '2026-10-29' }).map((x) => x.id), ['big', 'small']);
+  const h = pickHeadlines([other], [small, big], { today: '2026-10-29' });
+  assert.deepEqual(h.map((x) => x.id), ['small', 'big'], '10/30에 끝나는 공지가 11/1보다 먼저');
+  assert.equal(h[0].label, '2배 적립', '연결 쿠폰의 51%를 라벨로 빌리지 않는다');
 });

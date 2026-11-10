@@ -1,9 +1,9 @@
 // AMONG 화면 스크립트 (index.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
+  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261109-4';
+} from './engine.js?v=20261110-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261104-1';
@@ -537,6 +537,17 @@ function hotCard(h, i) {
     <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl tone-${tone}${size}">${esc(lbl)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
   </button>`;
 }
+/** 기간 근거 (11/10 기간 팩트체크): 공식 원문 | 공식 공지 이미지 | 언론 보도 — 주소는 https 기사만 */
+function periodFact(n) {
+  if (!n.period_source || !n.start_date || !n.end_date) return null;
+  const refs = String(n.period_refs || '').split('\n').map((l) => l.split('|')).filter((p) => p.length >= 2 && /^https:\/\//.test(p[1]))
+    .map(([outlet, url, published = '']) => ({ outlet: outlet || host(url), url, published: /^\d{4}-\d{2}-\d{2}$/.test(published) ? published : '' })).slice(0, 3);
+  if (n.period_source === '언론 보도') return { note: `(언론 보도 ${refs.length}건 기준 · 공식 공지에서 다시 확인하세요)`, refs };
+  if (n.period_source === '공식 공지 이미지') return { note: '(공식 공지 이미지 기준)', refs: [] };
+  if (n.period_source === '공식 원문') return { note: '(공식 공지 기준)', refs: [] };
+  return null;
+}
+const kstDate = (iso) => (iso && Number.isFinite(Date.parse(iso)) ? todayKST(new Date(iso)) : null);
 function renderHot() {
   if (state.view === 'onlineDeals') { $('#hot').hidden = true; return; }
   // 오래됐거나 확인 시각을 알 수 없는 출처는 '오늘의' 핫딜로 추천하지 않는다.
@@ -546,12 +557,11 @@ function renderHot() {
   const appHeads = state.appCoupons.filter(c => acHotEligible(c) && brandMatch(c)).map(c => ({
     id: c.id, kind: 'app_coupon', brand: c.brand, title: c.product_name, label: acBenefit(c), reason: acAudience(c),
     category: ['버거킹', '맥도날드', '쉐이크쉑'].includes(c.brand) ? '햄버거' : '디저트',
-    tier: c.recurring ? 2 : c.benefit_type === 'bogo' || c.discount_rate >= 50 ? 0 : 1, score: c.discount_rate || 50, usable: c.audience_type === 'all_members',
+    usable: c.audience_type === 'all_members',
+    // 11/10 핫딜 순서(임박 → 진행 중·공지 최신 → 시작 전 → 상시)에 맞춰 발급 기간을 날짜로. 매달 반복되는 쿠폰은 상시
+    start_date: kstDate(c.issue_start), end_date: kstDate(c.issue_end), first_seen: c.issue_start || c.updated_at || c.checked_at || '', weekly: !!c.recurring,
   }));
-  const brandCounts = {};
-  const hot = state.q || state.view === 'appCoupons' || (state.view === 'brands' && !state.brand) ? [] : [...base, ...appHeads]
-    .sort((a, b) => Number(b.usable) - Number(a.usable) || a.tier - b.tier || b.score - a.score)
-    .filter(h => (brandCounts[h.brand] = (brandCounts[h.brand] || 0) + 1) <= 2).slice(0, 8);
+  const hot = state.q || state.view === 'appCoupons' || (state.view === 'brands' && !state.brand) ? [] : orderHeadlines([...base, ...appHeads], { today: todayKST(), limit: 8 });
   state.hot = hot;
   $('#hot').hidden = !hot.length;
   if (!hot.length) return;
@@ -1103,6 +1113,8 @@ function openNews(id) {
   const period = n.end_date && n.start_date === n.end_date ? `${md(n.end_date)} 하루${d === 0 ? ' (오늘)' : d > 0 ? ` (${d}일 뒤)` : ''}`
     : n.end_date ? `${n.start_date ? `${md(n.start_date)} ~ ` : ''}${md(n.end_date)}까지${d === 0 ? ' (오늘 끝나요)' : d !== null ? ` (${d}일 남음)` : ''}`
     : `${n.start_date ? `${md(n.start_date)}부터 · ` : ''}끝나는 날 공지 없음${seen ? ` · ${md(seen)} 공식 페이지에서 진행 중 확인` : ''}`;
+  // 11/10 기간 팩트체크: 공식 공지에 글자로 없던 기간은 근거를 함께 적는다 (기사 근거면 언론사 이름 링크)
+  const pf = periodFact(n);
   const need = (n.programs || []).length ? `${n.programs.map(progLabel).join(' 또는 ')} 필요` : '';
   const src = noticeSource(n);
   const target = noticeLinkTarget(src);
@@ -1118,7 +1130,8 @@ function openNews(id) {
     ${v?.official ? `<a class="notice-original" href="${esc(img)}" target="_blank" rel="noopener">공지 이미지 크게 보기 ↗</a>` : ''}
     <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 원문에서 확인해 주세요.</p>
     ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}"><span>${esc(target.label)}</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
-    <p class="news-meta">${esc(n.brand)} · ${esc(period)}${need ? ` · ${esc(need)}` : ''}</p>
+    <p class="news-meta">${esc(n.brand)} · ${esc(pf ? `${md(n.start_date)} ~ ${md(n.end_date)} ${pf.note}` : period)}${need ? ` · ${esc(need)}` : ''}</p>
+    ${pf && pf.refs.length ? `<p class="news-period-refs">기간을 확인한 기사: ${pf.refs.map((r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.outlet)}${r.published ? ` (${esc(md(r.published))})` : ''}</a>`).join(', ')}</p>` : ''}
     <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
     ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}

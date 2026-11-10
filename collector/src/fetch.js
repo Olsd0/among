@@ -200,3 +200,58 @@ export function splitList(v) {
   if (Array.isArray(v)) return v;
   return String(v).split(/\s*;\s*|\n/).filter(Boolean);
 }
+
+/**
+ * 기간 팩트체크용 (11/10 대표 결정): 목록에서 공지 배너(이미지 주소로 찾음)를 화면 그대로 찍고, 눌러서 열리는 상세 화면을 읽는다.
+ * 상세가 '클릭으로만 열림'인 출처(bk-event 등)를 위해. 이미지 파일을 내려받거나 저장하지 않는다 — 브라우저 화면만 찍어 AI에게 잠깐 보여 준다.
+ * @returns {Promise<null | { banner: {media_type,data}|null, detailUrl: string, moved: boolean, text: string, screenshots: Array<{media_type,data}> }>}
+ */
+export async function captureNoticeDetail(ctx, listUrl, imageUrl, { maxShots = 3, waitMs = 0, clickWaitMs = 1500 } = {}) {
+  const robots = await robotsAllows(listUrl);
+  if (!robots.allowed) throw Object.assign(new Error(`${listUrl}: ${robots.reason}`), { code: 'ROBOTS' });
+  const page = await ctx.context.newPage();
+  let popup = null;
+  const jpeg = (buf) => (buf ? { media_type: 'image/jpeg', data: buf.toString('base64') } : null);
+  try {
+    await page.goto(listUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    if (waitMs) await sleep(waitMs);
+    await autoScroll(page);
+    const key = (u) => { try { const x = new URL(u, listUrl); return x.host + x.pathname; } catch { return String(u); } };
+    const found = await page.evaluate((target) => {
+      const norm = (u) => { try { const x = new URL(u, location.href); return x.host + x.pathname; } catch { return u; } };
+      const img = [...document.images].find((i) => norm(i.currentSrc || i.src) === target);
+      if (!img) return false;
+      img.setAttribute('data-among-target', '1');
+      img.scrollIntoView({ block: 'center' });
+      return true;
+    }, key(imageUrl));
+    if (!found) return null;
+    const target = page.locator('img[data-among-target="1"]').first();
+    const banner = jpeg(await target.screenshot({ type: 'jpeg', quality: 80, timeout: 10000 }).catch(() => null));
+    const before = page.url();
+    const popupWait = ctx.context.waitForEvent('page', { timeout: 6000 }).catch(() => null);
+    await target.click({ timeout: 10000 }).catch(() => {});
+    popup = await popupWait;
+    const p = popup || page;
+    await p.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+    await p.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await sleep(clickWaitMs);
+    const url = p.url();
+    const moved = !!popup || url !== before;
+    if (moved && !(await robotsAllows(url)).allowed) return { banner, detailUrl: url, moved, text: '', screenshots: [] };
+    if (!moved) {
+      // 같은 화면에 겹쳐 열리는 상세(레이어)일 수 있어 지금 보이는 화면만 한 장
+      const shot = jpeg(await page.screenshot({ type: 'jpeg', quality: 70 }).catch(() => null));
+      return { banner, detailUrl: '', moved, text: '', screenshots: shot ? [shot] : [] };
+    }
+    const text = String(await p.evaluate(() => document.body.innerText).catch(() => '')).replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_TEXT);
+    await autoScroll(p);
+    const body = await p.$('body');
+    const shots = body ? await takeShots(p, body, 'body', maxShots) : [];
+    return { banner, detailUrl: url, moved, text, screenshots: shots.map(({ base64 }) => ({ media_type: 'image/jpeg', data: base64 })) };
+  } finally {
+    if (popup) await popup.close().catch(() => {});
+    await page.close().catch(() => {});
+  }
+}

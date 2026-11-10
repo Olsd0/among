@@ -258,7 +258,7 @@ function clean(v) {
   return String(v).replace(/\s+/g, ' ').trim();
 }
 
-function pad(n) { return String(n).padStart(2, '0'); }
+export function pad(n) { return String(n).padStart(2, '0'); }
 
 /**
  * 날짜 문자열을 'YYYY-MM-DD'로. 연도가 없으면 기준일(now) 연도를 쓰되,
@@ -1459,10 +1459,9 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
       label: formatMoneyLabel(n.discount_label), start_date: n.start_date || null, end_date: n.end_date || null,
       image_url: noticeImageFor(n, n.image_url, today), programs: n.programs || [], related_ids: rel.map((c) => c.id),
       reason: wd !== null ? `오늘(${WEEKDAYS[wd]})만` : reasonOf(n), score,
-      // 공식 목록의 메뉴 특가('와퍼 3900원')는 정상가를 몰라 할인율을 셀 수 없지만, 대표 결정(11/09 "이런 이벤트는 핫딜정보에 올려")대로
-      // 맨 앞 칸(큰 할인과 같은 칸)에 둔다 — 같은 칸 안의 순서는 점수대로. 화면에 할인율을 지어 붙이지는 않는다(라벨은 공식 가격 그대로).
-      tier: /^\d[\d,]*\s*원$/.test(String(n.discount_label || '').trim()) && isOngoingDeal(n) ? 0 : headlineTier(facts, best),
-      usable: mineOrOpen(n),
+      tier: headlineTier(facts, best), usable: mineOrOpen(n),
+      first_seen: n.first_seen || '', weekly: wd !== null,
+      period_source: n.period_source || '', period_refs: n.period_refs || '',
     });
   }
   for (const c of coupons) {
@@ -1481,11 +1480,58 @@ export function pickHeadlines(coupons = [], news = [], { today = todayKST(), pro
       summary: '', label: benefitLabel(c), start_date: c.start_date || null, end_date: c.end_date || null, image_url: couponImage(c, today),
       programs: c.programs || [], related_ids: [c.id], reason: reasonOf(c), score,
       tier: headlineTier(facts, Math.max(size(c), facts.benefit)), usable: !profile || usableBy(c, profile),
+      first_seen: c.first_seen || '', weekly: false,
     });
   }
-  out.sort((a, b) => Number(b.usable) - Number(a.usable) || a.tier - b.tier || b.score - a.score);
+  return orderHeadlines(out, { today, limit });
+}
+
+// ---------- 오늘의 핫딜 순서 (11/10 대표 결정) ----------
+// "핫딜 공지 순서를 원래 기준보단 공지 최신순이랑 임박순으로 해줘. 상시는 뒤로."
+// 할인 크기(tier·score)로는 더 이상 정렬하지 않는다. 들어가는 조건(소식 검증·큰 쿠폰·해피포인트 기준)은 그대로.
+//   0 마감 임박: 이미 시작했고 HOT_SOON_DAYS일 안에 끝남 → 끝나는 날이 빠른 순, 같으면 공지일 최근 순
+//   1 진행 중: 끝나는 날을 앎(D-4 이후) → 공지일 최근 순, 같으면 끝나는 날이 빠른 순
+//   2 시작 전(7일 안) → 시작일이 빠른 순
+//   3 상시: 끝나는 날을 모름(팩트체크 후에도) 또는 매주 요일 행사 → 요일 행사(그 요일에만 들어옴) 먼저, 나머지는 공지일 최근 순
+// 맨 앞 기준은 그대로 '내 할인 수단으로 쓸 수 있는가'. 같은 그룹·같은 날짜면 first_seen 최근 순 → id 순(늘 같은 결과).
+export const HOT_SOON_DAYS = 3;
+
+const kstDay = (iso) => (iso && Number.isFinite(Date.parse(iso)) ? todayKST(new Date(iso)) : '');
+
+/** 공지일: 이미 시작한 행사의 시작일, 없으면 AMONG가 처음 본 날(KST) */
+export function noticeDay(h, today = todayKST()) {
+  return h.start_date && h.start_date <= today ? h.start_date : kstDay(h.first_seen);
+}
+
+/** 핫딜 그룹 (0 마감 임박 · 1 진행 중 · 2 시작 전 · 3 상시) */
+export function headlineGroup(h, today = todayKST()) {
+  if (h.weekly) return 3;
+  if (h.start_date && h.start_date > today) return 2;
+  if (!h.end_date) return 3;
+  const d = daysLeft(h.end_date, today);
+  return d !== null && d <= HOT_SOON_DAYS ? 0 : 1;
+}
+
+/** 오늘의 핫딜 비교 함수 — 화면의 앱 쿠폰 카드와 섞을 때도 같은 기준을 쓴다 */
+export function compareHeadlines(a, b, today = todayKST()) {
+  const ga = headlineGroup(a, today), gb = headlineGroup(b, today);
+  const desc = (x, y) => String(y || '').localeCompare(String(x || ''));
+  const asc = (x, y) => String(x || '').localeCompare(String(y || ''));
+  const na = noticeDay(a, today), nb = noticeDay(b, today);
+  const within = ga !== gb ? 0
+    : ga === 0 ? asc(a.end_date, b.end_date) || desc(na, nb)
+    : ga === 1 ? desc(na, nb) || asc(a.end_date, b.end_date)
+    : ga === 2 ? asc(a.start_date, b.start_date)
+    : Number(!!b.weekly) - Number(!!a.weekly) || desc(na, nb);
+  const seen = (x) => (x.first_seen && Number.isFinite(Date.parse(x.first_seen)) ? Date.parse(x.first_seen) : 0);
+  return Number(b.usable !== false) - Number(a.usable !== false) || ga - gb || within || seen(b) - seen(a) || asc(a.id, b.id);
+}
+
+/** 정렬 → 같은 브랜드 2장까지 → limit장 */
+export function orderHeadlines(list = [], { today = todayKST(), limit = 8 } = {}) {
   const perBrand = {};
-  return out.filter((h) => (perBrand[h.brand] = (perBrand[h.brand] || 0) + 1) <= 2).slice(0, limit);
+  return [...list].sort((a, b) => compareHeadlines(a, b, today))
+    .filter((h) => (perBrand[h.brand] = (perBrand[h.brand] || 0) + 1) <= 2).slice(0, limit);
 }
 
 // ---------- 실행 요약 ----------

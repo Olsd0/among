@@ -60,7 +60,9 @@ const SHEETS = {
   // 소식(핫딜·기간 한정 행사): 쿠폰을 가져오는 공식 이벤트·공지 페이지에서 수집 때 함께 갱신 (v5)
   news: ['id', 'status', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
     'image_url', 'related_ids', 'evidence', 'issues', 'confidence', 'source_id', 'source_url', 'official_link',
-    'first_seen', 'checked_at', 'updated_at', 'hash', 'last_run_id'],
+    'first_seen', 'checked_at', 'updated_at', 'hash', 'last_run_id',
+    // 12: 기간 팩트체크 (11/10 대표 결정) — 근거(공식 원문 | 공식 공지 이미지 | 언론 보도), 기사 '언론사|주소|게시일' 줄(최대 3), 확인 시각
+    'period_source', 'period_refs', 'period_checked_at'],
   sources: ['id', 'active', 'brand', 'category', 'url', 'selector', 'exclude', 'follow', 'detail_selector',
     'max_follow', 'max_shots', 'wait_ms', 'official_link', 'notes', 'last_ok_at', 'last_error', 'program', 'follow_text'],
   nutrition: ['brand', 'name', 'serving', 'kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg', 'source', 'updated_at'],
@@ -83,9 +85,9 @@ const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_
   'discount_type', 'discount_value', 'max_discount', 'min_order', 'channels', 'audience', 'app_only', 'start_date', 'end_date',
   'conditions', 'source_url', 'official_link', 'first_seen', 'checked_at', 'programs', 'program_note', 'how_to_use', 'stackable', 'image_url'];
 const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
-  'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at'];
+  'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at', 'period_source', 'period_refs'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 11;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진), 10: online_picks.item (항목별 상품), 11: online_price_log (30일 최저)
+const SCHEMA_VERSION = 12;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진), 10: online_picks.item (항목별 상품), 11: online_price_log (30일 최저), 12: news 기간 팩트체크 열
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
@@ -150,6 +152,7 @@ function doPost(e) {
       case 'ingest': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingest_(body)) });
       case 'run_finish': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(runFinish_(body.report || {}));
       case 'nutrition_ingest': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingestNutrition_(body)) });
+      case 'news_periods': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, periods: newsPeriods_() });
       // 관리
       case 'app_coupon_list': authed = auth_(body, 'ADMIN_TOKEN'); return json_(adminAppCoupons_());
       case 'app_coupon_save':
@@ -522,7 +525,9 @@ function ingestNews_(b, okSources) {
     row.last_run_id = b.run_id || '';
     if (n.id in index) {
       const old = rows[index[n.id]];
+      keepPeriod_(row, old);
       if (old.status === 'hidden' || (old.hash === row.hash && old.status === row.status)) {
+        if (old.status !== 'hidden') ['period_source', 'period_refs', 'period_checked_at'].forEach((h) => { if (row[h] !== '') old[h] = row[h]; });
         old.checked_at = row.checked_at; old.last_run_id = row.last_run_id;
         result.unchanged++;
       } else {
@@ -545,6 +550,26 @@ function ingestNews_(b, okSources) {
   });
   writeTable_(sh, t.headers, rows);
   return result;
+}
+
+/**
+ * 기간 팩트체크로 채운 기간은 다음 수집에서 수집기가 확인을 건너뛰어도(끝나는 날 없이 들어와도) 지우지 않는다.
+ * 실패 기록(확인 시각만 있음)도 남겨 같은 날 다시 찾지 않게 한다.
+ */
+function keepPeriod_(row, old) {
+  if (!row.period_source && old.period_source && !row.end_date && old.end_date) {
+    row.start_date = old.start_date; row.end_date = old.end_date;
+    row.period_source = old.period_source; row.period_refs = old.period_refs;
+  }
+  if (!row.period_checked_at && old.period_checked_at) row.period_checked_at = old.period_checked_at;
+}
+
+/** 수집기용: 기간 확인 기록 (확인한 적 있는 소식만) */
+function newsPeriods_() {
+  return readTable_('news').rows.filter((r) => r.period_checked_at).map((r) => ({
+    id: r.id, status: r.status, start_date: r.start_date, end_date: r.end_date,
+    period_source: r.period_source, period_refs: r.period_refs, period_checked_at: r.period_checked_at,
+  }));
 }
 
 function couponToRow_(c, runId, checkedAt) {

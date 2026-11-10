@@ -165,3 +165,28 @@ test('v5: 공식 이벤트 페이지에서 소식(핫딜)을 함께 갱신, 미�
   assert.deepEqual(ingest.news.map((n) => n.title), ['테스트버거 주말 1+1'], '버린 소식은 시트에 올리지 않음');
   assert.deepEqual(report.news, { published: 1, pending: 0, rejected: 1 });
 });
+
+test('기간 팩트체크 연결 (11/10): 끝나는 날 없는 공식 소식만 저장된 기간 기록을 읽고 확인 → 기간·근거가 시트로, 요일 행사는 건너뜀', { timeout: 60000 }, async () => {
+  clearRobotsCache();
+  const outDir = mkdtempSync(join(tmpdir(), 'among-e2e-'));
+  const calls = [];
+  const sheet = {
+    async post(action, payload) {
+      calls.push({ action, payload });
+      if (action === 'news_periods') return { ok: true, periods: [] };
+      if (action === 'ingest') return { ok: true, result: { inserted: 0, updated: 0, unchanged: 0, gone: 0, expired: 0 } };
+      return { ok: true };
+    },
+  };
+  const asked = [];
+  const official = async (n) => { asked.push(n.title); return { start: '2026-11-09', end: '2026-11-13', source: '공식 공지 이미지' }; };
+  const sources = [{ id: 'bk-event', brand: '버거킹', category: '햄버거', url: `${site.base}/period/list.html`, selector: 'main', max_follow: 0, active: true }];
+  const report = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'test' }, now: new Date('2026-11-10T03:00:00Z'), sources, sheet, official, press: { connected: false, name: '연결 안 됨 (시험)' }, quiet: true });
+  assert.equal(report.state, 'success');
+  assert.deepEqual(calls.map((c) => c.action), ['run_start', 'news_periods', 'ingest', 'run_finish']);
+  assert.deepEqual(asked, ['26년 11월 와퍼 3900원 프로모션'], '요일 행사는 상시라 확인하지 않음');
+  const sent = calls.find((c) => c.action === 'ingest').payload.news.find((n) => /와퍼/.test(n.title));
+  assert.deepEqual([sent.status, sent.start_date, sent.end_date, sent.period_source], ['published', '2026-11-09', '2026-11-13', '공식 공지 이미지']);
+  assert.equal(report.period.filled.length, 1);
+  assert.equal(report.period.press, '연결 안 됨 (시험)');
+});
