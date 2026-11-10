@@ -206,39 +206,59 @@ export function splitList(v) {
  * 상세가 '클릭으로만 열림'인 출처(bk-event 등)를 위해. 이미지 파일을 내려받거나 저장하지 않는다 — 브라우저 화면만 찍어 AI에게 잠깐 보여 준다.
  * @returns {Promise<null | { banner: {media_type,data}|null, detailUrl: string, moved: boolean, text: string, screenshots: Array<{media_type,data}> }>}
  */
-export async function captureNoticeDetail(ctx, listUrl, imageUrl, { maxShots = 3, waitMs = 0, clickWaitMs = 1500 } = {}) {
+export async function captureNoticeDetail(ctx, listUrl, imageUrl, { words = [], maxShots = 3, waitMs = 0, clickWaitMs = 1500 } = {}) {
   const robots = await robotsAllows(listUrl);
   if (!robots.allowed) throw Object.assign(new Error(`${listUrl}: ${robots.reason}`), { code: 'ROBOTS' });
   const page = await ctx.context.newPage();
-  let popup = null;
   const jpeg = (buf) => (buf ? { media_type: 'image/jpeg', data: buf.toString('base64') } : null);
+  const opened = [];
+  const onPage = (p) => opened.push(p);
+  ctx.context.on('page', onPage);
   try {
     await page.goto(listUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     if (waitMs) await sleep(waitMs);
     await autoScroll(page);
-    const key = (u) => { try { const x = new URL(u, listUrl); return x.host + x.pathname; } catch { return String(u); } };
-    const found = await page.evaluate((target) => {
+    const key = (u) => { try { const x = new URL(u, listUrl); return x.host + x.pathname; } catch { return String(u || ''); } };
+    // 공지 찾기: 배너 이미지 주소 → (없으면) 제목 낱말이 모두 들어 있는 가장 작은 카드.
+    // 누를 곳: 카드 안의 '상세·detail·자세히' 버튼·링크 → 카드 자체가 링크면 그것 → 배너 이미지 (11/10 버거킹: 이미지가 아니라 카드의 'detail' 버튼이 상세를 연다)
+    const found = await page.evaluate(({ target, words }) => {
       const norm = (u) => { try { const x = new URL(u, location.href); return x.host + x.pathname; } catch { return u; } };
-      const img = [...document.images].find((i) => norm(i.currentSrc || i.src) === target);
-      if (!img) return false;
-      img.setAttribute('data-among-target', '1');
-      img.scrollIntoView({ block: 'center' });
-      return true;
-    }, key(imageUrl));
+      const flat = (s) => String(s || '').normalize('NFKC').replace(/[\s,]/g, '').toLowerCase();
+      let img = target ? [...document.images].find((i) => norm(i.currentSrc || i.src) === target) : null;
+      let card = img ? img.closest('li, article, [class*=item], [class*=card], [class*=list] > *') || img.parentElement : null;
+      if (!card && words.length) {
+        const ws = words.map(flat).filter(Boolean);
+        const all = [...document.querySelectorAll('li, article, a, [class*=item], [class*=card]')]
+          .filter((e) => { const t = flat(e.innerText); return t.length && t.length < 400 && ws.every((w) => t.includes(w)); })
+          .sort((a, b) => a.innerText.length - b.innerText.length);
+        card = all[0] || null;
+        img = card ? card.querySelector('img') : null;
+      }
+      if (!card) return null;
+      const clickables = [...card.querySelectorAll('a[href], button, [role=button], [onclick]')];
+      const detail = clickables.find((e) => /^(detail|상세|자세히|상세보기|자세히 보기|more)$/i.test(e.textContent.trim()) || /detail|more/i.test(e.className || ''));
+      const self = card.matches('a[href], button, [role=button], [onclick]') ? card : card.closest('a[href]');
+      const order = [detail, self, clickables[0], img].filter(Boolean);
+      order.forEach((e, i) => e.setAttribute('data-among-click', String(i)));
+      if (img) img.setAttribute('data-among-target', '1');
+      (img || card).scrollIntoView({ block: 'center' });
+      return { tries: order.length, hasImg: !!img };
+    }, { target: imageUrl ? key(imageUrl) : '', words });
     if (!found) return null;
-    const target = page.locator('img[data-among-target="1"]').first();
-    const banner = jpeg(await target.screenshot({ type: 'jpeg', quality: 80, timeout: 10000 }).catch(() => null));
+    const banner = found.hasImg ? jpeg(await page.locator('img[data-among-target="1"]').first().screenshot({ type: 'jpeg', quality: 80, timeout: 10000 }).catch(() => null)) : null;
     const before = page.url();
-    const popupWait = ctx.context.waitForEvent('page', { timeout: 6000 }).catch(() => null);
-    await target.click({ timeout: 10000 }).catch(() => {});
-    popup = await popupWait;
-    const p = popup || page;
+    let p = page, moved = false;
+    for (let i = 0; i < found.tries && !moved; i++) {
+      await page.locator(`[data-among-click="${i}"]`).first().click({ timeout: 8000 }).catch(() => {});
+      await sleep(clickWaitMs);
+      if (opened.length) { p = opened[0]; moved = true; break; }
+      await page.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {});
+      if (page.url() !== before) moved = true;
+    }
     await p.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
     await p.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-    await sleep(clickWaitMs);
     const url = p.url();
-    const moved = !!popup || url !== before;
     if (moved && !(await robotsAllows(url)).allowed) return { banner, detailUrl: url, moved, text: '', screenshots: [] };
     if (!moved) {
       // 같은 화면에 겹쳐 열리는 상세(레이어)일 수 있어 지금 보이는 화면만 한 장
@@ -251,7 +271,8 @@ export async function captureNoticeDetail(ctx, listUrl, imageUrl, { maxShots = 3
     const shots = body ? await takeShots(p, body, 'body', maxShots) : [];
     return { banner, detailUrl: url, moved, text, screenshots: shots.map(({ base64 }) => ({ media_type: 'image/jpeg', data: base64 })) };
   } finally {
-    if (popup) await popup.close().catch(() => {});
+    ctx.context.off('page', onPage);
+    for (const x of opened) await x.close().catch(() => {});
     await page.close().catch(() => {});
   }
 }

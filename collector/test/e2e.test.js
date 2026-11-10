@@ -190,3 +190,23 @@ test('기간 팩트체크 연결 (11/10): 끝나는 날 없는 공식 소식만 
   assert.equal(report.period.filled.length, 1);
   assert.equal(report.period.press, '연결 안 됨 (시험)');
 });
+
+test('공지 배너 눌러 상세 열기 (11/10 버거킹 실제 구조): 이미지가 아니라 카드의 detail 버튼 → 상세 글자에서 공식 기간 · 이미지 없는 공지는 제목 낱말로', { timeout: 60000 }, async () => {
+  clearRobotsCache();
+  const { openBrowser, captureNoticeDetail } = await import('../src/fetch.js');
+  const { officialReader } = await import('../src/official-period.js');
+  const ctx = await openBrowser();
+  try {
+    const list = `${site.base}/period/bk.html`;
+    const cap = await captureNoticeDetail(ctx, list, `${site.base}/period/banner.png?v=2`, { clickWaitMs: 300 });
+    assert.equal(cap.moved, true);
+    assert.match(cap.detailUrl, /bk-detail\.html$/);
+    assert.ok(cap.banner && cap.banner.data.length > 10, '배너는 화면을 찍은 것(파일을 받지 않음)');
+    const sources = new Map([['bk-event', { brand: '버거킹', url: list }], ['paik-event', { brand: '빽다방', url: list }]]);
+    const read = officialReader({ capture: (u, img, words) => captureNoticeDetail(ctx, u, img, { words, clickWaitMs: 300 }), sources, llm: { provider: 'mock' }, now: new Date('2026-11-10T03:00:00Z') });
+    const bk = { brand: '버거킹', title: '26년 11월 와퍼 3900원 프로모션', discount_label: '3900원', source_id: 'bk-event', source_url: list, image_url: `${site.base}/period/banner.png`, first_seen: '2026-11-08T15:23:18Z' };
+    assert.deepEqual(await read(bk), { start: '2026-11-09', end: '2026-11-13', source: '공식 원문', quote: '' });
+    const paik = { brand: '빽다방', title: '말차 전 메뉴 2,026원 프로모션', discount_label: '2,026원', source_id: 'paik-event', source_url: list, image_url: '', first_seen: '2026-11-05T00:00:00Z' };
+    assert.deepEqual(await read(paik), { start: '2026-11-03', end: '2026-11-16', source: '공식 원문', quote: '' });
+  } finally { await ctx.close(); }
+});

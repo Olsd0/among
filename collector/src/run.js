@@ -227,7 +227,7 @@ export async function runCollector(o = {}) {
       const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ''; } };
       const press = o.press || pressFromEnv(env);
       const official = o.official || (llm.provider === 'mock' ? null : officialReader({
-        capture: (listUrl, imageUrl) => captureNoticeDetail(ctx, listUrl, imageUrl, { maxShots: 3 }),
+        capture: (listUrl, imageUrl, words) => captureNoticeDetail(ctx, listUrl, imageUrl, { words, maxShots: 3 }),
         render: (url) => renderPage(ctx, url, { maxShots: 6 }),
         sources: srcMap, llm, now, log,
       }));
@@ -236,7 +236,13 @@ export async function runCollector(o = {}) {
         fixedSource,
         officialHosts: (n) => [hostOf(srcMap.get(n.source_id)?.url), hostOf(n.source_url), hostOf(n.official_link)].filter(Boolean),
       });
-      news = pc.news;
+      // 기간을 채웠더니 같은 출처에 같은 기간·같은 혜택으로 이미 있는 소식이면(공식 원문에 기간이 있던 쪽) 그쪽만 남긴다
+      const ids = new Set(pc.news.filter((n) => n.status !== 'rejected').map((n) => n.id));
+      news = pc.news.map((n) => {
+        if (!n.period_source || n.status === 'rejected' || !n.end_date) return n;
+        const twin = newsId(n);
+        return twin !== n.id && ids.has(twin) ? { ...n, status: 'rejected', issues: [...(n.issues || []), '같은 행사가 기간과 함께 이미 있음'] } : n;
+      });
       report.period = pc.summary;
       log(`  기간 확인: 새로 확인 ${pc.summary.checked} · 채움 ${pc.summary.filled.length} · 못 채움 ${pc.summary.failed.length} · 저장된 기간 반영 ${pc.summary.reused} · 기사 확인 ${pc.summary.press}`);
     }

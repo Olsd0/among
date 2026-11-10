@@ -2,7 +2,7 @@
 // 소식을 읽은 화면이 상세 화면이면 그 화면을 다시(사진 더 많이), 목록이면 그 공지의 배너를 눌러 상세 화면을 연다.
 // 글자에 기간이 있으면 '공식 원문', 없으면 AI가 배너·상세 화면 사진에서 '그 행사의 기간 글자'만 그대로 옮기고 → 우리 규칙으로 날짜를 읽는다(AI가 날짜를 계산하지 않음).
 import { callGemini, callClaude, parseJsonLoose } from './extract.js';
-import { parsePeriodText, sameEvent, benefitNumbers, PERIOD_SOURCE } from './period-check.js';
+import { parsePeriodText, sameEvent, benefitNumbers, eventWords, PERIOD_SOURCE } from './period-check.js';
 import { todayKST } from './engine.js';
 
 const firstSeenDay = (n, now) => (n.first_seen && Number.isFinite(Date.parse(n.first_seen)) ? todayKST(new Date(n.first_seen)) : todayKST(now));
@@ -61,8 +61,10 @@ export function officialReader({ capture, render, sources = new Map(), llm = {},
     if (isDetail && render) {
       const p = await render(n.source_url);
       cap = p ? { banner: null, moved: true, text: p.text, screenshots: p.screenshots || [], detailUrl: p.finalUrl || n.source_url } : null;
-    } else if (n.image_url && capture) {
-      cap = await capture(src.url, n.image_url);
+    } else if (capture) {
+      // 배너 이미지 주소로 찾고, 이미지가 없으면 제목 낱말·혜택 숫자가 모두 들어 있는 카드로 찾는다
+      const words = [...eventWords(n), ...benefitNumbers(n.discount_label).filter((x) => x !== '1+1').map((x) => x.replace('%', ''))];
+      if (n.image_url || words.length >= 2) cap = await capture(src.url, n.image_url || '', words);
     }
     if (!cap) { log(`  기간 확인: ${n.brand} '${n.title}' — 공지 화면을 찾지 못함`); return null; }
     // 1) 상세 화면 글자 (한 행사짜리 화면이고, 그 행사의 혜택 숫자가 있을 때만)
