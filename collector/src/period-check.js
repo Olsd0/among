@@ -65,7 +65,8 @@ const iso = (y, m, d) => {
  * 연도가 없으면 기준일(기사 게시일·처음 본 날)의 연도, 기준일보다 60일 넘게 앞서면 다음 해 (12월 기사의 '1월 2일부터')
  */
 export function parsePeriodText(text, base = new Date()) {
-  const s = clean(text);
+  // '2026-11-03 ~ 2026-11-24'(11/10 도미노 공지 이미지)처럼 하이픈 날짜는 점 날짜로 바꿔 읽는다
+  const s = clean(text).replace(/(^|[^\d])(20\d{2})-(\d{1,2})-(\d{1,2})(?!\d)/g, '$1$2.$3.$4');
   const baseDay = typeof base === 'string' ? base : todayKST(base);
   const by = +baseDay.slice(0, 4);
   const fix = (m, d) => { let v = iso(by, m, d); if (v && diffDays(baseDay, v) > 60) v = iso(by + 1, m, d); return v; };
