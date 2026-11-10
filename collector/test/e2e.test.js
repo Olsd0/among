@@ -208,5 +208,10 @@ test('공지 배너 눌러 상세 열기 (11/10 버거킹 실제 구조): 이미
     assert.deepEqual(await read(bk), { start: '2026-11-09', end: '2026-11-13', source: '공식 원문', quote: '' });
     const paik = { brand: '빽다방', title: '말차 전 메뉴 2,026원 프로모션', discount_label: '2,026원', source_id: 'paik-event', source_url: list, image_url: '', first_seen: '2026-11-05T00:00:00Z' };
     assert.deepEqual(await read(paik), { start: '2026-11-03', end: '2026-11-16', source: '공식 원문', quote: '' });
+    // 글자가 이미지 대체텍스트에만 있고 이미지는 늦게 불러오는(data-src) 목록 (도미노)
+    sources.set('dominos-event', { brand: '도미노피자', url: list });
+    const dominos = { brand: '도미노피자', title: '도미노스데이 40% 할인', discount_label: '40%', source_id: 'dominos-event', source_url: list, image_url: '', first_seen: '2026-11-05T00:00:00Z' };
+    assert.deepEqual(await read(dominos), { start: '2026-11-03', end: '2026-11-24', source: '공식 원문', quote: '' });
+    assert.equal((await captureNoticeDetail(ctx, list, `${site.base}/period/dominos.jpg`, { clickWaitMs: 300 })).moved, true, 'data-src 주소로도 찾음');
   } finally { await ctx.close(); }
 });

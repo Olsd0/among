@@ -225,13 +225,16 @@ export async function captureNoticeDetail(ctx, listUrl, imageUrl, { words = [], 
     const found = await page.evaluate(({ target, words }) => {
       const norm = (u) => { try { const x = new URL(u, location.href); return x.host + x.pathname; } catch { return u; } };
       const flat = (s) => String(s || '').normalize('NFKC').replace(/[\s,]/g, '').toLowerCase();
-      let img = target ? [...document.images].find((i) => norm(i.currentSrc || i.src) === target) : null;
+      // 늦게 불러오는 이미지(data-src)도 같은 공지로 본다 (11/10 도미노: 목록 이미지가 data-src, 글자는 대체텍스트에만)
+      const srcs = (i) => [i.currentSrc, i.src, i.getAttribute('data-src'), i.getAttribute('data-original'), i.getAttribute('data-lazy')].filter(Boolean).map(norm);
+      const textOf = (e) => `${e.innerText || ''} ${[...e.querySelectorAll('img[alt]')].map((i) => i.alt).join(' ')}`;
+      let img = target ? [...document.images].find((i) => srcs(i).includes(target)) : null;
       let card = img ? img.closest('li, article, [class*=item], [class*=card], [class*=list] > *') || img.parentElement : null;
       if (!card && words.length) {
         const ws = words.map(flat).filter(Boolean);
         const all = [...document.querySelectorAll('li, article, a, [class*=item], [class*=card]')]
-          .filter((e) => { const t = flat(e.innerText); return t.length && t.length < 400 && ws.every((w) => t.includes(w)); })
-          .sort((a, b) => a.innerText.length - b.innerText.length);
+          .filter((e) => { const t = flat(textOf(e)); return t.length && t.length < 400 && ws.every((w) => t.includes(w)); })
+          .sort((a, b) => textOf(a).length - textOf(b).length);
         card = all[0] || null;
         img = card ? card.querySelector('img') : null;
       }
