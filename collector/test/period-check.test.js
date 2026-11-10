@@ -135,11 +135,17 @@ test('저장된 기간은 다시 찾지 않고 반영, 기사 근거는 공식 �
   assert.equal(calls, 1);
   assert.equal(b.news[0].period_source, '공식 공지 이미지');
   assert.equal(b.news[0].end_date, '2026-11-14', '공식과 기사가 다르면 공식');
-  // 오늘 이미 확인했다가 못 찾은 것은 다시 찾지 않음
+  // 못 찾았던 것은 다시 찾되, 처음 보는 것 → 오래전에 못 찾은 것 순으로 10개까지
   const knownFail = new Map([[WHOPPER.id, { id: WHOPPER.id, period_source: '', period_checked_at: '2026-11-10T01:00:00Z' }]]);
   const c = await checkPeriods([WHOPPER], { now: NOW, known: knownFail, official });
-  assert.equal(calls, 1);
-  assert.equal(c.summary.checked, 0);
+  assert.equal(calls, 2);
+  assert.equal(c.summary.checked, 1);
+  const many = Array.from({ length: 11 }, (_, i) => ({ ...WHOPPER, id: `n${i}` }));
+  const order = [];
+  const failedEarlier = new Map([['n0', { id: 'n0', period_source: '', period_checked_at: '2026-11-10T01:00:00Z' }]]);
+  await checkPeriods(many, { now: NOW, known: failedEarlier, official: async (n) => { order.push(n.id); return null; } });
+  assert.equal(order.length, 10);
+  assert.ok(!order.includes('n0'), '처음 보는 10개가 먼저, 오늘 못 찾은 것은 다음 차례');
 });
 
 test('공식 단계: 상세 화면 글자에 기간 → 공식 원문 / 글자에 없으면 AI가 옮긴 이미지 글자 → 공식 공지 이미지 / 날짜를 못 읽으면 없음', async () => {

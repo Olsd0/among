@@ -239,6 +239,10 @@ export async function checkPeriods(news, deps = {}) {
   const summary = { checked: 0, filled: [], failed: [], reused: 0, press: press ? press.name || (press.connected ? '연결됨' : '연결 안 됨') : '연결 안 됨' };
   const hoursSince = (iso) => (iso && Number.isFinite(Date.parse(iso)) ? (now - Date.parse(iso)) / 36e5 : Infinity);
   let budget = PERIOD_LIMITS.items;
+  // 못 찾았던 것은 다음 수집에서 다시 찾되(새 기사·상세가 생길 수 있음), 처음 보는 것 → 오래전에 못 찾은 것 순으로 한 번에 10개까지
+  const fresh = news.filter((n) => needsPeriod(n, { fixedSource }) && !(known.get(n.id) && known.get(n.id).period_source));
+  const lastTry = (n) => (known.get(n.id) && known.get(n.id).period_checked_at) || '';
+  const chosen = new Set(fresh.sort((a, b) => lastTry(a).localeCompare(lastTry(b))).slice(0, PERIOD_LIMITS.items).map((n) => n.id));
   const out = [];
   for (const n0 of news) {
     let n = n0;
@@ -259,8 +263,7 @@ export async function checkPeriods(news, deps = {}) {
       }
       out.push(n); continue;
     }
-    if (k && !k.period_source && hoursSince(k.period_checked_at) < PERIOD_LIMITS.recheckHours) { out.push({ ...n, period_checked_at: k.period_checked_at }); continue; }
-    if (budget <= 0) { out.push(n); continue; }
+    if (!chosen.has(n.id) || budget <= 0) { out.push(k && k.period_checked_at ? { ...n, period_checked_at: k.period_checked_at } : n); continue; }
     budget--;
     summary.checked++;
     // 1·2) 공식 상세 글자 → 공식 공지 이미지
