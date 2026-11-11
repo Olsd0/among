@@ -368,7 +368,7 @@ function showOnlineDeals() {
   const panel = $('#onlineDeals');
   panel.innerHTML = '<div class="empty" role="status">온라인 특가를 불러오고 있어요.</div>';
   // 코드·스타일·상품 JSON 모두 실제로 이 탭을 열 때만 요청한다.
-  onlineDealsLoading = import('./online-deals.js?v=20261109-1').then(({ createOnlineDealsUI }) => {
+  onlineDealsLoading = import('./online-deals.js?v=20261111-1').then(({ createOnlineDealsUI }) => {
     // 실제 상품은 Apps Script(online_deals)에서, 예시 모드는 같은 출처의 빈 JSON에서 읽는다.
     onlineDealsUI = createOnlineDealsUI(panel, { apiUrl: DEMO ? '' : API, dataUrl: CFG.onlineDeals.dataUrl, goldboxUrl: CFG.onlineDeals.goldboxUrl, shortcutLinks: CFG.onlineDeals.shortcutLinks, foodBest: CFG.onlineDeals.foodBest });
     if (state.view === 'onlineDeals') onlineDealsUI.show();
@@ -959,7 +959,7 @@ function checkPriceWatch() {
   let n = 0;
   try { n = (JSON.parse(localStorage.getItem('among_price_watch') || '[]') || []).length; } catch { n = 0; }
   if (!n) return;
-  import('./online-deals.js?v=20261109-1').then(async (m) => {
+  import('./online-deals.js?v=20261111-1').then(async (m) => {
     const list = await m.checkPriceWatch({ apiUrl: API, dataUrl: CFG.onlineDeals.dataUrl });
     if (!list.length) return;
     try { navigator.setAppBadge?.(list.length); } catch { /* 지원 안 함 */ }

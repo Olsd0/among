@@ -3,7 +3,7 @@
  * ------------------------------------------------------------
  * 탭: coupons · news · sources · run_log · events · reports · nutrition · app_coupons · online_items · online_runs · online_picks · online_leads
  * 공개 API (토큰 없음): GET coupons(+ 소식 news 포함) · status · nutrition · online_deals / POST refresh · event · report
- * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish · nutrition_ingest · online_prices_ingest
+ * 수집기 API (COLLECTOR_TOKEN): POST run_start · sources · ingest · run_finish · nutrition_ingest · online_prices_ingest · online_item_rotate
  *                               · online_run_start · online_ingest · online_run_finish (온라인 특가 — 쿠폰과 분리)
  *
  * 코드를 새 버전으로 배포하면 첫 요청 때 migrate_()가 새 열·탭·출처를 자동으로 추가한다 (SCHEMA_VERSION).
@@ -76,7 +76,7 @@ const SHEETS = {
     'hidden', 'hidden_reason', 'hidden_at', 'category_override', 'override_until', 'first_seen_at', 'updated_at', 'payload'],
   online_runs: ['run_id', 'trigger', 'started_at', 'finished_at', 'results', 'received', 'published', 'held', 'errors'],
   // 직접 고른 쿠팡 특가 (v8): 최종 승인 전 대표가 관리 화면에서 고른 상품의 파트너스 간편 링크. memo는 관리 화면에만
-  online_picks: ['id', 'status', 'title', 'url', 'category', 'note', 'price', 'price_checked_at', 'ends_at', 'hidden', 'memo', 'created_at', 'updated_at', 'image_url', 'item'],
+  online_picks: ['id', 'status', 'title', 'url', 'category', 'note', 'price', 'price_checked_at', 'ends_at', 'hidden', 'memo', 'created_at', 'updated_at', 'image_url', 'item', 'rank'],
   online_price_log: ['pick_id', 'price', 'checked_at'],
   // 핫딜 게시판에서 자동으로 찾은 쿠팡 상품 후보 (관리 화면 전용, 공개 응답에 싣지 않음). 3일 보관
   online_leads: ['key', 'status', 'source', 'title', 'price_hint', 'free_shipping', 'coupang_url', 'affiliate_only', 'post_url', 'posted_at', 'found_at'],
@@ -87,7 +87,7 @@ const PUBLIC_FIELDS = ['id', 'brand', 'category', 'menu', 'item_type', 'regular_
 const NEWS_PUBLIC = ['id', 'brand', 'category', 'title', 'summary', 'discount_label', 'start_date', 'end_date', 'programs',
   'image_url', 'related_ids', 'source_url', 'official_link', 'first_seen', 'checked_at', 'period_source', 'period_refs'];
 const NUTRITION_NUM = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carb_g', 'sugar_g', 'sodium_mg'];
-const SCHEMA_VERSION = 12;   // 9: online_picks.image_url (쿠팡 파트너스 배너 사진), 10: online_picks.item (항목별 상품), 11: online_price_log (30일 최저), 12: news 기간 팩트체크 열
+const SCHEMA_VERSION = 13;   // 13: online_picks.rank (항목별 인기순), 9: online_picks.image_url (쿠팡 파트너스 배너 사진), 10: online_picks.item (항목별 상품), 11: online_price_log (30일 최저), 12: news 기간 팩트체크 열
 // 버전별로 새로 생긴 출처 (기존 시트에 자동 추가, 이미 있으면 건드리지 않음)
 const NEW_SOURCES = {
   4: ['tmembership-brand', 'kt-membership-food', 'uplus-membership', 'npay-cafe', 'baskin-event', 'paris-promo', 'dunkin-event'],
@@ -178,6 +178,10 @@ function doPost(e) {
         authed = auth_(body, 'COLLECTOR_TOKEN');
         if (raw.length > 50000) throw new Error('입력이 너무 커요.');
         return json_(withLock_(() => odPricesIngest_(body)));
+      case 'online_item_rotate':
+        authed = auth_(body, 'COLLECTOR_TOKEN');
+        if (raw.length > 60000) throw new Error('입력이 너무 커요.');
+        return json_(withLock_(() => odItemRotateIngest_(body)));
       case 'online_admin': authed = auth_(body, 'ADMIN_TOKEN'); return json_(odAdmin_());
       case 'online_admin_set':
         authed = auth_(body, 'ADMIN_TOKEN');
@@ -2366,6 +2370,61 @@ function odPickInput(raw, now, prev) {
     hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
 }
 
+// ---------- 항목별 인기순 교체 (11/11 대표 요청: "같은 제품 갱신 말고 인기순으로 매일 변경. 인기순 내용이 같으면 변경 안 해도 돼") ----------
+// 매일 아침 작업이 쿠팡 파트너스 '상품 링크' 검색(쿠팡랭킹순)에서 항목마다 위에서부터 고른 상품으로 항목 카드를 바꾼다.
+// 순위에 든 상품이 어제와 같으면 카드는 그대로 두고 가격만 기록한다. 순위에서 빠진 카드는 노출만 끝내고(30일 뒤 정리)
+// 다시 순위에 들면 같은 카드(같은 링크·가격 기록)를 다시 보여 준다. 대표가 숨긴 카드와 같은 상품은 올리지 않는다.
+const OD_ROTATE_SIZE = 5;          // 항목마다 보여 줄 인기 상품 수
+const OD_ROTATE_MIN = 3;           // 이보다 적게 고르면 그 항목은 바꾸지 않는다 (검색 결과가 이상한 날)
+const OD_ROTATE_QUERIES = {        // 파트너스 검색어 (항목 이름과 다르게 찾는 게 나은 것만 다르게)
+  water: '생수', ramen: '라면', rice: '즉석밥', frozen: '냉동 간편식', retort: '레토르트', chicken: '닭가슴살', protein: '단백질', canned: '통조림',
+};
+const OD_ROTATE_MARK = 'rotated:';  // 순위에서 빠져 노출을 끝낸 카드의 관리 메모 머리글
+/** 인기순 후보로 쓸 수 있는 상품명인지: 그 항목으로 분류되고, 알약·캡슐 같은 건강기능식품이 아니고, 80자 이내 */
+function odRotateCandidate(title, item) {
+  const t = odText(title, 81);
+  if (!odItem_(item) || t.length < 2 || t.length > 80) return false;
+  if (/\d+\s*정(?=[\s,)]|$)|타블렛|캡슐|정제|환(?=[\s,)]|$)|보충제\s*정/.test(t)) return false;
+  return odGuessItem(t) === item;
+}
+const odSameTitle_ = (a, b) => String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
+/**
+ * 항목 하나의 교체 계획 (순수 함수 — 시트에 쓰지 않음).
+ * picks: 지금 카드 전체(odReadPicks_ 형식), entries: 오늘 순위 순서 [{title, price, url?, imageUrl?}] (url은 새 상품만)
+ * → { ok, reason, changed, keep:[{pick, rank, price}], add:[{input, rank}], retire:[pick], skipped:[{title, reason}] }
+ */
+function odRotatePlan(picks, item, entries, now) {
+  const out = { ok: false, reason: '', changed: false, keep: [], add: [], retire: [], skipped: [] };
+  if (!odItem_(item)) { out.reason = '알 수 없는 항목'; return out; }
+  const mine = (Array.isArray(picks) ? picks : []).filter(p => p && p.item === item);
+  const live = mine.filter(p => !p.hidden && odMs_(p.endsAt) > now);
+  const used = {}, seenTitle = [];
+  let rank = 0;
+  (Array.isArray(entries) ? entries : []).slice(0, OD_ROTATE_SIZE * 3).forEach(raw => {
+    if (rank >= OD_ROTATE_SIZE) return;
+    const e = raw && typeof raw === 'object' ? raw : {};
+    const title = odText(e.title, 81);
+    if (seenTitle.some(t => odSameTitle_(t, title))) return;
+    if (!odRotateCandidate(title, item)) { out.skipped.push({ title, reason: '항목에 맞지 않는 상품' }); return; }
+    const price = Number.isSafeInteger(e.price) && e.price >= 100 && e.price <= 10000000 ? e.price : null;
+    if (!price) { out.skipped.push({ title, reason: '가격 없음' }); return; }
+    if (mine.some(p => p.hidden && odSameTitle_(p.title, title))) { out.skipped.push({ title, reason: '대표가 숨긴 상품' }); return; }
+    // 같은 상품명의 카드가 있으면(지금 보이는 것 먼저, 다음으로 순위에서 빠졌던 것) 그 카드를 다시 쓴다
+    const prev = live.filter(p => !used[p.id] && odSameTitle_(p.title, title))[0] || mine.filter(p => !used[p.id] && !p.hidden && odSameTitle_(p.title, title)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
+    if (prev) { used[prev.id] = true; seenTitle.push(title); out.keep.push({ pick: prev, rank: ++rank, price }); return; }
+    const input = { title, url: e.url, imageUrl: e.imageUrl || '', item, price, memo: '인기순 ' + odKstDay_(now) };
+    const check = odPickInput(input, now, null);
+    if (check.errors.length) { out.skipped.push({ title, reason: check.errors.join(' ') }); return; }
+    seenTitle.push(title); out.add.push({ input, rank: ++rank });
+  });
+  if (rank < OD_ROTATE_MIN) { out.reason = `고른 상품이 ${rank}개뿐이라 바꾸지 않음`; out.keep = []; out.add = []; return out; }
+  out.retire = live.filter(p => !used[p.id]);
+  const before = live.map(p => p.id).sort().join(), after = out.keep.map(k => k.pick.id).sort().join();
+  out.changed = out.add.length > 0 || out.retire.length > 0 || before !== after;
+  out.ok = true;
+  return out;
+}
+
 /**
  * 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료면 null. 가격 확인 24시간이 지나면 특가는 null, 항목별 상품은 가격만 뺀다.
  * stats(odPriceStats): 확인한 날이 3일 이상이면 30일 최저(low30)·기록 일수(lowDays), 지금 가격이 그 최저이고 기간 중 더 비싼 날이 있었으면 atLow.
@@ -2523,6 +2582,7 @@ function odReadPicks_() {
       id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), item: String(r.item || ''), note: odUncell_(r.note), memo: odUncell_(r.memo),
       price: r.price === '' || r.price == null ? null : Number(r.price), priceCheckedAt: String(r.price_checked_at || ''), endsAt: String(r.ends_at || ''),
       hidden: String(r.hidden).toUpperCase() === 'TRUE', createdAt: String(r.created_at || ''), updatedAt: String(r.updated_at || ''),
+      rank: /^[1-9]\d?$/.test(String(r.rank || '')) ? Number(r.rank) : 0,
     };
   });
 }
@@ -2535,12 +2595,14 @@ function odWritePicks_(picks) {
       id: p.id, status: p.hidden ? 'hidden' : Date.parse(p.endsAt) > now ? 'published' : 'ended',
       title: odCell_(p.title), url: p.url, category: p.category, note: odCell_(p.note), price: p.price == null ? '' : p.price,
       price_checked_at: p.priceCheckedAt || '', ends_at: p.endsAt, hidden: p.hidden ? 'TRUE' : '', memo: odCell_(p.memo),
-      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '', item: p.item || '',
+      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '', item: p.item || '', rank: p.rank || '',
     };
   }));
   CacheService.getScriptCache().remove(OD_CACHE_KEY);
 }
 const odNewest_ = function (a, b) { return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0; };
+// 공개 순서: 인기순으로 고른 항목 카드는 오늘 순위대로(1위 먼저), 나머지는 최근에 올린 것 먼저
+const odPublicOrder_ = function (a, b) { return ((a.rank || 99) - (b.rank || 99)) || odNewest_(a, b); };
 
 // ============ 자동으로 찾은 후보 (online_leads, 관리 화면 전용) ============
 
@@ -2622,6 +2684,45 @@ function odFreshLog_(picks, at) {
   return picks.filter(function (p) { return odPosInt_(p.price) && p.priceCheckedAt === at; }).map(function (p) { return { pickId: p.id, price: p.price, at: at }; });
 }
 
+/**
+ * 항목별 인기순 교체 (매일 아침 작업 → online-item-rotate.yml → COLLECTOR_TOKEN).
+ * b.items = { protein: [{title, price, url?, imageUrl?}, …(순위 순서)], … }. 항목마다 odRotatePlan으로 따로 판단하고,
+ * 순위가 어제와 같으면 카드는 그대로 두고 가격만 기록한다. 한 항목이 실패해도 다른 항목은 반영한다.
+ */
+function odItemRotateIngest_(b) {
+  const input = b && b.items && typeof b.items === 'object' ? b.items : null;
+  if (!input) throw new Error('bad items');
+  const keys = Object.keys(input).filter(function (k) { return odItem_(k); }).slice(0, 8);
+  if (!keys.length) throw new Error('항목이 없어요.');
+  const now = Date.now(), at = new Date(now).toISOString();
+  const picks = odReadPicks_();
+  const report = {}, fresh = [];
+  keys.forEach(function (item) {
+    const plan = odRotatePlan(picks, item, input[item], now);
+    if (!plan.ok) { report[item] = { applied: false, reason: plan.reason, skipped: plan.skipped }; return; }
+    if (picks.length + plan.add.length > 400) { report[item] = { applied: false, reason: '카드가 너무 많아요', skipped: plan.skipped }; return; }
+    picks.forEach(function (p) { if (p.item === item && p.rank) p.rank = 0; });
+    plan.keep.forEach(function (k) {
+      const p = k.pick;
+      p.rank = k.rank; p.price = k.price; p.priceCheckedAt = at; p.updatedAt = at;
+      p.endsAt = new Date(Math.max(Date.parse(p.endsAt) > now ? Date.parse(p.endsAt) : 0, now + OD_PICK_ITEM_DAYS * OD_DAY)).toISOString();
+      if (String(p.memo || '').indexOf(OD_ROTATE_MARK) === 0) p.memo = '인기순 ' + odKstDay_(now);
+      fresh.push(p);
+    });
+    plan.add.forEach(function (a) {
+      const res = odPickInput(a.input, now, null);
+      res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
+      res.pick.rank = a.rank;
+      picks.push(res.pick); fresh.push(res.pick);
+    });
+    plan.retire.forEach(function (p) { p.endsAt = at; p.rank = 0; p.updatedAt = at; p.memo = OD_ROTATE_MARK + odKstDay_(now); });
+    report[item] = { applied: true, changed: plan.changed, kept: plan.keep.length, added: plan.add.map(function (a) { return a.input.title; }),
+      retired: plan.retire.map(function (p) { return p.title; }), skipped: plan.skipped };
+  });
+  if (fresh.length) { odWritePicks_(picks); odAppendPriceLog_(odFreshLog_(fresh, at)); }
+  return { ok: true, items: report };
+}
+
 /** 수집기가 찾은 후보를 같은 기준(odLeadInput)으로 다시 검사해 새 것만 더한다 */
 function odLeadsIngest_(b) {
   if (!Array.isArray(b.leads) || b.leads.length > 50) throw new Error('bad leads');
@@ -2659,7 +2760,7 @@ function getOnlineDeals_() {
   const recent = pubs.some(function (s) { return Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR; });
   const state = items.length || recent ? 'live' : pubs.length ? 'delayed' : 'preparing';
   const stats = odPriceStatsMap_(ctx.now);
-  const picks = odReadPicks_().sort(odNewest_).map(function (p) { return odPickPublic(p, ctx.now, stats[p.id]); }).filter(Boolean).slice(0, OD_PICK_MAX);
+  const picks = odReadPicks_().sort(odPublicOrder_).map(function (p) { return odPickPublic(p, ctx.now, stats[p.id]); }).filter(Boolean).slice(0, OD_PICK_MAX);
   if (picks.length && disclosures.indexOf(OD_SUPPLIERS.coupang.disclosure) < 0) disclosures.unshift(OD_SUPPLIERS.coupang.disclosure);
   const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, picks: picks, disclosures: disclosures };
   try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
@@ -2832,7 +2933,7 @@ function odAdminSet_(b) {
     if (!prev) {
       res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
       picks.push(res.pick);
-    } else picks[picks.indexOf(prev)] = res.pick;
+    } else { res.pick.rank = prev.rank || 0; picks[picks.indexOf(prev)] = res.pick; }
     odWritePicks_(picks);
     odAppendPriceLog_(odFreshLog_([res.pick], new Date(now).toISOString()));
     // 자동 후보로 만든 카드면 그 후보를 '사용함'으로 (목록에서 빠짐)

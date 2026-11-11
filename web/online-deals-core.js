@@ -566,6 +566,61 @@ export function odPickInput(raw, now, prev) {
     hidden: p.hidden === true, createdAt: p.createdAt || at, updatedAt: at } };
 }
 
+// ---------- 항목별 인기순 교체 (11/11 대표 요청: "같은 제품 갱신 말고 인기순으로 매일 변경. 인기순 내용이 같으면 변경 안 해도 돼") ----------
+// 매일 아침 작업이 쿠팡 파트너스 '상품 링크' 검색(쿠팡랭킹순)에서 항목마다 위에서부터 고른 상품으로 항목 카드를 바꾼다.
+// 순위에 든 상품이 어제와 같으면 카드는 그대로 두고 가격만 기록한다. 순위에서 빠진 카드는 노출만 끝내고(30일 뒤 정리)
+// 다시 순위에 들면 같은 카드(같은 링크·가격 기록)를 다시 보여 준다. 대표가 숨긴 카드와 같은 상품은 올리지 않는다.
+export const OD_ROTATE_SIZE = 5;          // 항목마다 보여 줄 인기 상품 수
+export const OD_ROTATE_MIN = 3;           // 이보다 적게 고르면 그 항목은 바꾸지 않는다 (검색 결과가 이상한 날)
+export const OD_ROTATE_QUERIES = {        // 파트너스 검색어 (항목 이름과 다르게 찾는 게 나은 것만 다르게)
+  water: '생수', ramen: '라면', rice: '즉석밥', frozen: '냉동 간편식', retort: '레토르트', chicken: '닭가슴살', protein: '단백질', canned: '통조림',
+};
+export const OD_ROTATE_MARK = 'rotated:';  // 순위에서 빠져 노출을 끝낸 카드의 관리 메모 머리글
+/** 인기순 후보로 쓸 수 있는 상품명인지: 그 항목으로 분류되고, 알약·캡슐 같은 건강기능식품이 아니고, 80자 이내 */
+export function odRotateCandidate(title, item) {
+  const t = odText(title, 81);
+  if (!odItem_(item) || t.length < 2 || t.length > 80) return false;
+  if (/\d+\s*정(?=[\s,)]|$)|타블렛|캡슐|정제|환(?=[\s,)]|$)|보충제\s*정/.test(t)) return false;
+  return odGuessItem(t) === item;
+}
+const odSameTitle_ = (a, b) => String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
+/**
+ * 항목 하나의 교체 계획 (순수 함수 — 시트에 쓰지 않음).
+ * picks: 지금 카드 전체(odReadPicks_ 형식), entries: 오늘 순위 순서 [{title, price, url?, imageUrl?}] (url은 새 상품만)
+ * → { ok, reason, changed, keep:[{pick, rank, price}], add:[{input, rank}], retire:[pick], skipped:[{title, reason}] }
+ */
+export function odRotatePlan(picks, item, entries, now) {
+  const out = { ok: false, reason: '', changed: false, keep: [], add: [], retire: [], skipped: [] };
+  if (!odItem_(item)) { out.reason = '알 수 없는 항목'; return out; }
+  const mine = (Array.isArray(picks) ? picks : []).filter(p => p && p.item === item);
+  const live = mine.filter(p => !p.hidden && odMs_(p.endsAt) > now);
+  const used = {}, seenTitle = [];
+  let rank = 0;
+  (Array.isArray(entries) ? entries : []).slice(0, OD_ROTATE_SIZE * 3).forEach(raw => {
+    if (rank >= OD_ROTATE_SIZE) return;
+    const e = raw && typeof raw === 'object' ? raw : {};
+    const title = odText(e.title, 81);
+    if (seenTitle.some(t => odSameTitle_(t, title))) return;
+    if (!odRotateCandidate(title, item)) { out.skipped.push({ title, reason: '항목에 맞지 않는 상품' }); return; }
+    const price = Number.isSafeInteger(e.price) && e.price >= 100 && e.price <= 10000000 ? e.price : null;
+    if (!price) { out.skipped.push({ title, reason: '가격 없음' }); return; }
+    if (mine.some(p => p.hidden && odSameTitle_(p.title, title))) { out.skipped.push({ title, reason: '대표가 숨긴 상품' }); return; }
+    // 같은 상품명의 카드가 있으면(지금 보이는 것 먼저, 다음으로 순위에서 빠졌던 것) 그 카드를 다시 쓴다
+    const prev = live.filter(p => !used[p.id] && odSameTitle_(p.title, title))[0] || mine.filter(p => !used[p.id] && !p.hidden && odSameTitle_(p.title, title)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
+    if (prev) { used[prev.id] = true; seenTitle.push(title); out.keep.push({ pick: prev, rank: ++rank, price }); return; }
+    const input = { title, url: e.url, imageUrl: e.imageUrl || '', item, price, memo: '인기순 ' + odKstDay_(now) };
+    const check = odPickInput(input, now, null);
+    if (check.errors.length) { out.skipped.push({ title, reason: check.errors.join(' ') }); return; }
+    seenTitle.push(title); out.add.push({ input, rank: ++rank });
+  });
+  if (rank < OD_ROTATE_MIN) { out.reason = `고른 상품이 ${rank}개뿐이라 바꾸지 않음`; out.keep = []; out.add = []; return out; }
+  out.retire = live.filter(p => !used[p.id]);
+  const before = live.map(p => p.id).sort().join(), after = out.keep.map(k => k.pick.id).sort().join();
+  out.changed = out.add.length > 0 || out.retire.length > 0 || before !== after;
+  out.ok = true;
+  return out;
+}
+
 /**
  * 공개 응답용 (관리 메모·숨김·작성 시각 없음). 숨김·노출 종료면 null. 가격 확인 24시간이 지나면 특가는 null, 항목별 상품은 가격만 뺀다.
  * stats(odPriceStats): 확인한 날이 3일 이상이면 30일 최저(low30)·기록 일수(lowDays), 지금 가격이 그 최저이고 기간 중 더 비싼 날이 있었으면 atLow.

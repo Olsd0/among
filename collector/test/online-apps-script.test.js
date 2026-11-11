@@ -437,3 +437,55 @@ test('매일 아침 가격 확인 입구(online_prices_ingest): 수집기 토큰
   await assert.rejects(runPrices({ api: b.api, text: 'pk_1 900' }), /JSON이 아니에요/);
   await assert.rejects(runPrices({ api: b.api, text: '[{"id":"pk_eeeeeeeeeeeeeeee","price":"9000"}]' }), /기록할 가격이 없어요/);
 });
+
+// 11/11 대표 요청: 항목 카드를 같은 제품 갱신 말고 인기순으로 매일 바꾸기. 인기순이 같으면 바꾸지 않는다.
+test('항목별 인기순 교체: 수집기 토큰으로만, 순위 순서로 공개, 같으면 가격만, 빠진 카드는 노출만 끝내고 다시 들면 같은 카드, 숨긴 상품은 다시 안 올림', async () => {
+  const { runRotation } = await import('../src/online/rotate.js');
+  const b = boot();
+  const DAY = 24 * HOUR;
+  const html = (n, title) => `<a href="https://link.coupang.com/a/rot${n}" target="_blank" referrerpolicy="unsafe-url"><img src="https://img5c.coupangcdn.com/image/affiliate/banner/rot${n}@2x.jpg" alt="${title}" width="120" height="240"></a>`;
+  const P = ['테스트 프로틴 드링크 초코, 250ml, 18개', '테스트 단백질 쉐이크 바닐라, 1kg', '테스트 프로틴바, 400g', '테스트 단백질 두유, 190ml, 24개', '테스트 웨이 프로틴 초코, 2kg', '테스트 프로틴 칩, 50g, 10개'];
+  const entry = (i, price = 10000 + i, withHtml = true) => ({ title: P[i], price, ...(withHtml ? { html: html(i, P[i]) } : {}) });
+  const old = b.adminSet({ op: 'pick_save_many', picks: [{ title: '테스트 예전 단백질 파우더, 1kg', url: 'https://link.coupang.com/a/oldp', item: 'protein', price: '30000' }, { title: '테스트 신라면 멀티팩', url: 'https://link.coupang.com/a/ramen1', item: 'ramen', price: '5000' }] });
+  assert.equal(old.ok, true, old.error);
+
+  assert.equal(b.gas.post({ action: 'online_item_rotate', items: { protein: [entry(0)] } }).error, 'unauthorized');
+  assert.equal(b.gas.post({ action: 'online_item_rotate', token: b.admin, items: { protein: [entry(0)] } }).error, 'unauthorized', '관리 토큰으로는 안 됨');
+
+  const text = JSON.stringify({ protein: [entry(0), { title: '테스트 류신 단백질 타블렛, 120정', price: 9000, html: html(9, 'x') }, entry(1), entry(2), entry(3), entry(4), entry(5)] });
+  let out = await runRotation({ api: b.api, text });
+  const r1 = out.result.protein;
+  assert.deepEqual([r1.applied, r1.changed, r1.kept, r1.added.length, r1.retired], [true, true, 0, 5, ['테스트 예전 단백질 파우더, 1kg']]);
+  assert.match(JSON.stringify(r1.skipped), /타블렛/, '알약류는 건너뜀');
+  let picks = pub_(b).picks.filter(p => p.item === 'protein');
+  assert.deepEqual(picks.map(p => p.title), P.slice(0, 5), '순위 순서, 6위는 안 올림, 예전 카드는 내려감');
+  assert.ok(picks.every(p => p.imageUrl.includes('/image/affiliate/')));
+  assert.equal(pub_(b).picks.filter(p => p.item === 'ramen').length, 1, '다른 항목은 그대로');
+  const firstIds = picks.map(p => p.id);
+
+  later(b, DAY);
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [1, 0, 2, 3, 4].map(i => entry(i, 9000 + i, false)) }) });
+  assert.deepEqual([out.result.protein.changed, out.result.protein.added.length, out.result.protein.retired.length], [false, 0, 0], '같은 상품이면 바꾸지 않음');
+  picks = pub_(b).picks.filter(p => p.item === 'protein');
+  assert.deepEqual(picks.map(p => p.title), [P[1], P[0], P[2], P[3], P[4]], '순서만 오늘 순위대로');
+  assert.deepEqual(picks.map(p => p.id).sort(), [...firstIds].sort(), '같은 카드(같은 링크)');
+  assert.equal(picks[0].price, 9001, '가격 기록');
+
+  later(b, DAY);
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(5), entry(0, 9000, false), entry(1, 9001, false), entry(2, 9002, false)] }) });
+  assert.deepEqual([out.result.protein.added, out.result.protein.retired.sort()], [[P[5]], [P[3], P[4]].sort()]);
+  later(b, DAY);
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(3), entry(0, 9000, false), entry(1, 9001, false)] }) });
+  assert.equal(out.result.protein.added.length, 0, '빠졌던 상품이 다시 들면 새 링크 대신 예전 카드');
+  assert.ok(pub_(b).picks.some(p => p.id === firstIds[3]), '예전 카드 그대로 다시 보임');
+
+  const shown = pub_(b).picks.find(p => p.title === P[0]);
+  b.adminSet({ op: 'pick_hide', id: shown.id, hidden: true });
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(0, 9000, false), entry(1, 9001, false), entry(2, 9002, false), entry(3, 9003, false)] }) });
+  assert.match(JSON.stringify(out.result.protein.skipped), /숨긴 상품/);
+  assert.ok(!pub_(b).picks.some(p => p.title === P[0]), '숨긴 카드는 그대로 숨김');
+
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(1, 9001, false), entry(2, 9002, false)] }) });
+  assert.equal(out.result.protein.applied, false, '3개보다 적으면 바꾸지 않음');
+  assert.equal(pub_(b).picks.filter(p => p.item === 'protein').length, 3);
+});

@@ -5,6 +5,9 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serveDir } from './helpers.js';
 import { appCoupon, AC_NOW } from './app-coupon-fixtures.js';
+import { dailyItemOrder, OD_SHORTCUTS } from '../../web/online-deals.js';
+const ITEM_LABELS = Object.fromEntries(OD_SHORTCUTS[0].items);
+const todayOrder = async page => dailyItemOrder(OD_SHORTCUTS[0].items.map(([k]) => k), await page.evaluate(() => Date.now()));
 
 let site, browser;
 before(async () => {
@@ -275,11 +278,14 @@ test('항목별로 둘러보기: 골드박스 카드보다 먼저, 고른 상품
   const panel = plain.page.locator('#onlineDeals');
   await panel.locator('.od-shortcuts').waitFor();
   const links = panel.locator('.od-sc');
-  assert.deepEqual((await links.allInnerTexts()).map(x => x.replace(/\s*(쿠팡에서 보기|↗).*$/s, '')), ['생수', '라면', '즉석밥', '냉동 간편식', '레토르트', '닭가슴살', '단백질', '통조림']);
+  const order = await todayOrder(plain.page);
+  assert.deepEqual((await links.allInnerTexts()).map(x => x.replace(/\s*(쿠팡에서 보기|↗).*$/s, '')), order.map(k => ITEM_LABELS[k]), '오늘 순서 (11/11: 매일 맨 앞 항목이 바뀌고 생수는 끝)');
+  assert.equal(order.at(-1), 'water');
   assert.equal(await panel.locator('.od-sc-group h4').count(), 0, '먹거리 한 묶음뿐이라 묶음 제목 없음');
-  assert.equal(await links.first().getAttribute('href'), 'https://www.coupang.com/np/search?q=%EC%83%9D%EC%88%98');
-  assert.equal(await links.first().getAttribute('rel'), 'noopener noreferrer');
-  assert.equal(await links.first().getAttribute('target'), '_blank');
+  const waterLink = panel.locator('[data-od-shortcut="water"]');
+  assert.equal(await waterLink.getAttribute('href'), 'https://www.coupang.com/np/search?q=%EC%83%9D%EC%88%98');
+  assert.equal(await waterLink.getAttribute('rel'), 'noopener noreferrer');
+  assert.equal(await waterLink.getAttribute('target'), '_blank');
   assert.ok(await panel.locator('.od-shortcuts').evaluate(el => !!(el.compareDocumentPosition(document.querySelector('.od-official-entry')) & Node.DOCUMENT_POSITION_FOLLOWING)), '항목별 칸이 골드박스 카드보다 먼저');
   assert.equal(await panel.locator('.od-disclosure').isVisible(), false);
   const heights = await links.evaluateAll(els => els.map(e => e.getBoundingClientRect().height));
@@ -704,8 +710,10 @@ test('항목별 상품: 파트너스 HTML 여러 개를 한 번에 붙여 올리
   assert.match(await section.locator('h3').innerText(), /항목별로 둘러보기/);
   assert.match(await section.locator('.od-shortcuts-head').innerText(), /제휴광고/);
   const tabs = section.locator('[data-od-item]');
-  assert.deepEqual((await tabs.allInnerTexts()).map(x => x.replace(/\s+/g, ' ')), ['생수 1', '라면 1', '즉석밥', '냉동 간편식', '레토르트', '닭가슴살', '단백질', '통조림']);
-  assert.equal(await section.locator('[data-od-item="water"]').getAttribute('aria-pressed'), 'true', '상품이 있는 첫 항목을 먼저');
+  const counts = { water: 1, ramen: 1 };
+  assert.deepEqual((await tabs.allInnerTexts()).map(x => x.replace(/\s+/g, ' ')), (await todayOrder(page)).map(k => ITEM_LABELS[k] + (counts[k] ? ` ${counts[k]}` : '')));
+  assert.equal(await section.locator('[data-od-item="ramen"]').getAttribute('aria-pressed'), 'true', '상품이 있는 첫 항목을 먼저 (생수는 맨 앞에 두지 않음)');
+  await section.locator('[data-od-item="water"]').click();
   const card = section.locator('.od-item-list .od-pick-card');
   assert.equal(await card.count(), 1);
   assert.equal(await card.getAttribute('href'), 'https://link.coupang.com/a/itemWater01');
@@ -735,6 +743,7 @@ test('항목별 상품: 파트너스 HTML 여러 개를 한 번에 붙여 올리
   await page.clock.setFixedTime(new Date(OD_T0 + 25 * HOUR));
   await page.reload();
   await section.locator('.od-item-tabs').waitFor();
+  await section.locator('[data-od-item="water"]').click();
   const after = await section.locator('.od-item-list .od-pick-card').innerText();
   assert.match(after, /테스트 삼다수/); assert.match(after, /가격은 쿠팡에서 확인/); assert.doesNotMatch(after, /9900원/);
   assert.equal(await panel.locator('.od-picks > .od-picks-list > li').count(), 0);

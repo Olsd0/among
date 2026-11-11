@@ -66,6 +66,7 @@ function odReadPicks_() {
       id: r.id, title: odUncell_(r.title), url: String(r.url), imageUrl: odPickImage(String(r.image_url || '')), category: String(r.category), item: String(r.item || ''), note: odUncell_(r.note), memo: odUncell_(r.memo),
       price: r.price === '' || r.price == null ? null : Number(r.price), priceCheckedAt: String(r.price_checked_at || ''), endsAt: String(r.ends_at || ''),
       hidden: String(r.hidden).toUpperCase() === 'TRUE', createdAt: String(r.created_at || ''), updatedAt: String(r.updated_at || ''),
+      rank: /^[1-9]\d?$/.test(String(r.rank || '')) ? Number(r.rank) : 0,
     };
   });
 }
@@ -78,12 +79,14 @@ function odWritePicks_(picks) {
       id: p.id, status: p.hidden ? 'hidden' : Date.parse(p.endsAt) > now ? 'published' : 'ended',
       title: odCell_(p.title), url: p.url, category: p.category, note: odCell_(p.note), price: p.price == null ? '' : p.price,
       price_checked_at: p.priceCheckedAt || '', ends_at: p.endsAt, hidden: p.hidden ? 'TRUE' : '', memo: odCell_(p.memo),
-      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '', item: p.item || '',
+      created_at: p.createdAt, updated_at: p.updatedAt, image_url: p.imageUrl || '', item: p.item || '', rank: p.rank || '',
     };
   }));
   CacheService.getScriptCache().remove(OD_CACHE_KEY);
 }
 const odNewest_ = function (a, b) { return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0; };
+// 공개 순서: 인기순으로 고른 항목 카드는 오늘 순위대로(1위 먼저), 나머지는 최근에 올린 것 먼저
+const odPublicOrder_ = function (a, b) { return ((a.rank || 99) - (b.rank || 99)) || odNewest_(a, b); };
 
 // ============ 자동으로 찾은 후보 (online_leads, 관리 화면 전용) ============
 
@@ -165,6 +168,45 @@ function odFreshLog_(picks, at) {
   return picks.filter(function (p) { return odPosInt_(p.price) && p.priceCheckedAt === at; }).map(function (p) { return { pickId: p.id, price: p.price, at: at }; });
 }
 
+/**
+ * 항목별 인기순 교체 (매일 아침 작업 → online-item-rotate.yml → COLLECTOR_TOKEN).
+ * b.items = { protein: [{title, price, url?, imageUrl?}, …(순위 순서)], … }. 항목마다 odRotatePlan으로 따로 판단하고,
+ * 순위가 어제와 같으면 카드는 그대로 두고 가격만 기록한다. 한 항목이 실패해도 다른 항목은 반영한다.
+ */
+function odItemRotateIngest_(b) {
+  const input = b && b.items && typeof b.items === 'object' ? b.items : null;
+  if (!input) throw new Error('bad items');
+  const keys = Object.keys(input).filter(function (k) { return odItem_(k); }).slice(0, 8);
+  if (!keys.length) throw new Error('항목이 없어요.');
+  const now = Date.now(), at = new Date(now).toISOString();
+  const picks = odReadPicks_();
+  const report = {}, fresh = [];
+  keys.forEach(function (item) {
+    const plan = odRotatePlan(picks, item, input[item], now);
+    if (!plan.ok) { report[item] = { applied: false, reason: plan.reason, skipped: plan.skipped }; return; }
+    if (picks.length + plan.add.length > 400) { report[item] = { applied: false, reason: '카드가 너무 많아요', skipped: plan.skipped }; return; }
+    picks.forEach(function (p) { if (p.item === item && p.rank) p.rank = 0; });
+    plan.keep.forEach(function (k) {
+      const p = k.pick;
+      p.rank = k.rank; p.price = k.price; p.priceCheckedAt = at; p.updatedAt = at;
+      p.endsAt = new Date(Math.max(Date.parse(p.endsAt) > now ? Date.parse(p.endsAt) : 0, now + OD_PICK_ITEM_DAYS * OD_DAY)).toISOString();
+      if (String(p.memo || '').indexOf(OD_ROTATE_MARK) === 0) p.memo = '인기순 ' + odKstDay_(now);
+      fresh.push(p);
+    });
+    plan.add.forEach(function (a) {
+      const res = odPickInput(a.input, now, null);
+      res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
+      res.pick.rank = a.rank;
+      picks.push(res.pick); fresh.push(res.pick);
+    });
+    plan.retire.forEach(function (p) { p.endsAt = at; p.rank = 0; p.updatedAt = at; p.memo = OD_ROTATE_MARK + odKstDay_(now); });
+    report[item] = { applied: true, changed: plan.changed, kept: plan.keep.length, added: plan.add.map(function (a) { return a.input.title; }),
+      retired: plan.retire.map(function (p) { return p.title; }), skipped: plan.skipped };
+  });
+  if (fresh.length) { odWritePicks_(picks); odAppendPriceLog_(odFreshLog_(fresh, at)); }
+  return { ok: true, items: report };
+}
+
 /** 수집기가 찾은 후보를 같은 기준(odLeadInput)으로 다시 검사해 새 것만 더한다 */
 function odLeadsIngest_(b) {
   if (!Array.isArray(b.leads) || b.leads.length > 50) throw new Error('bad leads');
@@ -202,7 +244,7 @@ function getOnlineDeals_() {
   const recent = pubs.some(function (s) { return Date.parse(s.lastSuccessAt) > ctx.now - ctx.rules.maxAgeHours * OD_HOUR; });
   const state = items.length || recent ? 'live' : pubs.length ? 'delayed' : 'preparing';
   const stats = odPriceStatsMap_(ctx.now);
-  const picks = odReadPicks_().sort(odNewest_).map(function (p) { return odPickPublic(p, ctx.now, stats[p.id]); }).filter(Boolean).slice(0, OD_PICK_MAX);
+  const picks = odReadPicks_().sort(odPublicOrder_).map(function (p) { return odPickPublic(p, ctx.now, stats[p.id]); }).filter(Boolean).slice(0, OD_PICK_MAX);
   if (picks.length && disclosures.indexOf(OD_SUPPLIERS.coupang.disclosure) < 0) disclosures.unshift(OD_SUPPLIERS.coupang.disclosure);
   const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, picks: picks, disclosures: disclosures };
   try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
@@ -375,7 +417,7 @@ function odAdminSet_(b) {
     if (!prev) {
       res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
       picks.push(res.pick);
-    } else picks[picks.indexOf(prev)] = res.pick;
+    } else { res.pick.rank = prev.rank || 0; picks[picks.indexOf(prev)] = res.pick; }
     odWritePicks_(picks);
     odAppendPriceLog_(odFreshLog_([res.pick], new Date(now).toISOString()));
     // 자동 후보로 만든 카드면 그 후보를 '사용함'으로 (목록에서 빠짐)

@@ -197,7 +197,7 @@ test('Apps Script: news 기간 열 추가(SCHEMA 12)·공개 필드·다음 수�
   const row = { ...WHOPPER, hash: 'h1', issues: [] };
   const filled = { ...row, start_date: '2026-11-09', end_date: '2026-11-13', period_source: '언론 보도', period_refs: 'segye.com|https://www.segye.com/a|2026-11-09\nhankyung.com|https://www.hankyung.com/a|2026-11-09', period_checked_at: '2026-11-10T02:00:00Z', hash: 'h2' };
   gas.post({ action: 'ingest', token: 'tok', run_id: 'r1', coupons: [], news: [filled], sources_ok: ['bk-event'] });
-  assert.equal(gas.props.get('SCHEMA_VERSION'), '12');
+  assert.equal(gas.props.get('SCHEMA_VERSION'), '13');
   for (const h of ['period_source', 'period_refs', 'period_checked_at']) assert.ok(gas.sheet('news').data[0].includes(h), h);
   // 다음 수집에서 기간 확인을 건너뛰어 끝나는 날 없이 들어와도 지우지 않는다
   gas.post({ action: 'ingest', token: 'tok', run_id: 'r2', coupons: [], news: [row], sources_ok: ['bk-event'] });

@@ -1,0 +1,49 @@
+name: online-item-rotate
+
+# 항목별 인기순 교체 (11/11 대표 요청): 매일 아침 작업이 쿠팡 파트너스 '상품 링크' 검색(쿠팡랭킹순)에서 항목마다 위에서부터 고른 상품으로
+# 항목 카드를 바꾼다. 순위가 어제와 같으면 카드는 그대로 두고 가격만 기록한다. 순위에서 빠진 카드는 노출만 끝낸다(지우지 않음).
+# 시트에는 수집기 토큰(GitHub Secrets)으로만 쓴다. 관리 토큰은 쓰지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      items:
+        description: '{"protein":[{"title":"…","price":23750,"html":"<a href=…><img …></a>"}, …], …}'
+        required: true
+        type: string
+      mode:
+        description: 'run = 시트에 반영 / dry = 입력 확인만'
+        required: false
+        default: run
+        type: choice
+        options: [run, dry]
+
+concurrency:
+  group: online-item-rotate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  online-item-rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: 인기순 교체 · 시트 반영
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          ITEMS_JSON: ${{ inputs.items }}
+          ROTATE_MODE: ${{ inputs.mode || 'run' }}
+        run: node src/online/rotate.js

@@ -1,7 +1,7 @@
 // 온라인 특가 화면 (선택해서 열 때만 불러옴). 프랜차이즈 쿠폰 데이터와 섞지 않는다.
 // 상품은 승인된 공급처에서 자동으로 확인해 검증을 통과한 것만 Apps Script가 내려 준다.
 // 서버 응답도 그대로 믿지 않고 같은 규칙(online-deals-core.js)으로 다시 검사한다.
-import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261106-4';
+import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261111-1';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 // 항목별 바로가기 (11/05 대표 요청: 자취에 필요한 물품을 항목별로 → 11/06 21:08 먹거리만). 쿠팡 검색 결과 페이지로 보낸다 — AMONG이 고른 상품·가격이 아니다.
@@ -9,6 +9,13 @@ const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 export const OD_SHORTCUTS = [
   { group: '먹거리', items: [['water', '생수'], ['ramen', '라면'], ['rice', '즉석밥'], ['frozen', '냉동 간편식'], ['retort', '레토르트'], ['chicken', '닭가슴살'], ['protein', '단백질'], ['canned', '통조림']] },
 ];
+// 항목 순서 (11/11 대표 요청: "생수부터 보이게 하지 말고 매일 항목 바꿔줘"). 한국 날짜마다 맨 앞 항목이 하나씩 바뀌고,
+// 생수는 맨 앞에 오지 않게 늘 끝에 둔다. 같은 날에는 누구에게나 같은 순서.
+export function dailyItemOrder(keys, now = Date.now()) {
+  const list = keys.filter(k => k !== 'water'), day = Math.floor((now + 9 * 3600e3) / 86400e3);
+  const n = list.length, start = n ? ((day % n) + n) % n : 0;
+  return list.slice(start).concat(list.slice(0, start), keys.filter(k => k === 'water'));
+}
 export const shortcutSearchUrl = label => `https://www.coupang.com/np/search?q=${encodeURIComponent(label)}`;
 export function shortcutLinks(overrides = {}) {
   return OD_SHORTCUTS.map(g => ({ group: g.group, items: g.items.map(([key, label]) => {
@@ -181,7 +188,10 @@ export function createOnlineDealsUI(root, options = {}) {
   // 다른 파트너스 ID가 붙은 링크는 odLink가 거절한다.
   const goldbox = odLink(options.goldboxUrl || '', 'coupang') || GOLDBOX;
   const goldboxAffiliate = odIsAffiliateLink(goldbox);
-  const shortcuts = shortcutLinks(options.shortcutLinks);
+  const shortcuts = shortcutLinks(options.shortcutLinks).map(g => {
+    const order = dailyItemOrder(g.items.map(i => i.key));
+    return { group: g.group, items: order.map(k => g.items.find(i => i.key === k)) };
+  });
   const shortcutAffiliate = shortcuts.some(g => g.items.some(i => i.affiliate));
   const rel = affiliate => (affiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer');
   let payload = { items: [], picks: [] }, active = false, loaded = false, loading = false, failed = false, cat = 'all', item = '', watching = new Set();
