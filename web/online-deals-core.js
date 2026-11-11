@@ -453,7 +453,7 @@ export function odGuessItem(title) {
   const t = String(title || '');
   if (/마스크|세제|화장지|휴지|물티슈|샴푸|치약|칫솔|섬유\s*유연|생리대|기저귀|건전지|전기요|사료/.test(t)) return '';
   if (/닭\s*가슴살|닭\s*안심|훈제\s*닭|가슴살\s*(?:스테이크|소시지|큐브)/.test(t)) return 'chicken';
-  if (/단백질|프로틴|protein|웨이\s*(?:프로틴|파우더)|\bWP[IC]\b|게이너|쉐이크/i.test(t)) return 'protein';
+  if (/단백|프로틴|protein|웨이\s*(?:프로틴|파우더)|\bWP[IC]\b|게이너|쉐이크/i.test(t)) return 'protein';
   if (/참치|스팸|통조림|리챔|런천\s*미트|캔\s*햄|꽁치|골뱅이|황도|스위트\s*콘/.test(t)) return 'canned';
   if (/즉석\s*밥|햇반|오뚜기밥|백미밥|흰밥|쌀\s*밥|잡곡밥|현미밥|컵밥|컵반/.test(t)) return 'rice';
   if (/레토르트|카레|짜장|3분|국밥|육개장|미역국|곰탕|설렁탕|갈비탕|북엇국|사골|덮밥\s*소스|[가-힣]죽(?=[\s,(]|$)/.test(t)) return 'retort';
