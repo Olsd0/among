@@ -580,7 +580,7 @@ export const OD_ROTATE_MARK = 'rotated:';  // 순위에서 빠져 노출을 끝�
 export function odRotateCandidate(title, item) {
   const t = odText(title, 81);
   if (!odItem_(item) || t.length < 2 || t.length > 80) return false;
-  if (/\d+\s*정(?=[\s,)]|$)|타블렛|캡슐|정제|환(?=[\s,)]|$)|보충제\s*정/.test(t)) return false;
+  if (/\d+\s*정(?=[\s,)]|$)|타블렛|캡슐|정제|환(?=[\s,)]|$)|보충제\s*정|당뇨|환자/.test(t)) return false;
   return odGuessItem(t) === item;
 }
 const odSameTitle_ = (a, b) => String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
