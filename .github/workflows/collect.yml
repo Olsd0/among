@@ -39,7 +39,8 @@ env:
 
 jobs:
   collect:
-    runs-on: ubuntu-latest
+    # 실행 환경 고정: ubuntu-latest가 Ubuntu 26으로 바뀌는 중이라 브라우저·글꼴 패키지가 달라질 수 있다 (올릴 때는 mode=check로 먼저 확인)
+    runs-on: ubuntu-24.04
     timeout-minutes: 50
     defaults:
       run:
@@ -57,9 +58,15 @@ jobs:
         run: npm ci --no-fund
 
       - name: 브라우저 · 한글 글꼴 설치
+        # 11/12 00:12 수집이 이 단계(패키지 서버 일시 오류)에서 실패해 06:45 정기 실행까지 어제 데이터였다 → 세 번까지 다시 시도
         run: |
-          npx playwright install --with-deps chromium
-          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          for try in 1 2 3; do
+            if npx playwright install --with-deps chromium && sudo apt-get install -y --no-install-recommends fonts-noto-cjk; then exit 0; fi
+            echo "::warning title=설치 다시 시도::$try번째 실패"
+            sleep $((try * 20))
+            sudo apt-get update || true
+          done
+          exit 1
 
       - name: 테스트
         run: npm test

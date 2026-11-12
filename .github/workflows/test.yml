@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     defaults:
       run:
@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --no-fund
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium || (sleep 20 && sudo apt-get update && npx playwright install --with-deps chromium)
       - run: npm test
         env:
           AMONG_QA_SCREENSHOT: /tmp/among-app-coupons-mobile.png

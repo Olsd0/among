@@ -16,7 +16,8 @@ test('프로젝트 주소에서 사용자 도메인으로 바꿔도 canonical과
   for (const p of pages) {
     const html = readFileSync(join(dir, p), 'utf8');
     assert.equal((html.match(/rel="canonical"/g) || []).length, 1);
-    assert.match(html, /content="https:\/\/among.example\/icon-512.png"/);
+    assert.match(html, /<meta property="og:image" content="https:\/\/among.example\/share.png">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta name="twitter:card" content="summary_large_image">/);
+    assert.equal((html.match(/og:image"/g) || []).length, 1, '공유 이미지는 하나만');
     const canonical = html.match(/<link rel="canonical" href="([^"]+)"/)[1];
     assert.equal(canonical, new URL(p === 'index.html' ? './' : p, 'https://among.example/').href);
     const shared = html.match(/<meta property="og:url" content="([^"]+)"/)[1];

@@ -28,7 +28,8 @@ export function preparePages(directory, baseUrl, { publisherId = '', contactEmai
     urls.push(url);
     const path = resolve(directory, page);
     let html = readFileSync(path, 'utf8').replace(/\n?<!-- deploy-meta -->[\s\S]*?<!-- \/deploy-meta -->\n?/g, '\n');
-    html = html.replace(/<meta property="og:image"[^>]*>\n?/g, '');
+    // 공유 미리보기(카카오톡·메신저): 1200×630 share.png (11/12 — 전에는 정사각 아이콘이 떴다)
+    html = html.replace(/<meta property="og:image(?::width|:height)?"[^>]*>\n?/g, '').replace(/<meta name="twitter:card"[^>]*>\n?/g, '');
     // 본인 ID가 있을 때만 소유권 확인 메타를 만든다. 광고 스크립트는 삽입하지 않는다.
     html = html.replace(/\n?<!-- adsense-verification -->[\s\S]*?<!-- \/adsense-verification -->\n?/g, '\n');
     if (publisherId) html = html.replace('</head>', `<!-- adsense-verification -->\n<meta name="google-adsense-account" content="${publisherId}">\n<!-- /adsense-verification -->\n</head>`);
@@ -37,7 +38,7 @@ export function preparePages(directory, baseUrl, { publisherId = '', contactEmai
       const fallback = opening.match(/data-contact-fallback="([^"]*)"/)?.[1] || '문의 메일 준비 중';
       return opening + (contactEmail ? `<a href="mailto:${escape(contactEmail)}">${escape(contactEmail)}</a>` : fallback) + '</span>';
     });
-    const metadata = `<!-- deploy-meta -->\n<link rel="canonical" href="${escape(url)}">\n<meta property="og:url" content="${escape(url)}">\n<meta property="og:type" content="website">\n<meta property="og:locale" content="ko_KR">\n<meta property="og:image" content="${escape(new URL('icon-512.png', base).href)}">\n<!-- /deploy-meta -->\n`;
+    const metadata = `<!-- deploy-meta -->\n<link rel="canonical" href="${escape(url)}">\n<meta property="og:url" content="${escape(url)}">\n<meta property="og:type" content="website">\n<meta property="og:locale" content="ko_KR">\n<meta property="og:image" content="${escape(new URL('share.png', base).href)}">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta name="twitter:card" content="summary_large_image">\n<!-- /deploy-meta -->\n`;
     writeFileSync(path, html.replace('</head>', metadata + '</head>'));
   }
   writeFileSync(resolve(directory, 'sitemap.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls.map((url) => `  <url><loc>${escape(url)}</loc></url>`).join('\n') + '\n</urlset>\n');
