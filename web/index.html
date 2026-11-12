@@ -17,9 +17,9 @@
 <link rel="stylesheet" href="fonts.css?v=20261107-3">
 <link rel="stylesheet" href="brand.css?v=20261107-4">
 <script src="config.js"></script>
-<link rel="stylesheet" href="home.css?v=20261110-1">
+<link rel="stylesheet" href="home.css?v=20261112-1">
 <link rel="stylesheet" href="app-coupons.css?v=20261107-3">
-<link rel="stylesheet" href="launch.css?v=20261107-6">
+<link rel="stylesheet" href="launch.css?v=20261112-1">
 <link rel="stylesheet" href="hot-notices.css?v=20261107-3">
 <!-- deploy-meta -->
 <link rel="canonical" href="https://olsd0.github.io/among/">
@@ -32,16 +32,6 @@
 <body>
 <a class="skip-link" href="#list">혜택 목록으로 바로 가기</a>
 <svg width="0" height="0" class="art-defs" aria-hidden="true" focusable="false"><defs>
-  <linearGradient id="g-bun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd58a"/><stop offset="1" stop-color="#ee9128"/></linearGradient>
-  <linearGradient id="g-coffee" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d59a6a"/><stop offset="1" stop-color="#8a4f2e"/></linearGradient>
-  <linearGradient id="g-chk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd06a"/><stop offset="1" stop-color="#df7414"/></linearGradient>
-  <linearGradient id="g-cheese" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#f5b52e"/></linearGradient>
-  <linearGradient id="g-donut" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb3d2"/><stop offset="1" stop-color="#e2558c"/></linearGradient>
-  <linearGradient id="g-gift" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2ab"/><stop offset="1" stop-color="#ffe765"/></linearGradient>
-  <linearGradient id="g-red" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8f99"/><stop offset="1" stop-color="#e0283b"/></linearGradient>
-  <linearGradient id="g-blue" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8dbbff"/><stop offset="1" stop-color="#2d63d6"/></linearGradient>
-  <linearGradient id="g-grn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7fe3b0"/><stop offset="1" stop-color="#139a63"/></linearGradient>
-  <linearGradient id="g-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9a3"/><stop offset="1" stop-color="#f0ad12"/></linearGradient>
   <mask id="m-donut" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><rect width="48" height="48" fill="#fff"/><circle cx="24" cy="24.5" r="4.8" fill="#000"/></mask>
 </defs></svg>
 <div class="shell">
@@ -85,7 +75,7 @@
   <section id="onlineDeals" tabindex="-1" role="main" aria-label="온라인 특가" hidden></section>
 
   <section class="hot" id="hot" hidden aria-label="오늘의 핫딜">
-    <div class="sec-h"><h2>오늘의 핫딜</h2><small>놓치기 아쉬운 공식 소식</small><span class="sp"></span><span class="count" id="hotCount"></span><div class="rail-controls" id="railControls" hidden><button type="button" id="previousDeal" aria-label="이전 핫딜" aria-controls="hotRail">‹</button><button type="button" id="nextDeal" aria-label="다음 핫딜" aria-controls="hotRail">›</button></div></div>
+    <div class="sec-h"><h2>오늘의 핫딜</h2><small>놓치기 아쉬운 공식 소식</small><span class="sp"></span><span class="count" id="hotCount"></span><div class="rail-controls" id="railControls" hidden><button type="button" id="hotAuto" class="auto" aria-pressed="true" aria-label="핫딜 자동 넘김 멈추기">❚❚</button><button type="button" id="previousDeal" aria-label="이전 핫딜" aria-controls="hotRail">‹</button><button type="button" id="nextDeal" aria-label="다음 핫딜" aria-controls="hotRail">›</button></div></div>
     <div class="rail" id="hotRail"></div>
     <div class="dots" id="hotDots" aria-hidden="true"></div>
   </section>
@@ -207,7 +197,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261111-1"></script>
+<script type="module" src="app.js?v=20261112-1"></script>
 <script type="module" src="sponsor.js?v=20261031-1"></script>
 </body>
 </html>

@@ -28,18 +28,20 @@ const CATS = [
   { id: '디저트', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M8 7.5l.5 1M15.5 7l-.6 1M17 13l-1 .2M7 14.5l1-.3"/>' },
   { id: '전체', icon: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>' },
 ];
-// 우리가 직접 그린 아이콘 (브랜드 상품 그림이 아님). 그라데이션은 body 맨 위 <defs>
+// 우리가 직접 그린 아이콘 (브랜드 상품 그림이 아님).
+// 11/12 대표 요청: 분류 아이콘 색을 한 톤으로 — 모든 아이콘이 같은 다섯 색(바나나 i-a · 호박 i-b · 코코아 i-k · 크림 i-p · 코랄 i-c)만 쓰고
+// 타일 배경도 한 색. 색 값은 home.css의 --ic-* (어두운 화면 포함). l-k·l-b·l-p·l-c는 같은 색의 선.
 const ART = {
-  햄버거: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M8 22c0-8 7.2-13 16-13s16 5 16 13z" fill="url(#g-bun)"/><g fill="#fff7e3"><ellipse cx="17" cy="15" rx="1.3" ry=".8"/><ellipse cx="24" cy="12.5" rx="1.3" ry=".8"/><ellipse cx="30.5" cy="16" rx="1.3" ry=".8"/></g><path d="M7 23.5h34l-2.8 3.2-3-2-3 2-3-2-3 2-3-2-3 2-3-2-3 2-3-2z" fill="#5cc46b"/><rect x="8" y="27" width="32" height="6.5" rx="3.2" fill="#7a3d20"/><path d="M8.5 35.5h31a0 0 0 0 1 0 0 4.5 4.5 0 0 1-4.5 4.5H13a4.5 4.5 0 0 1-4.5-4.5z" fill="url(#g-bun)"/></svg>',
-  카페: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M13.5 15h21l-2.4 25a3 3 0 0 1-3 2.7H19a3 3 0 0 1-3-2.7z" fill="url(#g-coffee)"/><rect x="11" y="11" width="26" height="5" rx="2.5" fill="#4a2a19"/><path d="M15.5 8.5h17l1.3 2.5H14.2z" fill="#6c3b22"/><rect x="15" y="23" width="18" height="8" rx="1.5" fill="#f4e1cb"/><path d="M21 27h6" stroke="#b07a52" stroke-width="1.6" stroke-linecap="round"/></svg>',
-  치킨: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M29 30.5l6.5 6.5" stroke="#f6eadb" stroke-width="5" stroke-linecap="round"/><circle cx="37.8" cy="35.6" r="3.3" fill="#f6eadb"/><circle cx="34.6" cy="39.2" r="3.3" fill="#f6eadb"/><ellipse cx="21.5" cy="20.5" rx="13" ry="10.5" transform="rotate(-38 21.5 20.5)" fill="url(#g-chk)"/><path d="M14 17c2-3 5-5 8-5.5" stroke="#ffe7b0" stroke-width="2" stroke-linecap="round" fill="none"/></svg>',
-  피자: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M24 43 7.5 12.5a31 31 0 0 1 33 0z" fill="url(#g-cheese)"/><path d="M7.5 12.5a31 31 0 0 1 33 0l-2.3 4.3a26.5 26.5 0 0 0-28.4 0z" fill="#c8752c"/><circle cx="19.5" cy="22" r="3.2" fill="#e2442f"/><circle cx="28.5" cy="26" r="2.8" fill="#e2442f"/><circle cx="23.5" cy="33" r="2.3" fill="#e2442f"/><path d="M30 19.5l2 1M16 29l1.6-1" stroke="#5aa64d" stroke-width="1.8" stroke-linecap="round"/></svg>',
-  디저트: '<svg viewBox="0 0 48 48" width="100%" height="100%"><g mask="url(#m-donut)"><circle cx="24" cy="25" r="16" fill="#e7b170"/><path d="M24 11.5c8 0 14 6 14 13.5 0 1.5-1.6 2.2-2.6 1.2-1.3-1.2-2.6.6-4 0-1.5-.7-2.4 1.6-4.2 1-1.4-.5-2.2 1.3-3.6.8-1.6-.6-2.7 1.4-4.3.5-1.3-.7-2.6.6-3.8-.3-1.2-.8-2.6.3-3.6-.6-.8-.7-1.5-1-1.5-2.4 0-7.5 6-13.5 13.6-13.7z" fill="url(#g-donut)"/></g><g stroke-width="1.8" stroke-linecap="round"><path d="M17 17.5l1.6 1" stroke="#fff"/><path d="M30 16l-1.2 1.4" stroke="#ffe27a"/><path d="M33 22.5l-1.8.2" stroke="#7fd3ff"/><path d="M15.5 23.5l1.7-.5" stroke="#ffe27a"/><path d="M22 14.5l.6 1.6" stroke="#7fd3ff"/></g></svg>',
-  free: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="9" y="21" width="30" height="19" rx="3" fill="url(#g-gift)"/><rect x="7" y="15" width="34" height="8" rx="3" fill="#f2c84d"/><rect x="21.8" y="15" width="4.4" height="25" fill="#ffd34d"/><path d="M24 15c-4-6.5-11-5.5-9.5-1.5 1.2 3 6.5 1.8 9.5 1.5zM24 15c4-6.5 11-5.5 9.5-1.5-1.2 3-6.5 1.8-9.5 1.5z" fill="#ffc21a"/></svg>',
-  ending: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M12 10l-4 4M36 10l4 4" stroke="#ff8f99" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="26" r="15" fill="url(#g-red)"/><circle cx="24" cy="26" r="11" fill="#fff"/><path d="M24 19v7.5l5 3" stroke="#e0283b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M17 41l-2 3M31 41l2 3" stroke="#e0283b" stroke-width="3" stroke-linecap="round"/></svg>',
-  telecom: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="13" y="6" width="22" height="37" rx="5" fill="url(#g-blue)"/><rect x="16" y="11" width="16" height="25" rx="2" fill="#eaf2ff"/><g fill="#2d63d6"><rect x="18.5" y="27" width="2.6" height="5" rx="1"/><rect x="22.7" y="23.5" width="2.6" height="8.5" rx="1"/><rect x="26.9" y="19" width="2.6" height="13" rx="1"/></g><circle cx="24" cy="39.6" r="1.4" fill="#eaf2ff"/></svg>',
-  pay: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect x="6" y="13" width="32" height="24" rx="4.5" fill="url(#g-grn)"/><path d="M6 19h32" stroke="#0f7e51" stroke-width="3"/><rect x="26" y="24" width="12" height="8" rx="3" fill="#0f7e51"/><circle cx="35" cy="34" r="8.5" fill="url(#g-gold)"/><path d="M31.8 31.2l1.4 5.6 1.8-4.2 1.8 4.2 1.4-5.6M31.2 33.4h7.6" stroke="#9a6700" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
-  new: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M24 5l5.4 11.2 12.3 1.7-9 8.6 2.2 12.2L24 33l-10.9 5.7 2.2-12.2-9-8.6 12.3-1.7z" fill="url(#g-gold)"/><path d="M24 12.5l3 6.3 6.9 1" stroke="#fff6cf" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="39" cy="38" r="3" fill="#ffb3d2"/><circle cx="9" cy="37" r="2.2" fill="#8dbbff"/></svg>',
+  햄버거: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path class="i-a" d="M8 21c0-7.5 7.2-12 16-12s16 4.5 16 12z"/><g class="i-p"><ellipse cx="17" cy="14.5" rx="1.3" ry=".8"/><ellipse cx="24" cy="12" rx="1.3" ry=".8"/><ellipse cx="30.5" cy="15.5" rx="1.3" ry=".8"/></g><rect class="i-c" x="8" y="22.5" width="32" height="3.2" rx="1.6"/><rect class="i-k" x="8" y="28.5" width="32" height="6.5" rx="3.2"/><path class="i-b" d="M7 26.5h34l-2.8 3.2-3-2-3 2-3-2-3 2-3-2-3 2-3-2-3 2-3-2z"/><path class="i-a" d="M8.5 36.8h31a4.5 4.5 0 0 1-4.5 4.5H13a4.5 4.5 0 0 1-4.5-4.5z"/></svg>',
+  카페: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path class="i-a" d="M13.5 15h21l-2.4 25a3 3 0 0 1-3 2.7H19a3 3 0 0 1-3-2.7z"/><rect class="i-k" x="11" y="11" width="26" height="5" rx="2.5"/><path class="i-b" d="M15.5 8.5h17l1.3 2.5H14.2z"/><rect class="i-p" x="15" y="23" width="18" height="8" rx="1.5"/><path class="l-c" d="M21 27h6" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  치킨: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path class="l-b" d="M29 30.5l6.5 6.5" stroke-width="5" stroke-linecap="round"/><circle class="i-b" cx="37.8" cy="35.6" r="3.3"/><circle class="i-b" cx="34.6" cy="39.2" r="3.3"/><ellipse class="i-a" cx="21.5" cy="20.5" rx="13" ry="10.5" transform="rotate(-38 21.5 20.5)"/><path class="l-p" d="M14 17c2-3 5-5 8-5.5" stroke-width="2" stroke-linecap="round"/><path class="l-c" d="M22 27.5l2.4-1.2M17.5 24.5l2-1.4" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  피자: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path class="i-a" d="M24 43 7.5 12.5a31 31 0 0 1 33 0z"/><path class="i-b" d="M7.5 12.5a31 31 0 0 1 33 0l-2.3 4.3a26.5 26.5 0 0 0-28.4 0z"/><circle class="i-c" cx="19.5" cy="22" r="3.2"/><circle class="i-c" cx="28.5" cy="26" r="2.8"/><circle class="i-c" cx="23.5" cy="33" r="2.3"/><path class="l-k" d="M30 19.5l2 1M16 29l1.6-1" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  디저트: '<svg viewBox="0 0 48 48" width="100%" height="100%"><g mask="url(#m-donut)"><circle class="i-b" cx="24" cy="25" r="16"/><path class="i-a" d="M24 11.5c8 0 14 6 14 13.5 0 1.5-1.6 2.2-2.6 1.2-1.3-1.2-2.6.6-4 0-1.5-.7-2.4 1.6-4.2 1-1.4-.5-2.2 1.3-3.6.8-1.6-.6-2.7 1.4-4.3.5-1.3-.7-2.6.6-3.8-.3-1.2-.8-2.6.3-3.6-.6-.8-.7-1.5-1-1.5-2.4 0-7.5 6-13.5 13.6-13.7z"/></g><g stroke-width="1.8" stroke-linecap="round"><path class="l-p" d="M17 17.5l1.6 1"/><path class="l-c" d="M30 16l-1.2 1.4"/><path class="l-k" d="M33 22.5l-1.8.2"/><path class="l-c" d="M15.5 23.5l1.7-.5"/><path class="l-k" d="M22 14.5l.6 1.6"/></g></svg>',
+  free: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect class="i-a" x="9" y="21" width="30" height="19" rx="3"/><rect class="i-b" x="7" y="15" width="34" height="8" rx="3"/><rect class="i-c" x="21.8" y="15" width="4.4" height="25"/><path class="i-c" d="M24 15c-4-6.5-11-5.5-9.5-1.5 1.2 3 6.5 1.8 9.5 1.5zM24 15c4-6.5 11-5.5 9.5-1.5-1.2 3-6.5 1.8-9.5 1.5z"/></svg>',
+  ending: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path class="l-b" d="M12 10l-4 4M36 10l4 4" stroke-width="4" stroke-linecap="round"/><path class="l-k" d="M17 41l-2 3M31 41l2 3" stroke-width="3" stroke-linecap="round"/><circle class="i-a" cx="24" cy="26" r="15"/><circle class="i-p" cx="24" cy="26" r="11"/><path class="l-k" d="M24 19v7.5" stroke-width="2.6" stroke-linecap="round"/><path class="l-c" d="M24 26.5l5 3" stroke-width="2.6" stroke-linecap="round"/></svg>',
+  telecom: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect class="i-k" x="13" y="6" width="22" height="37" rx="5"/><rect class="i-p" x="16" y="11" width="16" height="25" rx="2"/><rect class="i-b" x="18.5" y="27" width="2.6" height="5" rx="1"/><rect class="i-a" x="22.7" y="23.5" width="2.6" height="8.5" rx="1"/><rect class="i-c" x="26.9" y="19" width="2.6" height="13" rx="1"/><circle class="i-p" cx="24" cy="39.6" r="1.4"/></svg>',
+  pay: '<svg viewBox="0 0 48 48" width="100%" height="100%"><rect class="i-a" x="6" y="13" width="32" height="24" rx="4.5"/><path class="l-k" d="M6 20h32" stroke-width="3.4"/><rect class="i-p" x="10" y="26" width="9" height="5.5" rx="1.6"/><circle class="i-b" cx="35" cy="34" r="8.5"/><path class="l-p" d="M31.8 31.2l1.4 5.6 1.8-4.2 1.8 4.2 1.4-5.6M31.2 33.4h7.6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  new: '<svg viewBox="0 0 48 48" width="100%" height="100%"><path class="i-a" d="M24 5l5.4 11.2 12.3 1.7-9 8.6 2.2 12.2L24 33l-10.9 5.7 2.2-12.2-9-8.6 12.3-1.7z"/><path class="l-p" d="M24 12.5l3 6.3 6.9 1" stroke-width="2" stroke-linecap="round"/><circle class="i-c" cx="39" cy="38" r="3"/><circle class="i-b" cx="9" cy="37" r="2.2"/></svg>',
 };
 const ICON = {
   store: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-4h4v4"/></svg>',
@@ -1072,6 +1074,45 @@ for (const [id, direction] of [['#previousDeal', -1], ['#nextDeal', 1]]) {
   });
 }
 if ('ResizeObserver' in window) new ResizeObserver(updateRailControls).observe(rail);
+
+// ---------- 오늘의 핫딜 자동 넘김 (11/12 대표 요청: "핫딜 배너는 자동으로 스크롤되게, 한 3초") ----------
+// 3초마다 다음 카드로, 끝이면 처음으로. 멈추는 때: 사용자가 만지는 동안(손가락·마우스·키보드 초점) + 그 뒤 6초,
+// 화면이 안 보일 때(다른 탭·스크롤로 지나감), 소식 상세·대화상자가 열렸을 때, '동작 줄이기' 설정, 멈춤 버튼(기기에 기억).
+const HOT_AUTO_MS = 3000;
+const HOT_AUTO_REST_MS = 6000;
+const hotAuto = { off: store.get('among_hot_auto', 'on') === 'off', holdUntil: 0, hover: false, focus: false, visible: true };
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function syncHotAutoButton() {
+  const b = $('#hotAuto');
+  const running = !hotAuto.off && !reducedMotion();
+  b.hidden = reducedMotion();
+  b.setAttribute('aria-pressed', String(running));
+  b.setAttribute('aria-label', running ? '핫딜 자동 넘김 멈추기' : '핫딜 자동 넘김 켜기');
+  b.textContent = running ? '❚❚' : '▶';
+}
+function hotAutoTick() {
+  if (hotAuto.off || reducedMotion() || document.hidden || !hotAuto.visible || hotAuto.hover || hotAuto.focus) return;
+  if (Date.now() < hotAuto.holdUntil || document.querySelector('dialog[open]') || $('#hot').hidden) return;
+  const end = rail.scrollWidth - rail.clientWidth;
+  if (end < 2 || rail.children.length < 2) return;
+  const step = rail.children[1].offsetLeft - rail.firstElementChild.offsetLeft;
+  if (rail.scrollLeft >= end - 1) rail.scrollTo({ left: 0, behavior: 'smooth' });
+  else rail.scrollBy({ left: step, behavior: 'smooth' });
+}
+const hotAutoHold = () => { hotAuto.holdUntil = Date.now() + HOT_AUTO_REST_MS; };
+for (const type of ['pointerdown', 'touchstart', 'wheel', 'keydown']) $('#hot').addEventListener(type, hotAutoHold, { passive: true });
+rail.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') hotAuto.hover = true; });
+rail.addEventListener('pointerleave', () => { hotAuto.hover = false; });
+$('#hot').addEventListener('focusin', (e) => { hotAuto.focus = e.target.matches(':focus-visible'); });
+$('#hot').addEventListener('focusout', () => { hotAuto.focus = false; });
+if ('IntersectionObserver' in window) new IntersectionObserver((es) => { hotAuto.visible = es[0].isIntersecting; }, { threshold: 0.4 }).observe(rail);
+$('#hotAuto').addEventListener('click', () => {
+  hotAuto.off = !hotAuto.off;
+  store.set('among_hot_auto', hotAuto.off ? 'off' : 'on');
+  syncHotAutoButton();
+});
+syncHotAutoButton();
+setInterval(hotAutoTick, HOT_AUTO_MS);
 rail.addEventListener('scroll', () => {
   updateRailControls();
   const rail = $('#hotRail'); const first = rail.firstElementChild; if (!first) return;

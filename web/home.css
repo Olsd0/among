@@ -441,16 +441,16 @@ footer .link-btn { margin-top: 8px; display: inline-block; }
 
 /* 카테고리별 색과 숫자 크기는 문서의 스타일 정책을 따른다. */
 .art-defs { position: absolute; pointer-events: none; }
-.gi[data-cat="햄버거"] { --tint: var(--t-bun); }
-.gi[data-cat="카페"] { --tint: var(--t-cafe); }
-.gi[data-cat="치킨"] { --tint: var(--t-chk); }
-.gi[data-cat="피자"] { --tint: var(--t-piz); }
-.gi[data-cat="디저트"] { --tint: var(--t-des); }
-.gi[data-kind="free"] { --tint: var(--primary-soft); }
-.gi[data-kind="ending"] { --tint: var(--t-red); }
-.gi[data-kind="telecom"] { --tint: var(--t-blue); }
-.gi[data-kind="pay"] { --tint: var(--t-grn); }
-.gi[data-kind="new"] { --tint: var(--t-gold); }
+/* 분류 아이콘 (11/12): 타일 배경 한 색 + 아이콘 다섯 색. 인라인 스타일은 CSP로 막혀 있어 클래스로 칠한다 */
+:root { --ic-tile: #fff4b9; --ic-a: #ffc933; --ic-b: #f09a1a; --ic-k: #4b3515; --ic-p: #fffdf5; --ic-c: #ff6f4d; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ic-tile: #383018; --ic-k: #b98f45; --ic-p: #fff8dc; }
+}
+:root[data-theme="dark"] { --ic-tile: #383018; --ic-k: #b98f45; --ic-p: #fff8dc; }
+.gi { --tint: var(--ic-tile); }
+.i-a { fill: var(--ic-a); } .i-b { fill: var(--ic-b); } .i-k { fill: var(--ic-k); } .i-p { fill: var(--ic-p); } .i-c { fill: var(--ic-c); }
+.l-k, .l-b, .l-p, .l-c { fill: none; }
+.l-k { stroke: var(--ic-k); } .l-b { stroke: var(--ic-b); } .l-p { stroke: var(--ic-p); } .l-c { stroke: var(--ic-c); }
 .hcard .lbl.money-label { font-size: 18px; }
 .hcard .lbl.medium-label, .stub .big.long-label { font-size: 19px; }
 .hcard .lbl.long-label { font-size: 17px; }

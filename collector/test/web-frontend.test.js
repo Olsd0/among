@@ -728,3 +728,31 @@ test('11/10 핫딜 순서(마감 임박 → 진행 중 → 상시)와 기간 근
   await page.locator('.news-meta').waitFor();
   assert.match(await page.locator('.news-meta').innerText(), /끝나는 날 공지 없음 · 11\/10 공식 페이지에서 진행 중 확인/);
 });
+
+test('11/12 핫딜 자동 넘김(3초)·멈춤 버튼, 분류 아이콘은 한 가지 타일 색과 다섯 색 클래스만', { timeout: 40000 }, async (t) => {
+  const now = new Date().toISOString();
+  const day = (n) => new Date(Date.now() + 9 * 36e5 + n * 864e5).toISOString().slice(0, 10);
+  const news = ['가', '나', '다'].map((b, i) => ({ id: `n${i}`, brand: `브랜드${b}`, category: '햄버거', title: `${b} 30% 할인`, summary: '행사', discount_label: '30%', start_date: day(-3), end_date: day(10 + i), programs: [], related_ids: [], checked_at: now, first_seen: now, source_url: 'https://example.test/e' }));
+  const { context, page } = await setup({ ok: true, last_checked_at: now, coupons: [], news });
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html`);
+  await page.locator('#hotRail [data-hot]').first().waitFor();
+  assert.equal(await page.locator('#hotCount').innerText(), '1 / 3');
+  await page.waitForFunction(() => document.querySelector('#hotCount').textContent === '2 / 3', null, { timeout: 8000 });
+  await page.locator('#hotAuto').click();
+  assert.equal(await page.locator('#hotAuto').getAttribute('aria-pressed'), 'false');
+  const at = await page.locator('#hotCount').innerText();
+  await page.waitForTimeout(4500);
+  assert.equal(await page.locator('#hotCount').innerText(), at, '멈춤 버튼을 누르면 넘어가지 않음');
+  assert.equal(await page.evaluate(() => localStorage.getItem('among_hot_auto')), '"off"');
+  const art = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('#grid .gi .ic')];
+    const classes = new Set(tiles.flatMap((e) => [...e.querySelectorAll('svg [class]')].map((x) => x.getAttribute('class'))));
+    const raw = tiles.flatMap((e) => [...e.querySelectorAll('svg [fill], svg [stroke]')]).length;
+    return { n: tiles.length, bg: [...new Set(tiles.map((e) => getComputedStyle(e).backgroundColor))], classes: [...classes].sort(), raw };
+  });
+  assert.equal(art.n, 10);
+  assert.deepEqual(art.bg, ['rgb(255, 244, 185)'], '타일 배경은 한 색');
+  assert.equal(art.raw, 0, '아이콘에 따로 적은 색 없음');
+  assert.ok(art.classes.every((c) => /^(i|l)-[abkpc]$/.test(c)), art.classes.join(','));
+});
