@@ -55,6 +55,15 @@ try {
       lines.push(`${n.brand}|${n.title}|${short(n.image_url)} → ${found || '출처 페이지에서 못 찾음'}`.slice(0, 300));
     }
     note(`공지 이미지 대조 ${targets.length}건`, lines.length ? lines : ['확인 목록 밖 공지 이미지 없음']);
+    // 공지 이미지가 없는 소식 (11/13): 그 공지의 출처 페이지에 어떤 이미지가 있는지 — 큰 것 4개(대체텍스트·주변 글·크기·파일)
+    const missing = news.filter((n) => !/^https:\/\//.test(n.image_url || '') && !noticePhoto(n)).slice(0, 12);
+    for (const n of missing) {
+      const p = await page(n.source_url);
+      if (p.error) { note(`이미지 없음 · ${n.brand} ${n.title}`.slice(0, 80), [`열지 못함: ${p.error}`]); continue; }
+      const imgs = [...(p.images || [])].sort((a, b) => b.w * b.h - a.w * a.h).slice(0, 4)
+        .map((i) => `${i.w}x${i.h}|alt "${(i.alt || '').slice(0, 30)}"|글 "${(i.near || '').slice(0, 40)}"(${i.nearLen})|${short(i.src).slice(0, 50)}`);
+      note(`이미지 없음 · ${n.brand} ${n.title}`.slice(0, 80), [`${pathKey(n.source_url).slice(0, 80)} · 이미지 ${(p.images || []).length}개 · og ${p.ogImage ? short(p.ogImage).slice(0, 40) : '없음'} · 첫머리 "${String(p.text || '').replace(/\s+/g, ' ').slice(0, 70)}"`, ...imgs]);
+    }
   }
 } finally {
   await ctx.close();
