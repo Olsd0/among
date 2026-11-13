@@ -196,4 +196,18 @@ test('11/13 실제 화면에서 빠졌던 경우: 도미노(대체텍스트에 �
   const phNews = { brand: '피자헛', title: '피자헛 11월 주말 1+1 핫딜', evidence: '주말1+1 (11월)', discount_label: '1+1' };
   assert.equal(pickNoticeImage(phNews, [ph], { own: ph, single: true }), 'https://cdn.h.kr/weekend.png');
   assert.equal(pickNoticeImage(phNews, [ph], { own: ph, single: false }), '', '뜻 없는 대체텍스트는 공지가 하나뿐일 때만');
+  const tab = { ...ph, images: [{ src: 'https://cdn.h.kr/event/mo_sticky_tab_1_default.png', alt: '', w: 980, h: 600, near: '', nearLen: 0 }] };
+  assert.equal(pickNoticeImage(phNews, [tab], { own: tab, single: true }), '', '붙박이 탭 같은 화면 부품은 포스터가 아님');
+});
+
+test('합쳐진 소식의 이미지는 제목이 같은 공지일 때만 물려받는다 (같은 쿠폰에 연결된 다른 행사 이미지는 받지 않음)', async () => {
+  const { mergeNews } = await import('../src/engine.js');
+  const base = { status: 'published', brand: '파파존스', end_date: '2026-11-18', programs: [], confidence: 0.9 };
+  const papas = { ...base, id: 'a', title: '파파스데이 30% 할인', discount_label: '30%', related_ids: ['c1', 'c2'], image_url: '' };
+  const buldak = { ...base, id: 'b', title: '불닭 까르보 치킨 통신사 최대 30% 할인', discount_label: '', end_date: '2026-12-31', related_ids: ['c1'], image_url: 'https://cdn.p.kr/buldak_list.jpg' };
+  const merged = mergeNews([papas, buldak]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].image_url, '', '다른 행사의 이미지');
+  const twin = { ...base, id: 'c', title: '11월 파파스데이 30% 할인', discount_label: '', related_ids: [], image_url: 'https://cdn.p.kr/papasday.jpg' };
+  assert.equal(mergeNews([papas, twin])[0].image_url, 'https://cdn.p.kr/papasday.jpg');
 });

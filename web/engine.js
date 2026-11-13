@@ -1245,6 +1245,8 @@ function detailPoster(n, pages, own, single) {
     let path = src;
     try { path = decodeURIComponent(new URL(src).pathname); } catch { /* 그대로 */ }
     if (NON_PHOTO.test(path) || NON_PHOTO.test(i.alt || '')) return 0;
+    // 화면 부품(붙박이 탭·기본 그림·배경)은 포스터가 아니다 (11/13 피자헛 'mo_sticky_tab_1_default.png')
+    if (/sticky|(^|[_\-\/])tab[_\-.\d]|default|placeholder|dummy|blank|(^|[_\-\/])bg[_\-.]|background/i.test(path)) return 0;
     if (w < 300 || h < 200 || w / h > 4 || h / w > 12 || w * h > 16e6) return 0;
     if (n.brand && i.alt && squash(i.alt) === squash(n.brand)) return 0;
     const said = amounts(i.alt || '');
@@ -1397,7 +1399,9 @@ export function mergeNews(list) {
     if (dup) {
       if (dup.brand !== n.brand && (dup.programs || []).length) dup.brand = PROGRAM_LABEL[dup.programs[0]] || dup.brand;
       dup.related_ids = [...new Set([...(dup.related_ids || []), ...(n.related_ids || [])])].slice(0, 6);
-      if (!dup.image_url && n.image_url) dup.image_url = n.image_url;
+      // 이미지는 제목이 같은 공지일 때만 물려받는다. 같은 쿠폰에 연결됐다는 이유만으로 합쳐진 다른 행사의 이미지는 받지 않는다
+      // (11/13 실제: '파파스데이 30% 할인'에 '불닭 통신사 30%' 목록 이미지가 붙음)
+      if (!dup.image_url && n.image_url && similarMenu(dup.title, n.title, 4)) dup.image_url = n.image_url;
       if (!dup.start_date && n.start_date) dup.start_date = n.start_date;
       continue;
     }
