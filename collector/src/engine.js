@@ -1175,9 +1175,12 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
     // 주변 글이 카드 하나 분량일 때만 (목록 전체 글이면 모든 공지와 겹친다)
     const card = i.nearLen ? i.nearLen <= 240 : (i.near || '').length < 160;
     // 대체텍스트가 원문·제목의 일부일 때는 10자 이상의 행사 문구만 ('슈프림 피자 3종'처럼 형제 행사에도 붙는 상품명 제외)
-    if (alt.length >= 10 && ev && ev.includes(alt)) return 3;
-    if (alt.length >= 6 && head.length >= 6 && alt.includes(head)) return 3;
-    if (alt.length >= 4 && tt.length >= 4 && (alt.includes(tt) || (alt.length >= 10 && tt.includes(alt)))) return 3;
+    if (alt.length >= 10 && ev && ev.includes(alt)) return 4;
+    if (alt.length >= 6 && head.length >= 6 && alt.includes(head)) return 4;
+    if (alt.length >= 4 && tt.length >= 4 && (alt.includes(tt) || (alt.length >= 10 && tt.includes(alt)))) return 4;
+    // 대체텍스트에 공지 제목의 고유 낱말이 모두 들어 있으면 그 공지의 이미지 (11/13 도미노 '도미노스데이: 모든 피자 포장 40% 할인' ↔ 제목 '도미노스데이 포장 40% 할인')
+    const toks = titleTokens(n), altKey = moneyKey(i.alt || '');
+    if (toks.length >= 2 && altKey.length >= 6 && toks.every((t) => altKey.includes(t))) return 3;
     if (alt.length >= 8 && ev.length >= 8 && dice(alt, ev.slice(0, alt.length + 10)) >= 0.7) return 2;
     if (card && head.length >= 6 && near.includes(head)) return 2;
     return 0;
@@ -1188,6 +1191,12 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
     if (s > bestS) { best = [i]; bestS = s; } else if (s && s === bestS) best.push(i);
   }
   if (bestS >= 2) {
+    // 목록의 썸네일과 상세의 포스터처럼 같은 대체텍스트(내용 있는 글)를 가진 이미지들은 같은 공지의 것 → 목록 것(카드에 맞는 비율)을 먼저
+    const sameAlt = new Set(best.map((i) => squash(i.alt || '')));
+    if (best.length > 1 && sameAlt.size === 1 && [...sameAlt][0].length >= 6) {
+      const listed = best.filter((i) => usable.some((p) => !p.isDetail && (p.images || []).includes(i)));
+      return [...(listed.length ? listed : best)].sort((a, b) => squareness(a) - squareness(b))[0].src;
+    }
     const cards = new Set(best.map((i) => squash(i.near || '') || squash(i.alt || '')));
     if (cards.size === 1) {
       if (best.length === 1) return best[0].src;
@@ -1210,36 +1219,44 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
 }
 
 /**
- * 상세 페이지의 포스터 — 조건을 모두 채울 때만 (11/03의 '다른 행사 이미지' 오류를 다시 만들지 않게):
- * - 그 페이지에서 읽은 공지가 이것 하나뿐(single)이고, 페이지 제목이나 본문 첫머리(400자)에 공지 제목의 고유 낱말이 40% 이상 있다(= 그 행사의 페이지)
- * - 이미지는 그 페이지에만 있는 것(목록·다른 상세에도 나오는 공통 배너 제외), 로고·아이콘·띠 배너 아님, 금액이 적힌 대체텍스트면 공지 금액과 같음
- * - 가장 큰 것 하나. 세로로 긴 포스터도 허용(카드에서는 윗부분이 보임), 수천만 화소 원본은 제외
- * 없으면 그 페이지의 공유 대표 이미지(og) — 목록·다른 상세와 같은 사이트 기본 이미지면 쓰지 않는다
+ * 상세 페이지의 포스터 (11/03의 '다른 행사 이미지' 오류를 다시 만들지 않게 이미지마다 확인):
+ * - 후보: 그 페이지에만 있는 이미지(목록·다른 상세에도 나오는 공통 배너 제외), 로고·아이콘·띠 배너 아님. 세로로 긴 포스터 허용, 수천만 화소 원본 제외
+ * - 대체텍스트에 내용(한글)이 있으면: 공지 제목의 고유 낱말이 40% 이상 있고 금액이 어긋나지 않을 때만 (맥도날드 '앱 가입' 공지에 '제주 맥피즈' 포스터가 붙지 않게)
+ * - 대체텍스트가 비었거나 내용이 없으면('hellopizzahut'): 그 페이지에서 읽은 공지가 이것 하나뿐이고 페이지 제목·본문 앞부분이 이 공지일 때만
+ * - 대체텍스트로 확인된 것 → 나머지 순, 같은 순위면 가장 큰 것. 없으면 그 페이지의 공유 이미지(og, 사이트 기본값 제외 · 공지가 하나뿐일 때)
  */
 function detailPoster(n, pages, own, single) {
-  if (!own || !own.isDetail || !single) return '';
+  if (!own || !own.isDetail) return '';
   const tokens = titleTokens(n);
   if (!tokens.length) return '';
-  const about = moneyKey(`${own.title || ''} ${String(own.text || '').slice(0, 400)}`);
-  if (tokens.filter((t) => about.includes(t)).length < Math.ceil(tokens.length * 0.4)) return '';
+  const need = Math.ceil(tokens.length * 0.4);
+  const hits = (text) => { const k = moneyKey(text); return tokens.filter((t) => k.includes(t)).length; };
+  // 금액·할인율만 같은 것은 같은 행사가 아니다('파파스데이 30%' ↔ '불닭 통신사 30%') — 낱말이 하나는 맞아야 한다
+  const words = tokens.filter((t) => !/^\d+(?:%|원)$/.test(t));
+  const named = (text) => { const k = moneyKey(text); return !words.length || words.some((t) => k.includes(t)); };
+  const body = String(own.text || '');
+  const about = single && (hits(`${own.title || ''} ${body.slice(0, 400)}`) >= need || hits(body.slice(0, 800)) >= Math.max(need, Math.ceil(tokens.length * 0.6)));
   const elsewhere = new Set();
   for (const p of pages) if (p && p !== own) { for (const i of p.images || []) if (i && i.src) elsewhere.add(i.src); if (p.ogImage) elsewhere.add(p.ogImage); }
   const mine = amounts(`${n.title || ''} ${n.evidence || ''} ${n.discount_label || ''} ${n.summary || ''}`);
-  const ok = (i) => {
+  const rank = (i) => {
     const src = String(i.src || ''), w = +i.w || 0, h = +i.h || 0;
-    if (!/^https:\/\//i.test(src) || /\.(svg|gif)(\?|#|$)/i.test(src) || elsewhere.has(src)) return false;
+    if (!/^https:\/\//i.test(src) || /\.(svg|gif)(\?|#|$)/i.test(src) || elsewhere.has(src)) return 0;
     let path = src;
     try { path = decodeURIComponent(new URL(src).pathname); } catch { /* 그대로 */ }
-    if (NON_PHOTO.test(path) || NON_PHOTO.test(i.alt || '')) return false;
-    if (w < 300 || h < 200 || w / h > 4 || h / w > 12 || w * h > 16e6) return false;
-    if (n.brand && i.alt && squash(i.alt) === squash(n.brand)) return false;
-    const own$ = amounts(i.alt || '');
-    return !own$.length || own$.some((x) => mine.includes(x));
+    if (NON_PHOTO.test(path) || NON_PHOTO.test(i.alt || '')) return 0;
+    if (w < 300 || h < 200 || w / h > 4 || h / w > 12 || w * h > 16e6) return 0;
+    if (n.brand && i.alt && squash(i.alt) === squash(n.brand)) return 0;
+    const said = amounts(i.alt || '');
+    if (said.length && !said.some((x) => mine.includes(x))) return 0;
+    const descriptive = /[가-힣]{2}/.test(i.alt || '');
+    if (descriptive) return hits(i.alt) >= need && named(i.alt) ? 2 : 0;
+    return about ? 1 : 0;
   };
-  const best = (own.images || []).filter(ok).sort((a, b) => b.w * b.h - a.w * a.h)[0];
-  if (best) return best.src;
+  const best = (own.images || []).map((i) => [rank(i), i]).filter(([r]) => r).sort((a, b) => b[0] - a[0] || b[1].w * b[1].h - a[1].w * a[1].h)[0];
+  if (best) return best[1].src;
   const og = String(own.ogImage || '');
-  return /^https:\/\//i.test(og) && !/\.(svg|gif)(\?|#|$)/i.test(og) && !elsewhere.has(og) && !NON_PHOTO.test(og) ? og : '';
+  return about && /^https:\/\//i.test(og) && !/\.(svg|gif)(\?|#|$)/i.test(og) && !elsewhere.has(og) && !NON_PHOTO.test(og) ? og : '';
 }
 
 /** 서로 다른 공지 여러 개에 붙은 같은 이미지는 공지 고유 이미지가 아니다(사이트 공통 배너 등) → 뗀다. 확인 목록 이미지는 그대로 */

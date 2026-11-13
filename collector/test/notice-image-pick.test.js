@@ -171,11 +171,29 @@ test('상세 페이지의 포스터: 그 행사 하나만 다루는 페이지면
   assert.equal(pickNoticeImage(n, [list, defaultOg], { own: defaultOg, single: true }), '', '사이트 기본 공유 이미지는 쓰지 않음');
   // 11/03 오류를 다시 만들지 않는다: 그 페이지에서 공지를 여러 개 읽었거나, 페이지 첫머리가 다른 행사면 쓰지 않는다
   assert.equal(pickNoticeImage(n, [list, detail], { own: detail, single: false }), '');
-  const other = { ...detail, title: '맥도날드', text: '제주 맥피즈 출시! 상큼한 제주 한라봉 …'.padEnd(600, ' ') + '치킨나이트 1+1 매일 밤 9시' };
+  const other = { ...detail, title: '맥도날드', text: '제주 맥피즈 출시! 상큼한 제주 한라봉 …'.padEnd(1000, '가') + '치킨나이트 1+1 매일 밤 9시' };
   assert.equal(pickNoticeImage(n, [list, other], { own: other, single: true }), '', '다른 행사의 상세 페이지');
   // 금액이 적힌 대체텍스트가 공지와 다르면 그 이미지는 건너뛴다, 수천만 화소 원본도 제외
   const wrongAmount = { ...detail, ogImage: '', images: [{ ...poster, alt: '마케팅 수신 동의 20% 할인' }, { src: 'https://cdn.brand.kr/event/huge.jpg', alt: '', w: 3000, h: 9000 }] };
   assert.equal(pickNoticeImage(n, [list, wrongAmount], { own: wrongAmount, single: true }), '');
   // 목록에서 읽은 공지(상세가 아님)는 전과 같이 카드 글·대체텍스트로만
   assert.equal(pickNoticeImage(n, [list], { own: list, single: true }), '');
+});
+
+test('11/13 실제 화면에서 빠졌던 경우: 도미노(대체텍스트에 제목 낱말 모두) · 파파존스(목록 썸네일과 상세 포스터가 같은 대체텍스트) · 맥도날드(공지 둘인 상세의 포스터) · 피자헛(뜻 없는 대체텍스트)', () => {
+  const dom = { isDetail: false, images: [{ src: 'https://cdn.d.kr/a.jpg', alt: '하나 나라사랑카드 캐시백 이벤트', w: 750, h: 320, near: '', nearLen: 0 }, { src: 'https://cdn.d.kr/day.jpg', alt: '도미노스데이: 모든 피자 포장 40% 할인', w: 750, h: 320, near: '', nearLen: 0 }] };
+  assert.equal(pickNoticeImage({ brand: '도미노피자', title: '도미노스데이 포장 40% 할인', evidence: '도미노스데이 방문포장 시 40%', discount_label: '40%' }, [dom], { own: dom }), 'https://cdn.d.kr/day.jpg');
+  const pjList = { isDetail: false, images: [{ src: 'https://cdn.p.kr/ive_list.jpg', alt: '아이브 포토카드 프로모션', w: 580, h: 190, near: '아이브 포토카드 프로모션 2026.11.03~2026.12.20', nearLen: 35 }, { src: 'https://cdn.p.kr/ive_note_list.jpg', alt: '아이브 포토카드 유의사항', w: 580, h: 190, near: '아이브 포토카드 유의사항', nearLen: 20 }] };
+  const pjDetail = { isDetail: true, title: '파파존스', text: 'EVENT 아이브 포토카드 프로모션', images: [{ src: 'https://cdn.p.kr/ive.jpg', alt: '아이브 포토카드 프로모션', w: 750, h: 1545, near: 'EVENT 아이브 포토카드 프로모션 2026.11.03', nearLen: 58 }] };
+  assert.equal(pickNoticeImage({ brand: '파파존스', title: '아이브 포토카드 프로모션', evidence: '아이브 포토카드 프로모션 2026.11.03~2026.12.20' }, [pjList, pjDetail], { own: pjDetail, single: true }), 'https://cdn.p.kr/ive_list.jpg');
+  const mc = { isDetail: true, title: '맥도날드', text: '프로모션 시즌 한정 해피 스낵, 1000원부터!', images: [
+    { src: 'https://cdn.m.kr/happy.jpg', alt: '해피스낵 시즌 한정 간식 1000원 부터!_하단 내용', w: 1000, h: 2755, near: '', nearLen: 719 },
+    { src: 'https://cdn.m.kr/app.jpg', alt: '맥도날드 앱으로 즐기는 다양한 혜택', w: 1000, h: 1000, near: '앱 가입 시 불고기 버거 1500원', nearLen: 138 }] };
+  assert.equal(pickNoticeImage({ brand: '맥도날드', title: '맥도날드 시즌 한정 해피 스낵 1000원부터', evidence: '시즌 한정 해피 스낵, 1000원부터!', discount_label: '1,000원부터' }, [mc], { own: mc, single: false }), 'https://cdn.m.kr/happy.jpg', '공지를 둘 읽은 상세라도 대체텍스트로 확인되면 사용');
+  assert.equal(pickNoticeImage({ brand: '맥도날드', title: '앱 신규 가입 불고기 버거 1500원', evidence: '앱 가입 시 불고기 버거 1500원' }, [mc], { own: mc, single: false }), '', '다른 행사 포스터·내용이 다른 이미지는 붙이지 않음');
+  const ph = { isDetail: true, title: '피자헛', text: '설정 가입 즉시 멤버십만 누릴 수 있는 풍성한 혜택 증정! 로그인 메뉴 마이 멤버십 이벤트 단체주문 공지사항 '.repeat(4) + '반값다 피자헛! 평일반값 & 주말1+1 (11월)', ogImage: '',
+    images: [{ src: 'https://cdn.h.kr/top.png', alt: 'hellopizzahut', w: 980, h: 468, near: '', nearLen: 1237 }, { src: 'https://cdn.h.kr/weekend.png', alt: 'hellopizzahut', w: 980, h: 2811, near: '', nearLen: 1237 }] };
+  const phNews = { brand: '피자헛', title: '피자헛 11월 주말 1+1 핫딜', evidence: '주말1+1 (11월)', discount_label: '1+1' };
+  assert.equal(pickNoticeImage(phNews, [ph], { own: ph, single: true }), 'https://cdn.h.kr/weekend.png');
+  assert.equal(pickNoticeImage(phNews, [ph], { own: ph, single: false }), '', '뜻 없는 대체텍스트는 공지가 하나뿐일 때만');
 });

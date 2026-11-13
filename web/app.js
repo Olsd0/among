@@ -3,7 +3,7 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261110-1';
+} from './engine.js?v=20261113-2';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261104-1';
