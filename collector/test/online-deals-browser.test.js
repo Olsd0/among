@@ -747,7 +747,7 @@ test('항목별 상품: 파트너스 HTML 여러 개를 한 번에 붙여 올리
   const after = await section.locator('.od-item-list .od-pick-card').innerText();
   assert.match(after, /테스트 삼다수/); assert.match(after, /가격은 쿠팡에서 확인/); assert.doesNotMatch(after, /9900원/);
   assert.equal(await panel.locator('.od-picks > .od-picks-list > li').count(), 0);
-  assert.match(await panel.locator('.od-status').innerText(), /아래 항목별 상품을 둘러보세요/);
+  assert.match(await panel.locator('.od-status').innerText(), /아래 항목별 인기 상품을 둘러보세요/);
   assert.ok(outside.filter(u => !u.startsWith('https://cdn.jsdelivr.net/')).every(u => /^https:\/\/img5c\.coupangcdn\.com\/image\/affiliate\//.test(u)), outside.join(', '));
   assert.deepEqual(errors, []);
 });

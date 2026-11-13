@@ -10,6 +10,14 @@ on:
         description: '{"protein":[{"title":"…","price":23750,"html":"<a href=…><img …></a>"}, …], …}'
         required: true
         type: string
+      watch:
+        description: '(선택) 가격만 기록할 후보 {"protein":[{"title":"…","price":23750}, …]} — 검색 결과 위쪽 24개쯤'
+        required: false
+        type: string
+      deals:
+        description: '(선택) 오늘의 특가(골드박스 먹거리) [{"title":"…","price":13180,"html":"<a href=…><img …></a>"}]'
+        required: false
+        type: string
       mode:
         description: 'run = 시트에 반영 / dry = 입력 확인만'
         required: false
@@ -45,5 +53,7 @@ jobs:
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
           COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
           ITEMS_JSON: ${{ inputs.items }}
+          WATCH_JSON: ${{ inputs.watch }}
+          DEALS_JSON: ${{ inputs.deals }}
           ROTATE_MODE: ${{ inputs.mode || 'run' }}
         run: node src/online/rotate.js

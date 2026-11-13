@@ -7,7 +7,7 @@
 import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { SheetClient } from '../sheet.js';
-import { OD_PICK_ITEMS, OD_ROTATE_SIZE, odPartnerHtml, odRotateCandidate, odText } from '../online-deals-core.js';
+import { OD_PICK_ITEMS, OD_ROTATE_POOL, OD_GOLDBOX_MAX, odPartnerHtml, odRotateCandidate, odText, odWatchInput } from '../online-deals-core.js';
 
 /** 입력 글 → 항목별 [{title, price, url?, imageUrl?}]. 형식이 틀리면 이유와 함께 멈춘다 */
 export function parseRotation(text) {
@@ -18,7 +18,7 @@ export function parseRotation(text) {
   for (const [item, list] of Object.entries(raw)) {
     if (!Object.prototype.hasOwnProperty.call(OD_PICK_ITEMS, item)) { notes.push(`알 수 없는 항목 ${String(item).slice(0, 20)}`); continue; }
     if (!Array.isArray(list)) { notes.push(`${item}: 목록이 아님`); continue; }
-    items[item] = list.slice(0, OD_ROTATE_SIZE * 3).map(e => {
+    items[item] = list.slice(0, OD_ROTATE_POOL).map(e => {
       const o = e && typeof e === 'object' ? e : {};
       const out = { title: odText(o.title, 81), price: Number.isSafeInteger(o.price) ? o.price : null };
       if (o.html) {
@@ -37,11 +37,34 @@ export function parseRotation(text) {
   return { items, notes };
 }
 
-export async function runRotation({ api, text, dry = false } = {}) {
+/** 가격만 기록할 후보 (11/13): {"protein":[{"title","price"}]} → 항목마다 검사한 목록. 비었거나 형식이 틀리면 {} */
+export function parseWatch(text) {
+  let raw = null;
+  try { raw = JSON.parse(String(text || '').trim() || '{}'); } catch { return {}; }
+  const out = {};
+  for (const [item, list] of Object.entries(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {})) {
+    if (!Object.prototype.hasOwnProperty.call(OD_PICK_ITEMS, item)) continue;
+    const ok = odWatchInput(list, item);
+    if (ok.length) out[item] = ok;
+  }
+  return out;
+}
+/** 오늘의 특가(쿠팡 골드박스 먹거리, 11/13): [{"title","price","html"}] → [{title, price, url, imageUrl}] */
+export function parseDeals(text) {
+  let raw = null;
+  try { raw = JSON.parse(String(text || '').trim() || '[]'); } catch { return []; }
+  return (Array.isArray(raw) ? raw : []).slice(0, OD_GOLDBOX_MAX * 2).map(e => {
+    const o = e && typeof e === 'object' ? e : {}, h = odPartnerHtml(o.html || '');
+    return { title: odText(o.title || h.title, 81), price: Number.isSafeInteger(o.price) ? o.price : null, url: h.url || '', imageUrl: h.imageUrl || '' };
+  }).filter(e => e.title && e.url && e.price);
+}
+
+export async function runRotation({ api, text, watchText = '', dealsText = '', dry = false } = {}) {
   const { items, notes } = parseRotation(text);
-  if (dry) return { items, notes, result: null };
-  const r = await api.post('online_item_rotate', { items });
-  return { items, notes, result: r.items || {} };
+  const watch = parseWatch(watchText), deals = parseDeals(dealsText);
+  if (dry) return { items, notes, watch, deals, result: null };
+  const r = await api.post('online_item_rotate', { items, watch, deals });
+  return { items, notes, watch, deals, result: r.items || {}, watched: r.watched || 0, dealResult: r.deals || null };
 }
 
 function summary(out, dry) {
@@ -55,6 +78,9 @@ function summary(out, dry) {
       (r.added.length ? ` · 새로 ${r.added.length}개(${r.added.join(' / ')})` : '') + (r.retired.length ? ` · 내림 ${r.retired.length}개(${r.retired.join(' / ')})` : ''));
     if (r.skipped && r.skipped.length) lines.push(`  - 건너뜀: ${r.skipped.map(s => `${s.title.slice(0, 30)}(${s.reason})`).join(' / ')}`);
   }
+  const watchCount = Object.values(out.watch || {}).reduce((n, l) => n + l.length, 0);
+  lines.push('', `- 가격 기록 후보: ${watchCount}개${out.result ? ` (시트에 ${out.watched}개 기록)` : ''}`);
+  if ((out.deals || []).length || out.dealResult) lines.push(`- 오늘의 특가(골드박스): 받은 ${out.deals.length}개` + (out.dealResult ? ` · 올림 ${out.dealResult.added.length}개(${out.dealResult.added.join(' / ')})${out.dealResult.skipped.length ? ` · 건너뜀 ${out.dealResult.skipped.length}개` : ''}` : ''));
   if (out.notes.length) lines.push('', `참고: ${out.notes.join(' · ')}`);
   return lines.join('\n');
 }
@@ -63,7 +89,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dry = process.env.ROTATE_MODE === 'dry';
   try {
     const api = dry ? null : new SheetClient(process.env.APPS_SCRIPT_URL, process.env.COLLECTOR_TOKEN);
-    const out = await runRotation({ api, text: process.env.ITEMS_JSON, dry });
+    const out = await runRotation({ api, text: process.env.ITEMS_JSON, watchText: process.env.WATCH_JSON, dealsText: process.env.DEALS_JSON, dry });
     const text = summary(out, dry);
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, text + '\n');
     console.log(text);

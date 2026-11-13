@@ -1,7 +1,7 @@
 // 온라인 특가 화면 (선택해서 열 때만 불러옴). 프랜차이즈 쿠폰 데이터와 섞지 않는다.
 // 상품은 승인된 공급처에서 자동으로 확인해 검증을 통과한 것만 Apps Script가 내려 준다.
 // 서버 응답도 그대로 믿지 않고 같은 규칙(online-deals-core.js)으로 다시 검사한다.
-import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261111-1';
+import { OD_CATEGORIES, OD_SUPPLIERS, OD_PICK_CATEGORIES, odClientItem, odClientPick, odShippingText, odLink, odIsAffiliateLink, OD_PICK_ITEMS } from './online-deals-core.js?v=20261113-1';
 
 const GOLDBOX = 'https://www.coupang.com/np/goldbox';
 // 항목별 바로가기 (11/05 대표 요청: 자취에 필요한 물품을 항목별로 → 11/06 21:08 먹거리만). 쿠팡 검색 결과 페이지로 보낸다 — AMONG이 고른 상품·가격이 아니다.
@@ -208,10 +208,10 @@ export function createOnlineDealsUI(root, options = {}) {
     ${foodBest ? `<section class="od-best" aria-labelledby="odBestTitle"><div class="od-list-heading"><h3 id="odBestTitle">쿠팡 식품 베스트</h3><span class="od-ad-label">제휴광고</span></div>
       <p class="od-best-help">쿠팡이 식품 인기 상품을 골라 자동으로 바꿔 보여 줘요. AMONG이 확인한 가격이 아니에요. 옆으로 넘겨 보세요.</p>
       <iframe class="od-best-frame" src="${esc(foodBest)}" title="쿠팡 식품 베스트 (제휴광고, 쿠팡 제공)" loading="lazy" width="680" height="140" scrolling="auto"></iframe></section>` : ''}
-    <section class="od-picks" aria-labelledby="odPicksTitle"><div class="od-list-heading"><h3 id="odPicksTitle">AMONG이 고른 쿠팡 특가</h3><p class="od-pick-count"></p></div>
+    <section class="od-picks" aria-labelledby="odPicksTitle"><div class="od-list-heading"><h3 id="odPicksTitle">오늘 가격 좋은 상품</h3><p class="od-pick-count"></p></div>
       <div class="od-cats" role="group" aria-label="항목" hidden></div>
       <div class="od-status" role="status" aria-live="polite"></div><ul class="od-picks-list" role="list"></ul>
-      <p class="od-pick-note" hidden>가격은 AMONG이 확인한 시각 기준이며, 확인 후 24시간이 지나면 카드가 내려가요. 최종 가격·옵션·배송비는 쿠팡에서 확인하세요.</p></section>
+      <p class="od-pick-note" hidden>오늘의 특가와, AMONG이 매일 확인한 가격 중 최근 30일에서 오늘이 가장 낮은 상품이에요. 가격은 확인한 시각 기준이에요. 최종 가격·옵션·배송비는 쿠팡에서 확인하세요.</p></section>
     <section class="od-auto" hidden><div class="od-list-heading"><h3>자동으로 확인한 상품</h3><p class="od-count"></p></div>
     <div class="od-products-list"></div><p class="od-price-note">표시 가격은 확인 당시 기준이에요. 옵션·회원 여부·쿠폰·배송비에 따라 최종 결제 금액이 달라질 수 있어요. 구매 전 판매처에서 꼭 확인해 주세요.</p></section>
     <section class="od-shortcuts" aria-labelledby="odShortcutsTitle"></section>
@@ -270,7 +270,10 @@ export function createOnlineDealsUI(root, options = {}) {
     try { items = normalizeOnlineDeals(payload); } catch { /* 형식이 맞지 않으면 빈 목록 (쿠폰 화면에는 영향 없음) */ }
     const all = normalizePicks(payload);
     watching = new Set(readWatch().map(w => w.id));
-    const picks = all.filter(p => !p.item), itemPicks = all.filter(p => p.item);
+    // 11/13 '오늘 가격 좋은 상품': 그날 특가(쿠팡 골드박스 등) + 항목별 상품 중 AMONG 확인 30일 최저인 것(최대 8개)을 맨 위에 모은다.
+    // 항목별 상품은 아래 항목 탭에도 그대로 있다.
+    const itemPicks = all.filter(p => p.item);
+    const picks = [...all.filter(p => !p.item), ...itemPicks.filter(p => p.atLow).slice(0, 8)];
     root.setAttribute('aria-busy', String(loading));
     // 제휴 링크가 있는 공급처의 고지 문구를 목록보다 먼저 보여 준다 (화면이 가진 목록 기준, 서버 문구를 그대로 쓰지 않음).
     const notes = [...new Set([...(goldboxAffiliate || shortcutAffiliate || foodBest || all.length ? [OD_SUPPLIERS.coupang.disclosure] : []), ...items.filter(i => i.affiliate).map(i => OD_SUPPLIERS[i.supplier].disclosure)])];
@@ -302,7 +305,7 @@ export function createOnlineDealsUI(root, options = {}) {
     else if (failed) status.innerHTML = '<strong>상품 정보를 불러오지 못했어요.</strong><span>쿠폰 화면은 그대로 쓸 수 있어요.</span><button type="button" data-od-retry>다시 불러오기</button>';
     else if (none && payload.state === 'live') status.innerHTML = '<strong>지금 기준을 통과한 상품이 없어요.</strong><span>가격과 조건은 몇 시간마다 다시 확인해요.</span>';
     else if (none && payload.state === 'delayed') status.innerHTML = '<strong>상품 정보를 다시 확인하고 있어요.</strong><span>확인한 지 오래된 가격은 보여 드리지 않아요. 확인이 끝나면 다시 표시돼요.</span>';
-    else if (none && itemPicks.length) status.innerHTML = '<strong>오늘 올라온 특가는 아직 없어요.</strong><span>아래 항목별 상품을 둘러보세요.</span>';
+    else if (none && itemPicks.length) status.innerHTML = '<strong>오늘은 눈에 띄게 내린 상품이 아직 없어요.</strong><span>아래 항목별 인기 상품을 둘러보세요.</span>';
     else if (none) status.innerHTML = '<strong>아직 올라온 특가가 없어요.</strong><span>아래 항목별 바로가기와 골드박스로 쿠팡 상품을 먼저 둘러보세요.</span>';
     else status.innerHTML = '';
     status.hidden = !status.innerHTML;
@@ -349,7 +352,7 @@ export function createOnlineDealsUI(root, options = {}) {
       const id = CSS.escape(p.id), inWatch = !!w.closest('.od-watch-list');
       render();
       // 누른 목록의 같은 버튼으로 초점을 돌려준다 (알림 목록에서 끈 카드는 사라지므로 본 목록의 버튼으로)
-      (inWatch && root.querySelector(`.od-watch-list [data-od-watch="${id}"]`) || root.querySelector(`.od-picks-list:not(.od-watch-list) [data-od-watch="${id}"]`))?.focus();
+      (inWatch && root.querySelector(`.od-watch-list [data-od-watch="${id}"]`) || root.querySelector(`.od-item-list [data-od-watch="${id}"]`) || root.querySelector(`.od-picks-list:not(.od-watch-list) [data-od-watch="${id}"]`))?.focus();
       const live = root.querySelector('.od-watch-live');
       if (live) live.textContent = on ? `${p.title} 최저 알림을 켰어요.` : `${p.title} 최저 알림을 껐어요.`;
       return;

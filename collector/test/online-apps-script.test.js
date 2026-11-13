@@ -444,7 +444,7 @@ test('항목별 인기순 교체: 수집기 토큰으로만, 순위 순서로 �
   const b = boot();
   const DAY = 24 * HOUR;
   const html = (n, title) => `<a href="https://link.coupang.com/a/rot${n}" target="_blank" referrerpolicy="unsafe-url"><img src="https://img5c.coupangcdn.com/image/affiliate/banner/rot${n}@2x.jpg" alt="${title}" width="120" height="240"></a>`;
-  const P = ['테스트 프로틴 드링크 초코, 250ml, 18개', '테스트 단백질 쉐이크 바닐라, 1kg', '테스트 프로틴바, 400g', '테스트 단백질 두유, 190ml, 24개', '테스트 웨이 프로틴 초코, 2kg', '테스트 프로틴 칩, 50g, 10개'];
+  const P = ['테스트 프로틴 드링크 초코, 250ml, 18개', '테스트 단백질 쉐이크 바닐라, 1kg', '테스트 프로틴바, 400g', '테스트 단백질 두유, 190ml, 24개', '테스트 웨이 프로틴 초코, 2kg', '테스트 프로틴 칩, 50g, 10개', '테스트 프로틴 쿠키, 40g, 12개'];
   const entry = (i, price = 10000 + i, withHtml = true) => ({ title: P[i], price, ...(withHtml ? { html: html(i, P[i]) } : {}) });
   const old = b.adminSet({ op: 'pick_save_many', picks: [{ title: '테스트 예전 단백질 파우더, 1kg', url: 'https://link.coupang.com/a/oldp', item: 'protein', price: '30000' }, { title: '테스트 신라면 멀티팩', url: 'https://link.coupang.com/a/ramen1', item: 'ramen', price: '5000' }] });
   assert.equal(old.ok, true, old.error);
@@ -452,28 +452,28 @@ test('항목별 인기순 교체: 수집기 토큰으로만, 순위 순서로 �
   assert.equal(b.gas.post({ action: 'online_item_rotate', items: { protein: [entry(0)] } }).error, 'unauthorized');
   assert.equal(b.gas.post({ action: 'online_item_rotate', token: b.admin, items: { protein: [entry(0)] } }).error, 'unauthorized', '관리 토큰으로는 안 됨');
 
-  const text = JSON.stringify({ protein: [entry(0), { title: '테스트 류신 단백질 타블렛, 120정', price: 9000, html: html(9, 'x') }, entry(1), entry(2), entry(3), entry(4), entry(5)] });
+  const text = JSON.stringify({ protein: [entry(0), { title: '테스트 류신 단백질 타블렛, 120정', price: 9000, html: html(9, 'x') }, entry(1), entry(2), entry(3), entry(4), entry(6), entry(5)] });
   let out = await runRotation({ api: b.api, text });
   const r1 = out.result.protein;
-  assert.deepEqual([r1.applied, r1.changed, r1.kept, r1.added.length, r1.retired], [true, true, 0, 5, ['테스트 예전 단백질 파우더, 1kg']]);
+  assert.deepEqual([r1.applied, r1.changed, r1.kept, r1.added.length, r1.retired], [true, true, 0, 6, ['테스트 예전 단백질 파우더, 1kg']]);
   assert.match(JSON.stringify(r1.skipped), /타블렛/, '알약류는 건너뜀');
   let picks = pub_(b).picks.filter(p => p.item === 'protein');
-  assert.deepEqual(picks.map(p => p.title), P.slice(0, 5), '순위 순서, 6위는 안 올림, 예전 카드는 내려감');
+  assert.deepEqual(picks.map(p => p.title), [...P.slice(0, 5), P[6]], '순위 순서, 7위는 안 올림(11/13부터 6개), 예전 카드는 내려감');
   assert.ok(picks.every(p => p.imageUrl.includes('/image/affiliate/')));
   assert.equal(pub_(b).picks.filter(p => p.item === 'ramen').length, 1, '다른 항목은 그대로');
   const firstIds = picks.map(p => p.id);
 
   later(b, DAY);
-  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [1, 0, 2, 3, 4].map(i => entry(i, 9000 + i, false)) }) });
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [1, 0, 2, 3, 4, 6].map(i => entry(i, 9000 + i, false)) }) });
   assert.deepEqual([out.result.protein.changed, out.result.protein.added.length, out.result.protein.retired.length], [false, 0, 0], '같은 상품이면 바꾸지 않음');
   picks = pub_(b).picks.filter(p => p.item === 'protein');
-  assert.deepEqual(picks.map(p => p.title), [P[1], P[0], P[2], P[3], P[4]], '순서만 오늘 순위대로');
+  assert.deepEqual(picks.map(p => p.title), [P[1], P[0], P[2], P[3], P[4], P[6]], '순서만 오늘 순위대로');
   assert.deepEqual(picks.map(p => p.id).sort(), [...firstIds].sort(), '같은 카드(같은 링크)');
   assert.equal(picks[0].price, 9001, '가격 기록');
 
   later(b, DAY);
   out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(5), entry(0, 9000, false), entry(1, 9001, false), entry(2, 9002, false)] }) });
-  assert.deepEqual([out.result.protein.added, out.result.protein.retired.sort()], [[P[5]], [P[3], P[4]].sort()]);
+  assert.deepEqual([out.result.protein.added, out.result.protein.retired.sort()], [[P[5]], [P[3], P[4], P[6]].sort()]);
   later(b, DAY);
   out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(3), entry(0, 9000, false), entry(1, 9001, false)] }) });
   assert.equal(out.result.protein.added.length, 0, '빠졌던 상품이 다시 들면 새 링크 대신 예전 카드');
@@ -488,4 +488,63 @@ test('항목별 인기순 교체: 수집기 토큰으로만, 순위 순서로 �
   out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(1, 9001, false), entry(2, 9002, false)] }) });
   assert.equal(out.result.protein.applied, false, '3개보다 적으면 바꾸지 않음');
   assert.equal(pub_(b).picks.filter(p => p.item === 'protein').length, 3);
+});
+
+// 11/13 대표 결정: 브랜드가 겹치지 않게 인기순 + 그때그때 가격 좋은 상품(AMONG 기록 기준) + 오늘의 특가(골드박스 먹거리)
+test('후보 가격 기록 → 가격 내린 상품을 앞에, 브랜드는 항목당 하나씩 · 새 카드에 기록을 옮겨 30일 최저 표시 · 골드박스 특가는 그날 밤까지', async () => {
+  const { runRotation, parseWatch, parseDeals } = await import('../src/online/rotate.js');
+  const { selectRotation } = await import('../src/online/rotate-select.js');
+  const core = await import('../src/online-deals-core.js');
+  const b = boot();
+  const DAY = 24 * HOUR;
+  const html = (n, title) => `<a href="https://link.coupang.com/a/w${n}" target="_blank"><img src="https://img5c.coupangcdn.com/image/affiliate/banner/w${n}@2x.jpg" alt="${title}" width="120" height="240"></a>`;
+  const C = [['곰곰 프로틴바, 400g', 8000], ['곰곰 단백질 쉐이크 초코, 1kg', 19000], ['더단백 프로틴 드링크 초코, 250ml, 18개', 23000], ['얼티브 프로틴 초코, 250ml, 20개', 22000],
+    ['하이뮨 프로틴 밸런스, 250ml, 18개', 24000], ['셀렉스 프로핏 단백질 음료, 330ml, 12개', 21000], ['마이프로틴 임팩트 웨이 단백질 파우더, 1kg', 36000], ['랩노쉬 프로틴 드링크, 350ml, 12개', 20000]]
+    .map(([title, price]) => ({ title, price }));
+  assert.equal(core.odBrand('[쿠팡 단독] 곰곰 프로틴바'), '곰곰');
+  // 기록이 없을 때: 인기순으로 브랜드마다 하나씩 6개 (곰곰 두 번째 상품은 건너뜀)
+  let sel = selectRotation({ candidates: { protein: C }, current: {}, watch: [] }).protein;
+  assert.deepEqual(sel.top.map(t => core.odBrand(t.title)), ['곰곰', '더단백', '얼티브', '하이뮨', '셀렉스', '마이프로틴']);
+  assert.equal(sel.watch.length, 8, '후보 전체는 가격 기록용');
+  assert.ok(sel.top.every(t => t.needLink && !t.deal));
+  // 브랜드가 모자라면 인기순으로 채운다
+  assert.equal(selectRotation({ candidates: { protein: C.slice(0, 3) } }).protein.top.length, 3);
+
+  // 3일 동안 후보 가격만 기록 (카드는 위 6개)
+  const items = (list) => JSON.stringify({ protein: list.map((t, i) => ({ title: t.title, price: t.price, html: html(C.findIndex(c => c.title === t.title), t.title) })) });
+  for (let d = 0; d < 3; d++) {
+    const out = await runRotation({ api: b.api, text: items(sel.top), watchText: JSON.stringify({ protein: C }) });
+    assert.equal(out.watched, 8);
+    later(b, DAY);
+  }
+  assert.equal(b.gas.sheet('online_watch_log').objects().length, 24);
+  let watch = pub_(b).watch;
+  assert.equal(watch.length, 8);
+  assert.deepEqual(watch.find(w => w.title === C[7].title), { item: 'protein', title: C[7].title, low: 20000, high: 20000, days: 3 });
+  assert.equal(pub_(b).picks.filter(p => p.item === 'protein').length, 6);
+
+  // 4일째: 랩노쉬(8위, 카드 아님)가 20000 → 17000원으로 내림 → 맨 앞 + 새 링크 필요, 하이뮨 2% 내림은 '내렸다'로 보지 않음
+  const today = C.map(c => c.title === C[7].title ? { ...c, price: 17000 } : c.title === C[4].title ? { ...c, price: 23600 } : c);
+  sel = selectRotation({ candidates: { protein: today }, current: { protein: pub_(b).picks.filter(p => p.item === 'protein').map(p => p.title) }, watch }).protein;
+  assert.deepEqual([sel.top[0].title, sel.top[0].deal, sel.top[0].needLink], [C[7].title, true, true]);
+  assert.equal(sel.top.filter(t => t.deal).length, 1);
+  assert.equal(sel.top.length, 6);
+  assert.ok(!sel.top.some(t => t.title === C[6].title), '6위였던 상품이 밀려남');
+  const out = await runRotation({ api: b.api, text: JSON.stringify({ protein: sel.top.map(t => ({ title: t.title, price: t.price, ...(t.needLink ? { html: html(7, t.title) } : {}) })) }), watchText: JSON.stringify({ protein: sel.watch }),
+    dealsText: JSON.stringify([{ title: '코카콜라 190ml, 30개', price: 13180, html: html(90, '코카콜라 190ml, 30개') }, { title: '링크 없는 상품', price: 5000, html: '<p>x</p>' }]) });
+  assert.deepEqual(out.result.protein.added, [C[7].title]);
+  assert.deepEqual(out.dealResult.added, ['코카콜라 190ml, 30개']);
+  const card = pub_(b).picks.find(p => p.title === C[7].title);
+  assert.deepEqual([card.price, card.low30, card.lowDays, card.atLow], [17000, 17000, 4, true], '후보 시절 기록을 옮겨 올리자마자 30일 최저');
+  const gold = pub_(b).picks.find(p => p.title === '코카콜라 190ml, 30개');
+  assert.deepEqual([gold.item, gold.category, gold.note, gold.price], ['', 'food', '쿠팡 골드박스 오늘의 특가', 13180]);
+  assert.ok(Date.parse(gold.visibleUntil) - b.gas.clock.now <= DAY, '그날 밤(한국 시간)까지만');
+  // 같은 날 다시 보내도 특가·기록이 두 번 생기지 않는다
+  const again = await runRotation({ api: b.api, text: JSON.stringify({ protein: sel.top.map(t => ({ title: t.title, price: t.price })) }), watchText: JSON.stringify({ protein: sel.watch }), dealsText: JSON.stringify([{ title: '코카콜라 190ml, 30개', price: 13180, html: html(90, 'x') }]) });
+  assert.deepEqual(again.dealResult.added, []);
+  assert.equal(b.gas.sheet('online_watch_log').objects().length, 32);
+  // 입력 검사
+  assert.deepEqual(parseWatch('{"protein":[{"title":"테스트 류신 타블렛, 120정","price":9000},{"title":"곰곰 프로틴바, 400g","price":8000}],"mask":[{"title":"x","price":1}]}'), { protein: [{ title: '곰곰 프로틴바, 400g', price: 8000 }] });
+  assert.deepEqual(parseWatch('not json'), {});
+  assert.equal(parseDeals('[{"title":"a","price":1000}]').length, 0, '파트너스 링크 없는 특가는 받지 않음');
 });

@@ -1,7 +1,7 @@
 import { request } from './admin-request.js?v=20261107-1';
 // 온라인 특가 관리: 공급처 연결 상태·모드, 보류 사유, 숨김·분류 지정, 운영 규칙, 실행 기록.
 // 운영자는 예외와 규칙만 다룬다. 상품을 직접 입력하는 기능은 두지 않는다.
-import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_PUBLIC_CATEGORY, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261111-1';
+import { OD_CATEGORIES, OD_HOLD_LABELS, OD_MODES, OD_RESULTS, OD_STATUSES, OD_PICK_CATEGORIES, OD_PICK_PUBLIC_CATEGORY, OD_PICK_DEFAULT_DAYS, OD_PICK_ITEMS, OD_PICK_ITEM_DAYS, OD_LEAD_SOURCES, odLeadName, odPartnerHtml, odPickImage, odGuessItem } from './online-deals-core.js?v=20261113-1';
 
 const root = document.querySelector('#onlineDealsManager');
 const API = window.AMONG_CONFIG?.apiUrl || '';

@@ -570,7 +570,14 @@ export function odPickInput(raw, now, prev) {
 // 매일 아침 작업이 쿠팡 파트너스 '상품 링크' 검색(쿠팡랭킹순)에서 항목마다 위에서부터 고른 상품으로 항목 카드를 바꾼다.
 // 순위에 든 상품이 어제와 같으면 카드는 그대로 두고 가격만 기록한다. 순위에서 빠진 카드는 노출만 끝내고(30일 뒤 정리)
 // 다시 순위에 들면 같은 카드(같은 링크·가격 기록)를 다시 보여 준다. 대표가 숨긴 카드와 같은 상품은 올리지 않는다.
-export const OD_ROTATE_SIZE = 5;          // 항목마다 보여 줄 인기 상품 수
+export const OD_ROTATE_SIZE = 6;          // 항목마다 보여 줄 인기 상품 수 (11/13: 5 → 6, 브랜드가 겹치지 않게)
+// 11/13 대표 결정: 항목 카드를 더 다양하게 — 같은 브랜드는 항목당 하나씩 인기순으로, 그리고 '그때그때 가격 좋은 상품'을 먼저.
+// 가격이 좋은지는 AMONG이 매일 기록한 가격으로만 판단한다(다른 가격비교 사이트의 수치는 화면·판단 기준에 쓰지 않음 — 상품 고를 때 참고만).
+// 검색은 그대로 항목당 하루 한 번. 검색 결과 위쪽 OD_ROTATE_POOL개는 카드로 올리지 않아도 가격을 기록해 둔다(online_watch_log).
+export const OD_ROTATE_POOL = 24;         // 항목마다 살펴보고 가격을 기록하는 검색 결과 수
+export const OD_ROTATE_BRAND_MAX = 1;     // 한 항목에 같은 브랜드는 이만큼만 (모자라면 인기순으로 채운다)
+export const OD_DEAL_MAX = 2;             // 한 항목에서 '가격 내린 상품'으로 앞에 세우는 수
+export const OD_DEAL_DROP = 0.05;         // 기록 중 가장 비쌌던 날보다 이만큼(5%) 이상 싸야 '내렸다'고 본다
 export const OD_ROTATE_MIN = 3;           // 이보다 적게 고르면 그 항목은 바꾸지 않는다 (검색 결과가 이상한 날)
 export const OD_ROTATE_QUERIES = {        // 파트너스 검색어 (항목 이름과 다르게 찾는 게 나은 것만 다르게)
   water: '생수', ramen: '라면', rice: '즉석밥', frozen: '냉동 간편식', retort: '레토르트', chicken: '닭가슴살', protein: '단백질', canned: '통조림',
@@ -582,6 +589,55 @@ export function odRotateCandidate(title, item) {
   if (!odItem_(item) || t.length < 2 || t.length > 80) return false;
   if (/\d+\s*정(?=[\s,)]|$)|타블렛|캡슐|정제|환(?=[\s,)]|$)|보충제\s*정|당뇨|환자/.test(t)) return false;
   return odGuessItem(t) === item;
+}
+/** 상품명 맨 앞 낱말을 브랜드로 본다 ('[쿠팡 단독] 곰곰 프로틴바' → '곰곰') */
+export function odBrand(title) {
+  const t = odText(title, 81).replace(/^(?:\[[^\]]*\]|\([^)]*\))\s*/g, '');
+  return (t.split(/[\s,]/)[0] || '').toLowerCase();
+}
+/** 가격 기록용 후보: 그 항목 상품이고 가격이 있는 것만, 같은 상품명은 한 번, OD_ROTATE_POOL개까지 → [{title, price}] */
+export function odWatchInput(list, item) {
+  const out = [], seen = {};
+  (Array.isArray(list) ? list : []).forEach(function (c) {
+    const title = odText(c && c.title, 81).replace(/\s+/g, ' ').trim();
+    const price = c && Number.isSafeInteger(c.price) && c.price >= 100 && c.price <= 10000000 ? c.price : 0;
+    if (out.length >= OD_ROTATE_POOL || !price || seen[title] || !odRotateCandidate(title, item)) return;
+    seen[title] = true; out.push({ title: title, price: price });
+  });
+  return out;
+}
+/** 가격이 내렸나: 3일 이상 기록이 있고, 오늘 가격이 기록 중 가장 낮으며(같아도 됨), 가장 비쌌던 날보다 5% 이상 싸다 */
+export function odWatchDeal(stats, price) {
+  return !!(stats && stats.days >= OD_LOW_MIN_DAYS && odPosInt_(price) && price <= stats.low && price <= stats.high * (1 - OD_DEAL_DROP));
+}
+/**
+ * 오늘 올릴 순서 (순수 함수). candidates: 검색 결과 순서(인기순) [{title, price}], watch: { 상품명: {low, high, days} } (AMONG 기록)
+ * ① 가격 내린 상품(많이 내린 순, OD_DEAL_MAX개) ② 인기순으로 브랜드마다 하나씩 ③ 모자라면 인기순으로 채움 → OD_ROTATE_SIZE개 [{title, price, deal}]
+ */
+export function odRotateOrder(candidates, item, watch) {
+  const pool = odWatchInput(candidates, item), w = watch || {};
+  const drop = c => (w[c.title] ? 1 - c.price / w[c.title].high : 0);
+  const deals = pool.filter(c => odWatchDeal(w[c.title], c.price)).sort((a, b) => drop(b) - drop(a)).slice(0, OD_DEAL_MAX);
+  const out = [], brands = {}, taken = {};
+  const take = (c, deal) => { taken[c.title] = true; const b = odBrand(c.title); brands[b] = (brands[b] || 0) + 1; out.push({ title: c.title, price: c.price, deal: deal }); };
+  deals.forEach(c => { if ((brands[odBrand(c.title)] || 0) < OD_ROTATE_BRAND_MAX) take(c, true); });
+  pool.forEach(c => { if (out.length < OD_ROTATE_SIZE && !taken[c.title] && (brands[odBrand(c.title)] || 0) < OD_ROTATE_BRAND_MAX) take(c, false); });
+  pool.forEach(c => { if (out.length < OD_ROTATE_SIZE && !taken[c.title]) take(c, false); });
+  return out;
+}
+/** 오늘의 특가(쿠팡 골드박스) 입력 [{title, price, url, imageUrl}] → 검사 통과한 것만 OD_GOLDBOX_MAX개. 그날 밤(한국 시간) 내려간다 */
+export const OD_GOLDBOX_MAX = 6;
+export const OD_GOLDBOX_NOTE = '쿠팡 골드박스 오늘의 특가';
+export function odGoldboxInputs(list, now) {
+  const end = Date.parse(odKstDay_(now) + 'T23:59:00+09:00'), out = [], seen = {};
+  (Array.isArray(list) ? list : []).slice(0, 20).forEach(function (e) {
+    const o = e && typeof e === 'object' ? e : {};
+    const input = { title: o.title, url: o.url, imageUrl: o.imageUrl || '', category: OD_PICK_PUBLIC_CATEGORY, price: o.price, note: OD_GOLDBOX_NOTE, memo: '골드박스 ' + odKstDay_(now), endsAt: new Date(end).toISOString() };
+    const r = odPickInput(input, now, null);
+    if (out.length >= OD_GOLDBOX_MAX || end <= now || r.errors.length || !r.pick.price || seen[r.pick.title]) return;
+    seen[r.pick.title] = true; out.push(input);
+  });
+  return out;
 }
 const odSameTitle_ = (a, b) => String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
 /**
@@ -596,7 +652,7 @@ export function odRotatePlan(picks, item, entries, now) {
   const live = mine.filter(p => !p.hidden && odMs_(p.endsAt) > now);
   const used = {}, seenTitle = [];
   let rank = 0;
-  (Array.isArray(entries) ? entries : []).slice(0, OD_ROTATE_SIZE * 3).forEach(raw => {
+  (Array.isArray(entries) ? entries : []).slice(0, OD_ROTATE_POOL).forEach(raw => {
     if (rank >= OD_ROTATE_SIZE) return;
     const e = raw && typeof raw === 'object' ? raw : {};
     const title = odText(e.title, 81);

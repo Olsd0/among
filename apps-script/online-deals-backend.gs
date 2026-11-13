@@ -168,6 +168,59 @@ function odFreshLog_(picks, at) {
   return picks.filter(function (p) { return odPosInt_(p.price) && p.priceCheckedAt === at; }).map(function (p) { return { pickId: p.id, price: p.price, at: at }; });
 }
 
+// ---------- 후보 가격 기록 (11/13: 카드로 올리지 않은 검색 결과 위쪽 상품도 매일 가격만 기록 → '가격 내린 상품' 판단) ----------
+// 탭 online_watch_log: item · title · price · day(한국 날짜). 같은 항목·상품·날짜는 한 줄(나중 값). 35일 지나면 정리.
+function odReadWatchLog_() {
+  return readTable_('online_watch_log').rows.map(function (r) {
+    return { item: String(r.item), title: odUncell_(r.title), price: Number(r.price), day: String(r.day).slice(0, 10) };
+  }).filter(function (r) { return odItem_(r.item) && r.title && Number.isSafeInteger(r.price) && r.price > 0 && /^\d{4}-\d{2}-\d{2}$/.test(r.day); });
+}
+function odWatchIngest_(watch, now) {
+  const today = odKstDay_(now), from = odKstDay_(now - OD_PRICE_LOG_KEEP_DAYS * OD_DAY);
+  const add = [];
+  Object.keys(watch && typeof watch === 'object' ? watch : {}).slice(0, 8).forEach(function (item) {
+    if (!odItem_(item)) return;
+    odWatchInput(watch[item], item).forEach(function (c) { add.push({ item: item, title: c.title, price: c.price, day: today }); });
+  });
+  if (!add.length) return 0;
+  const fresh = {};
+  add.forEach(function (r) { fresh[r.item + '|' + r.title] = true; });
+  const rows = odReadWatchLog_().filter(function (r) { return r.day >= from && !(r.day === today && fresh[r.item + '|' + r.title]); }).concat(add).slice(-12000);
+  writeTable_(sheet_('online_watch_log'), SHEETS.online_watch_log, rows.map(function (r) { return { item: r.item, title: odCell_(r.title), price: r.price, day: r.day }; }));
+  return add.length;
+}
+/** 후보별 통계 [{item, title, low, high, days}] — 3일 이상 기록된 것만 (공개: 아침 작업이 '가격 내린 상품'을 고를 때 읽는다) */
+function odWatchStats_(now) {
+  const by = {};
+  odReadWatchLog_().forEach(function (r) { (by[r.item + '|' + r.title] = by[r.item + '|' + r.title] || []).push(r); });
+  return Object.keys(by).map(function (k) {
+    const st = odPriceStats(by[k].map(function (r) { return { price: r.price, at: r.day + 'T03:00:00.000Z' }; }), now);
+    return st && st.days >= OD_LOW_MIN_DAYS ? { item: by[k][0].item, title: by[k][0].title, low: st.low, high: st.high, days: st.days } : null;
+  }).filter(Boolean).slice(0, 400);
+}
+/** 새 카드에 후보 시절 가격 기록을 옮겨 붙인다 (오늘 것은 카드 기록이 따로 남으므로 뺀다) → 올리자마자 'AMONG 확인 30일 최저'를 판단할 수 있다 */
+function odWatchSeed_(pairs, now) {
+  if (!pairs.length) return;
+  const today = odKstDay_(now), log = odReadWatchLog_(), out = [];
+  pairs.forEach(function (x) {
+    log.forEach(function (r) { if (r.item === x.item && r.title === x.title && r.day < today) out.push({ pickId: x.id, price: r.price, at: r.day + 'T03:00:00.000Z' }); });
+  });
+  odAppendPriceLog_(out);
+}
+/** 오늘의 특가(쿠팡 골드박스 먹거리): 같은 상품명이 지금 보이면 건너뛰고, 그날 밤 내려가는 특가 카드로 올린다 */
+function odGoldboxApply_(picks, deals, now) {
+  const out = { added: [], skipped: [] }, fresh = [];
+  const live = picks.filter(function (p) { return !p.item && Date.parse(p.endsAt) > now; });
+  odGoldboxInputs(deals, now).forEach(function (input) {
+    const res = odPickInput(input, now, null);
+    if (res.errors.length || live.some(function (p) { return p.title === res.pick.title; }) || picks.length >= 400) { out.skipped.push(String(input.title).slice(0, 40)); return; }
+    res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
+    picks.push(res.pick); live.push(res.pick); fresh.push(res.pick); out.added.push(res.pick.title);
+  });
+  out.fresh = fresh;
+  return out;
+}
+
 /**
  * 항목별 인기순 교체 (매일 아침 작업 → online-item-rotate.yml → COLLECTOR_TOKEN).
  * b.items = { protein: [{title, price, url?, imageUrl?}, …(순위 순서)], … }. 항목마다 odRotatePlan으로 따로 판단하고,
@@ -180,7 +233,7 @@ function odItemRotateIngest_(b) {
   if (!keys.length) throw new Error('항목이 없어요.');
   const now = Date.now(), at = new Date(now).toISOString();
   const picks = odReadPicks_();
-  const report = {}, fresh = [];
+  const report = {}, fresh = [], seeds = [];
   keys.forEach(function (item) {
     const plan = odRotatePlan(picks, item, input[item], now);
     if (!plan.ok) { report[item] = { applied: false, reason: plan.reason, skipped: plan.skipped }; return; }
@@ -197,14 +250,19 @@ function odItemRotateIngest_(b) {
       const res = odPickInput(a.input, now, null);
       res.pick.id = 'pk_' + Utilities.getUuid().replace(/-/g, '').slice(0, 16).toLowerCase();
       res.pick.rank = a.rank;
-      picks.push(res.pick); fresh.push(res.pick);
+      picks.push(res.pick); fresh.push(res.pick); seeds.push({ id: res.pick.id, item: item, title: res.pick.title });
     });
     plan.retire.forEach(function (p) { p.endsAt = at; p.rank = 0; p.updatedAt = at; p.memo = OD_ROTATE_MARK + odKstDay_(now); });
     report[item] = { applied: true, changed: plan.changed, kept: plan.keep.length, added: plan.add.map(function (a) { return a.input.title; }),
       retired: plan.retire.map(function (p) { return p.title; }), skipped: plan.skipped };
   });
+  const gold = b.deals ? odGoldboxApply_(picks, b.deals, now) : null;
+  if (gold) gold.fresh.forEach(function (p) { fresh.push(p); });
   if (fresh.length) { odWritePicks_(picks); odAppendPriceLog_(odFreshLog_(fresh, at)); }
-  return { ok: true, items: report };
+  odWatchSeed_(seeds, now);
+  const watched = b.watch ? odWatchIngest_(b.watch, now) : 0;
+  try { CacheService.getScriptCache().remove(OD_CACHE_KEY); } catch (err) { /* 캐시는 60초 뒤 저절로 바뀐다 */ }
+  return { ok: true, items: report, watched: watched, deals: gold ? { added: gold.added, skipped: gold.skipped } : null };
 }
 
 /** 수집기가 찾은 후보를 같은 기준(odLeadInput)으로 다시 검사해 새 것만 더한다 */
@@ -246,7 +304,7 @@ function getOnlineDeals_() {
   const stats = odPriceStatsMap_(ctx.now);
   const picks = odReadPicks_().sort(odPublicOrder_).map(function (p) { return odPickPublic(p, ctx.now, stats[p.id]); }).filter(Boolean).slice(0, OD_PICK_MAX);
   if (picks.length && disclosures.indexOf(OD_SUPPLIERS.coupang.disclosure) < 0) disclosures.unshift(OD_SUPPLIERS.coupang.disclosure);
-  const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, picks: picks, disclosures: disclosures };
+  const out = { ok: true, generated_at: nowIso_(), state: state, count: items.length, items: items, picks: picks, disclosures: disclosures, watch: odWatchStats_(ctx.now) };
   try { cache.put(OD_CACHE_KEY, JSON.stringify(out), 60); } catch (err) { /* 100KB 초과 시 캐시 생략 */ }
   return out;
 }
