@@ -115,7 +115,7 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .hcard { position: relative; flex: 0 0 78%; --hot-ratio: 4 / 3; max-width: 312px; display: flex; flex-direction: column; border-radius: 23px; overflow: hidden; scroll-snap-align: start; background: var(--surface); color: var(--text); border: 1px solid var(--line); text-align: left; isolation: isolate; }
 .hcard:active { transform: scale(.985); }
 .hot-visual { position: relative; display: block; flex: none; width: 100%; aspect-ratio: var(--hot-ratio); overflow: hidden; background: var(--surface-2); }
-.hcard .hot-visual .ph { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; padding: 0; background: #fff; }
+.hcard .hot-visual .ph { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top; padding: 0; background: #fff; }
 .hot-visual > img.ph, .hot-visual > .ph-parts, .hot-visual > .notice-preview { position: absolute; inset: 0; }
 .hot-copy { flex: 1; min-height: 105px; display: flex; flex-direction: column; gap: 5px; padding: 14px 16px 12px; }
 .hcard .top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 21px; }

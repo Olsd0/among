@@ -154,3 +154,28 @@ test('확인 목록에서 다른 공지의 이미지로 올라 있는 주소는 
   assert.equal(noticeImageFor(cola, clicker, '2026-11-03'), '');
   assert.equal(noticeImageFor(cola, 'https://akamai.pizzahut.co.kr/2020pizzahut-prod/public/event/new-cola.png', '2026-11-03'), 'https://akamai.pizzahut.co.kr/2020pizzahut-prod/public/event/new-cola.png');
 });
+
+// 11/13 대표 요청: "핫딜 이미지는 해당 핫딜 링크에 있는 페이지 이미지를 넣어줘. 포스터나 이미지가 있는데 왜 대표 이미지를 사용해"
+test('상세 페이지의 포스터: 그 행사 하나만 다루는 페이지면 대체텍스트가 없어도 본문의 가장 큰 이미지, 없으면 그 페이지의 공유 이미지', () => {
+  const n = { brand: 'KFC', title: '치킨나이트 1+1 매일 밤 9시', evidence: '치킨나이트 매일 밤 9시부터 치킨 1+1', discount_label: '1+1' };
+  const list = { isDetail: false, ogImage: 'https://cdn.brand.kr/og-default.jpg', images: [img('common-banner.jpg', { w: 1200, h: 400 })] };
+  const poster = { src: 'https://cdn.brand.kr/event/night-poster.jpg', alt: '', w: 860, h: 3200, near: '', nearLen: 0 };
+  const detail = { isDetail: true, title: 'KFC 프로모션', text: '치킨나이트 1+1\n매일 밤 9시부터 매장 마감까지 …', ogImage: 'https://cdn.brand.kr/event/night-og.jpg',
+    images: [img('common-banner.jpg', { w: 1200, h: 400 }), { ...poster }, img('thumb-small.jpg', { w: 320, h: 240 }), { src: 'https://cdn.brand.kr/img/logo_kfc.png', alt: 'KFC', w: 400, h: 300 }] };
+  assert.equal(pickNoticeImage(n, [list, detail], { own: detail, single: true }), poster.src, '세로로 긴 포스터도 그 페이지 것이면 사용, 목록에도 있는 공통 배너·로고는 제외');
+  // 본문 이미지가 없으면 그 페이지의 공유 이미지 (사이트 기본 이미지와 다를 때만)
+  assert.equal(pickNoticeImage(n, [list, { ...detail, images: [] }], { own: { ...detail, images: [] }, single: true }), '');
+  const noImg = { ...detail, images: [] };
+  assert.equal(pickNoticeImage(n, [list, noImg], { own: noImg, single: true }), 'https://cdn.brand.kr/event/night-og.jpg');
+  const defaultOg = { ...detail, images: [], ogImage: list.ogImage };
+  assert.equal(pickNoticeImage(n, [list, defaultOg], { own: defaultOg, single: true }), '', '사이트 기본 공유 이미지는 쓰지 않음');
+  // 11/03 오류를 다시 만들지 않는다: 그 페이지에서 공지를 여러 개 읽었거나, 페이지 첫머리가 다른 행사면 쓰지 않는다
+  assert.equal(pickNoticeImage(n, [list, detail], { own: detail, single: false }), '');
+  const other = { ...detail, title: '맥도날드', text: '제주 맥피즈 출시! 상큼한 제주 한라봉 …'.padEnd(600, ' ') + '치킨나이트 1+1 매일 밤 9시' };
+  assert.equal(pickNoticeImage(n, [list, other], { own: other, single: true }), '', '다른 행사의 상세 페이지');
+  // 금액이 적힌 대체텍스트가 공지와 다르면 그 이미지는 건너뛴다, 수천만 화소 원본도 제외
+  const wrongAmount = { ...detail, ogImage: '', images: [{ ...poster, alt: '마케팅 수신 동의 20% 할인' }, { src: 'https://cdn.brand.kr/event/huge.jpg', alt: '', w: 3000, h: 9000 }] };
+  assert.equal(pickNoticeImage(n, [list, wrongAmount], { own: wrongAmount, single: true }), '');
+  // 목록에서 읽은 공지(상세가 아님)는 전과 같이 카드 글·대체텍스트로만
+  assert.equal(pickNoticeImage(n, [list], { own: list, single: true }), '');
+});

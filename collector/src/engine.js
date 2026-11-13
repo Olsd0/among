@@ -1204,8 +1204,42 @@ export function pickNoticeImage(n = {}, pages = [], { own = null, single = false
   // 공유 대표 이미지(og)는 쓰지 않는다. 상세 페이지에서 AI가 그 페이지의 행사가 아닌 공지를 함께 읽으면
   // og가 다른 행사 이미지가 된다 (11/03 실제: 파파존스 '파파스데이'에 불닭 통신사 이미지, 맥도날드 '앱 신규 가입'에 '제주 맥피즈' 배너).
   // 제목·원문과 맞는 카드 이미지만 쓰고, 없으면 화면이 같은 브랜드의 상품 사진으로 대신한다.
-  void own; void single;
-  return '';
+  // 3) 11/13 대표 요청 "핫딜 이미지는 해당 핫딜 링크에 있는 페이지 이미지를 넣어줘. 포스터나 이미지가 있는데 왜 대표 이미지를 쓰냐":
+  //    공지를 읽은 화면이 그 행사 하나만 다루는 상세 페이지면, 대체텍스트가 없어도 그 페이지의 본문 이미지(포스터)를 쓴다.
+  return detailPoster(n, pages, own, single);
+}
+
+/**
+ * 상세 페이지의 포스터 — 조건을 모두 채울 때만 (11/03의 '다른 행사 이미지' 오류를 다시 만들지 않게):
+ * - 그 페이지에서 읽은 공지가 이것 하나뿐(single)이고, 페이지 제목이나 본문 첫머리(400자)에 공지 제목의 고유 낱말이 40% 이상 있다(= 그 행사의 페이지)
+ * - 이미지는 그 페이지에만 있는 것(목록·다른 상세에도 나오는 공통 배너 제외), 로고·아이콘·띠 배너 아님, 금액이 적힌 대체텍스트면 공지 금액과 같음
+ * - 가장 큰 것 하나. 세로로 긴 포스터도 허용(카드에서는 윗부분이 보임), 수천만 화소 원본은 제외
+ * 없으면 그 페이지의 공유 대표 이미지(og) — 목록·다른 상세와 같은 사이트 기본 이미지면 쓰지 않는다
+ */
+function detailPoster(n, pages, own, single) {
+  if (!own || !own.isDetail || !single) return '';
+  const tokens = titleTokens(n);
+  if (!tokens.length) return '';
+  const about = moneyKey(`${own.title || ''} ${String(own.text || '').slice(0, 400)}`);
+  if (tokens.filter((t) => about.includes(t)).length < Math.ceil(tokens.length * 0.4)) return '';
+  const elsewhere = new Set();
+  for (const p of pages) if (p && p !== own) { for (const i of p.images || []) if (i && i.src) elsewhere.add(i.src); if (p.ogImage) elsewhere.add(p.ogImage); }
+  const mine = amounts(`${n.title || ''} ${n.evidence || ''} ${n.discount_label || ''} ${n.summary || ''}`);
+  const ok = (i) => {
+    const src = String(i.src || ''), w = +i.w || 0, h = +i.h || 0;
+    if (!/^https:\/\//i.test(src) || /\.(svg|gif)(\?|#|$)/i.test(src) || elsewhere.has(src)) return false;
+    let path = src;
+    try { path = decodeURIComponent(new URL(src).pathname); } catch { /* 그대로 */ }
+    if (NON_PHOTO.test(path) || NON_PHOTO.test(i.alt || '')) return false;
+    if (w < 300 || h < 200 || w / h > 4 || h / w > 12 || w * h > 16e6) return false;
+    if (n.brand && i.alt && squash(i.alt) === squash(n.brand)) return false;
+    const own$ = amounts(i.alt || '');
+    return !own$.length || own$.some((x) => mine.includes(x));
+  };
+  const best = (own.images || []).filter(ok).sort((a, b) => b.w * b.h - a.w * a.h)[0];
+  if (best) return best.src;
+  const og = String(own.ogImage || '');
+  return /^https:\/\//i.test(og) && !/\.(svg|gif)(\?|#|$)/i.test(og) && !elsewhere.has(og) && !NON_PHOTO.test(og) ? og : '';
 }
 
 /** 서로 다른 공지 여러 개에 붙은 같은 이미지는 공지 고유 이미지가 아니다(사이트 공통 배너 등) → 뗀다. 확인 목록 이미지는 그대로 */
