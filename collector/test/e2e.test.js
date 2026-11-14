@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { serveDir } from './helpers.js';
 import { runCollector } from '../src/run.js';
 import { clearRobotsCache } from '../src/robots.js';
+import { encodeArtworkUrl } from '../src/artwork-meta.js';
 
 const NOW = new Date('2026-10-25T03:00:00Z');
 let site;
@@ -179,9 +180,19 @@ test('기간 팩트체크 연결 (11/10): 끝나는 날 없는 공식 소식만 
     },
   };
   const asked = [];
+  let artworkCalls = 0;
+  const artworkUrl = encodeArtworkUrl('https://press.example/burger.jpg', { kind: 'press_related', source: 'https://press.example/article/1', checkedAt: '2026-11-10T03:00:00.000Z', credit: '브랜드 제공' });
+  const artwork = async (news, options) => {
+    artworkCalls++;
+    const event = news.find(n => /와퍼/.test(n.title));
+    assert.equal(event.end_date, '2026-11-13', 'image lookup runs after the official period check');
+    assert.equal(options.pages.length, 1);
+    assert.ok(options.pages.every(page => !('screenshots' in page)), 'image lookup keeps links rather than screenshot buffers');
+    return { news: news.map(n => n.id === event.id ? { ...n, image_url: artworkUrl } : n), summary: { checked: 1, filled: 1 } };
+  };
   const official = async (n) => { asked.push(n.title); return { start: '2026-11-09', end: '2026-11-13', source: '공식 공지 이미지' }; };
   const sources = [{ id: 'bk-event', brand: '버거킹', category: '햄버거', url: `${site.base}/period/list.html`, selector: 'main', max_follow: 0, active: true }];
-  const report = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'test' }, now: new Date('2026-11-10T03:00:00Z'), sources, sheet, official, press: { connected: false, name: '연결 안 됨 (시험)' }, quiet: true });
+  const report = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'test' }, now: new Date('2026-11-10T03:00:00Z'), sources, sheet, official, artwork, press: { connected: false, name: '연결 안 됨 (시험)' }, quiet: true });
   assert.equal(report.state, 'success');
   assert.deepEqual(calls.map((c) => c.action), ['run_start', 'news_periods', 'ingest', 'run_finish']);
   assert.deepEqual(asked, ['26년 11월 와퍼 3900원 프로모션'], '요일 행사는 상시라 확인하지 않음');
@@ -189,6 +200,9 @@ test('기간 팩트체크 연결 (11/10): 끝나는 날 없는 공식 소식만 
   assert.deepEqual([sent.status, sent.start_date, sent.end_date, sent.period_source], ['published', '2026-11-09', '2026-11-13', '공식 공지 이미지']);
   assert.equal(report.period.filled.length, 1);
   assert.equal(report.period.press, '연결 안 됨 (시험)');
+  assert.equal(artworkCalls, 1);
+  assert.equal(report.artwork.filled, 1);
+  assert.equal(sent.image_url, artworkUrl, 'the complete provenance URL reaches existing ingest');
 });
 
 test('공지 배너 눌러 상세 열기 (11/10 버거킹 실제 구조): 이미지가 아니라 카드의 detail 버튼 → 상세 글자에서 공식 기간 · 이미지 없는 공지는 제목 낱말로', { timeout: 60000 }, async () => {

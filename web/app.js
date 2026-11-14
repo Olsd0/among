@@ -4,6 +4,7 @@ import {
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
 } from './engine.js?v=20261114-3';
+import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261114-3';
@@ -339,7 +340,10 @@ function applyData(data) {
   state.appCouponRefs = data.app_coupon_refs || [];
   state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: couponImage(c), programs: c.programs || [] }));
   const notices = DEMO ? (data.news || []) : withCouponEventNews(withVerifiedNews(data.news || []), state.coupons.map(c => ({ status: 'published', ...c })));
-  state.news = notices.filter((n) => (!n.status || n.status === 'published') && (!n.end_date || n.end_date >= todayKST())).map((n) => ({ ...n, image_url: noticeImageFor(n, safeImg(n.image_url)), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
+  state.news = notices.map(n => {
+    const art = decodeArtworkUrl(n.image_url);
+    return art.meta ? { ...n, image_url: art.url, image_kind: art.meta.kind, image_source_url: art.meta.source, image_checked_at: art.meta.checkedAt, image_credit: art.meta.credit, image_fit: 'contain' } : n;
+  }).filter((n) => (!n.status || n.status === 'published') && (!n.end_date || n.end_date >= todayKST())).map((n) => ({ ...n, image_url: noticeImageFor(n, safeImg(n.image_url)), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();
@@ -528,9 +532,9 @@ function noticeVisual(n, detail = false) {
     const capture = !registryPoster && n.image_kind === 'official_capture';
     const related = !registryPoster && n.image_kind === 'official_related';
     const campaign = !registryPoster && n.image_kind === 'official_campaign';
-    const press = !registryPoster && n.image_kind === 'press_related';
+    const press = !registryPoster && /^press_(?:related|event)$/.test(n.image_kind || '');
     const label = press ? '기사 관련 이미지' : capture ? '공식 페이지 캡처' : campaign ? '공식 캠페인 이미지' : related ? '공식 관련 이미지' : '공식 공지 이미지';
-    return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, related, campaign, press, source: safeUrl(n.image_source_url), contain: capture || n.image_fit === 'contain', fallback: product };
+    return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, related, campaign, press, source: registryPoster ? '' : safeUrl(n.image_source_url), contain: capture || n.image_fit === 'contain', fallback: product };
   }
   return product;
 }

@@ -14,6 +14,7 @@ import { pressFromEnv } from './press-search.js';
 import { SheetClient } from './sheet.js';
 import { withCouponEventNews } from './event-notices.js';
 import { repairEventSources } from './event-sources.js';
+import { resolveEventArtwork } from './event-artwork.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -96,6 +97,8 @@ export async function runCollector(o = {}) {
     ctx = o.browser || (await openBrowser());
     const all = [];
     const allNews = [];
+    const artworkPages = [];
+    let previousNews = [];
 
     // 출처 여러 개를 동시에 (기본 4) — 출처 수가 늘어도 작업 제한 시간(25분) 안에 끝나게. 같은 사이트 안에서는 여전히 1.5초 간격
     // 실행 시간 예산(기본 35분): 작업 제한 25분 전에 스스로 마무리해 결과·기록을 남긴다.
@@ -108,6 +111,7 @@ export async function runCollector(o = {}) {
       try {
         if (stopReason) throw new Error(`건너뜀: ${stopReason}`);
         const pages = await collectSource(ctx, source, { outDir: env.SAVE_SHOTS === '1' ? join(outDir, 'shots') : undefined });
+        artworkPages.push(...pages.filter(p => !p.error).map(p => ({ url: p.finalUrl || p.url, title: p.title, links: p.links || [], source_id: source.id, brand: source.brand }))); 
         const srcNews = [];  // [소식, 읽은 페이지, 그 페이지의 소식이 하나뿐인가]
         for (const page of pages) {
           if (page.error) { report.errors.push(`${source.id} 상세: ${page.error}`); continue; }
@@ -201,7 +205,9 @@ export async function runCollector(o = {}) {
     // 같은 행사인데 AI 표기 차이로 id가 바뀌는 것을 막는다 (지금 게시 중인 쿠폰의 id를 이어 씀)
     if (statusReader && env.STABILIZE_IDS !== '0') {
       try {
-        const st = stabilizeIds(merged, (await statusReader.get('coupons')).coupons);
+        const previous = await statusReader.get('coupons');
+        previousNews = previous.news || [];
+        const st = stabilizeIds(merged, previous.coupons);
         merged = st.list;
         report.ids_reused = st.reused;
       } catch (e) { report.errors.push(`id 안정화 건너뜀: ${e.message}`); }
@@ -251,6 +257,19 @@ export async function runCollector(o = {}) {
     // 이번 실행에서 실제 수집·검증된 쿠폰만 공지로 연결한다.
     // 수동 확인 행사는 브라우저에서 원래 확인 시각으로 합치며 자동 ingest로 시각을 갱신하지 않는다.
     news = withCouponEventNews(news, merged, { today: todayKST(now), now: now.getTime() });
+    // 공식 이미지 우선. 미확보 공지만 공개 보도자료/기사 사진을 찾아 기존 시트에 출처와 함께 저장한다.
+    // 모의 테스트는 네트워크를 호출하지 않으며, 실패해도 이미 검증한 혜택은 유지한다.
+    if (env.ARTWORK_LOOKUP !== '0' && (llm.provider !== 'mock' || o.artwork) && Date.now() < deadline - 60000) {
+      try {
+        const artwork = await (o.artwork || resolveEventArtwork)(news, {
+          pages: artworkPages, knownNews: previousNews, press: o.press || pressFromEnv(env), now,
+          maxItems: 8, maxArticles: 2, budgetMs: Math.min(60000, deadline - Date.now() - 30000),
+        });
+        news = artwork.news;
+        report.artwork = artwork.summary;
+        log('  공지 이미지 확인: ' + JSON.stringify(artwork.summary));
+      } catch (e) { report.errors.push('공지 이미지 보완: ' + e.message); }
+    }
     merged = merged.map(c => ({ ...c, hash: contentHash(c) }));
     report.summary = summarize(merged);
     news = news.map((n) => ({ ...n, hash: newsHash(n) }));

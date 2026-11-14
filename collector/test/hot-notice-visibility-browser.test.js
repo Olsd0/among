@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { encodeArtworkUrl } from '../src/artwork-meta.js';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { serveDir } from './helpers.js';
@@ -20,7 +21,7 @@ const DATA = {
     start_date: '2026-11-14', end_date: '2026-11-14', status: 'published',
     checked_at: NOW, first_seen: NOW, programs: [], related_ids: [], notice_only: true,
     source_url: `https://pay.naver.com/benefit/payment/detail/test-${i}`,
-    image_url: './event-images/dunkin-npay-dday-20261114.webp',
+    image_url: i === 0 ? encodeArtworkUrl('https://press.example/photo.jpg', { kind: 'press_related', source: 'https://press.example/article/1', checkedAt: NOW, credit: '브랜드 제공' }) : './event-images/dunkin-npay-dday-20261114.webp',
   })),
 };
 
@@ -139,5 +140,16 @@ test('a transient local poster failure retries once and preserves the poster and
   assert.equal(new URL(await poster.getAttribute('src'), site.base).pathname, HANS_IMAGE);
   assert.equal(await page.locator('#newsSheet [data-news-src]').getAttribute('href'), HANS_SOURCE);
   assert.equal(await page.locator('#newsSheet .notice-image-error').isVisible(), false);
+  assert.deepEqual(errors, []);
+});
+
+test('a press photo from the public API displays its source and label without exposing the metadata fragment', { timeout: 30000 }, async t => {
+  const { page, errors } = await setup(t);
+  await ready(page, '?n=n_visibility_fixture_0');
+  const dialog = page.locator('#newsSheet[open]');
+  assert.equal(await dialog.locator('.notice-image-label').innerText(), '기사 관련 이미지');
+  assert.equal(await dialog.locator('img.ph').getAttribute('src'), 'https://press.example/photo.jpg');
+  assert.equal(await dialog.locator('.notice-image-credit a').getAttribute('href'), 'https://press.example/article/1');
+  assert.equal(await dialog.locator('[data-news-src]').getAttribute('href'), 'https://pay.naver.com/benefit/payment/detail/test-0');
   assert.deepEqual(errors, []);
 });
