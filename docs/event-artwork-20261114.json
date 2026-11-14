@@ -25,10 +25,12 @@
       "kind": "official_capture"
     },
     {
-      "file": "sulbing-npay-202611-capture.webp",
-      "source": "https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB",
-      "kind": "official_capture",
-      "note": "Exact event row including official brand image, payment conditions and current deadline; poster not independently available."
+      "file": "sulbing-npay-202611-poster.webp",
+      "source": "https://sulbing.com/index.php",
+      "official_post": "https://www.instagram.com/p/Dfgh7PznQ9z/",
+      "official_embedded_feed": "https://lightwidget.com/widgets/5c0b63b1dd1d5204bcf0cf1ea0387291.html",
+      "kind": "official_poster",
+      "note": "Original official Instagram poster linked from the Sulbing homepage. Poster confirms Nov 12–15 and one reward up to 30000P per person."
     },
     {
       "file": "shakeshack-npay-202611-capture.webp",

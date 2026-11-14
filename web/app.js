@@ -8,7 +8,7 @@ import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=2026
 
 import { noticePhoto } from './notice-images.js?v=20261114-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
-import { withVerifiedEvents } from './verified-events.js?v=20261114-3';
+import { withVerifiedEvents } from './verified-events.js?v=20261114-4';
 import { withCouponEventNews } from './event-notices.js?v=20261114-3';
 import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';

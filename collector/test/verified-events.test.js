@@ -35,7 +35,7 @@ test('Npay point rewards do not become a reduced purchase price; unknown normal 
       assert.equal(c.max_discount, 50000);
       assert.equal(c.min_order, 10000);
     } else {
-      assert.equal(c.max_discount, null, 'unknown cap stays unknown');
+      assert.equal(c.max_discount, 30000, 'official Sulbing poster confirms the cap');
       assert.equal(c.min_order, 9900);
     }
     assert.equal(computeCouponPrice({ ...c, regular_price: 10000 }).coupon_price, null);
@@ -151,13 +151,14 @@ test('explicitly reviewed live IDs are enriched and removed on expiry without re
   }
 });
 
-test('unknown starts stay unknown, and live alias IDs alone cannot rewrite different benefits', () => {
+test('official poster confirms Sulbing dates, and alias IDs cannot rewrite different benefits', () => {
   const e = event('sulbing_npay_20261115');
   const n = seed().news.find((x) => x.event_id === e.id);
-  assert.equal(n.start_date, null);
+  assert.equal(n.start_date, '2026-11-12');
   assert.equal(n.period_source, '공식 원문');
   assert.match(n.period_refs, /^Npay\|https:.*\|2026-11-14$/);
-  assert.equal(withVerifiedEvents({}, '2026-11-13').news.some((x) => x.event_id === e.id), false);
+  assert.equal(withVerifiedEvents({}, '2026-11-11').news.some((x) => x.event_id === e.id), false);
+  assert.equal(withVerifiedEvents({}, '2026-11-13').news.some((x) => x.event_id === e.id), true);
   const spoof = { id: e.alias_ids[0], brand: '설빙', menu: '전 메뉴', discount_type: 'percent', discount_value: 30, programs: ['네이버페이'] };
   assert.deepEqual(withVerifiedEvents({ coupons: [spoof] }, today).coupons.find((x) => x.id === spoof.id), spoof);
 });
