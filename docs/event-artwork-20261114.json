@@ -1,0 +1,112 @@
+{
+  "reviewed_at": "2026-11-14T06:37:48.321Z",
+  "method": "Exact official event posters downloaded and optimized to WebP; official_capture files are unaltered crops of the rendered official page. No generated artwork or recreated text.",
+  "artwork": [
+    {
+      "file": "dunkin-npay-dday-20261114.webp",
+      "source": "https://www.dunkindonuts.co.kr/event/view?id=5470",
+      "original": "https://www.dunkindonuts.co.kr/storage/editor/d61FEJw2Kpk2o4qCA2eTVecr09m240AwbxyHHHvK.png"
+    },
+    {
+      "file": "dunkin-combo-gift-2026.webp",
+      "detail_file": "dunkin-combo-gift-2026-detail.webp",
+      "source": "https://www.dunkindonuts.co.kr/index.php/event/view?id=5407",
+      "original": "https://www.dunkindonuts.co.kr/storage/editor/o0VG7QZhyh9ghmDgIQeszGFUq57UhWFZnNdUwN26.jpg",
+      "crop": "card: top 940×1440 pixels; detail: full original"
+    },
+    {
+      "file": "hans-npay-202611-capture.webp",
+      "source": "https://pay.naver.com/benefit/payment/detail/24278798653708",
+      "kind": "official_capture"
+    },
+    {
+      "file": "gapyeong-npay-202611-capture.webp",
+      "source": "https://pay.naver.com/benefit/payment/detail/24278798653677",
+      "kind": "official_capture"
+    },
+    {
+      "file": "sulbing-npay-202611-capture.webp",
+      "source": "https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB",
+      "kind": "official_capture",
+      "note": "Exact event row including official brand image, payment conditions and current deadline; poster not independently available."
+    },
+    {
+      "file": "shakeshack-npay-202611-capture.webp",
+      "source": "https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB",
+      "kind": "official_capture",
+      "note": "Exact event row including official brand image, payment conditions and current deadline; poster not independently available."
+    },
+    {
+      "file": "pascucci-npay-202611-capture.webp",
+      "source": "https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB",
+      "kind": "official_capture",
+      "note": "Exact event row including official brand image, payment conditions and current deadline; poster not independently available."
+    },
+    {
+      "file": "baskin-hoppang-case-202611.webp",
+      "source": "https://www.baskinrobbins.co.kr/play/event/view.php?seq=646&category=ALL",
+      "original": "https://www.baskinrobbins.co.kr/upload/promotion/event/2bade322b4dc71a170d5101f9c60fed4.png"
+    },
+    {
+      "file": "papajohns-papasday-20261118.webp",
+      "source": "https://www.pji.co.kr/event/ongoing/9638",
+      "original": "https://imgcdn4.pji.co.kr/pc/img/event/papasday/261118.jpg"
+    },
+    {
+      "file": "kfc-doom-challenge-202611.webp",
+      "source": "https://www.kfckorea.com/promotion/promotionList/detail/1134",
+      "original": "https://www.kfckorea.com/nas/event/2026/11/13/hAXteDAwDHl8.jpg"
+    },
+    {
+      "file": "paris-holiday-2026.webp",
+      "source": "https://www.paris.co.kr/promotion/holiday-2026-preorder/",
+      "original": "https://d2afncas1tel3t.cloudfront.net/wp-content/uploads/2026/11/261110_썸네일_1000x1000-600x600.jpg"
+    },
+    {
+      "file": "paris-uplus-20261116.webp",
+      "source": "https://www.paris.co.kr/promotion/pb-benefit-nov-2026/",
+      "original": "https://d2afncas1tel3t.cloudfront.net/wp-content/uploads/2026/11/혜택_03.png"
+    },
+    {
+      "file": "starbucks-christmas1-2026.webp",
+      "source": "https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq=3567",
+      "original": "https://image.istarbucks.co.kr/upload/promotion/WEB_THUM_20261021085932676.jpg"
+    },
+    {
+      "file": "starbucks-winter-frequency-2026.webp",
+      "source": "https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq=3499",
+      "original": "https://image.istarbucks.co.kr/img/event/2026/wn_2026eFreqWinter_eventInfo_260929_01.jpg"
+    },
+    {
+      "file": "tlj-tday-20261118.webp",
+      "source": "https://m.tworld.co.kr/v6/benefit",
+      "original": "https://cdn.sktmembership.co.kr/mps.app/tday/202610/1792655008743.jpg"
+    }
+  ],
+  "period_corrections": [
+    {
+      "id": "n_c94c469d4626",
+      "source": "https://popeyes.co.kr/event/69",
+      "end": "2026-11-11"
+    },
+    {
+      "id": "n_5115cf53eee2",
+      "source": "https://popeyes.co.kr/event/67",
+      "original": "https://storage.googleapis.com/popeyes-homepage.firebasestorage.app/legacy/file/event/3698713134_mE8Nhaqy_402566fddd320dacb5f0e48680a6c254b2351d0b.jpg",
+      "end": "2026-11-08"
+    },
+    {
+      "id": "n_8d748f7d6591",
+      "coupon_id": "c_f39852815df3",
+      "source": "https://paikdabang.com/post_news/2026_promotion/",
+      "original": "https://paikdabang.com/wp-content/uploads/2025/12/251218_빽다방_새해기념말차할인_포스터최종_O.jpg",
+      "end": "2026-01-08"
+    },
+    {
+      "id": "n_fd4864185ad9",
+      "source": "https://www.pji.co.kr/event/ongoing/9638",
+      "start": "2026-11-18",
+      "end": "2026-11-18"
+    }
+  ]
+}

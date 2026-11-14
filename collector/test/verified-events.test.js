@@ -218,3 +218,31 @@ test('Dunkin optional index.php route and URL tracking resolve to the same offic
   assert.equal(sameEvent(collected, c), true);
   assert.equal(withVerifiedEvents({ coupons: [collected] }, today).coupons.filter((x) => sameEvent(x, c)).length, 1);
 });
+
+
+test('poster-confirmed expired list rows are dated without changing later generations or unrelated coupons', () => {
+  const news = [
+    { id: 'n_c94c469d4626', brand: '파파이스', title: '수요일 치킨 1+1 및 콜라 100원', summary: '11월 11일 수요일 한정', first_seen: '2026-10-28T02:35:17.344Z', source_url: 'https://popeyes.co.kr/event' },
+    { id: 'n_5115cf53eee2', brand: '파파이스', title: '버거 2종 7,900원 특가', summary: '루이 치킨휠레 버거', first_seen: '2026-11-03T08:41:44.039Z', source_url: 'https://popeyes.co.kr/event' },
+    { id: 'n_8d748f7d6591', brand: '빽다방', title: '말차 전 메뉴 2,026원 프로모션', summary: '2026년 말의해 프로모션', first_seen: '2026-10-28T20:19:12.194Z', source_url: 'https://paikdabang.com/news/?cate=event' },
+  ];
+  const matcha = { id: 'c_f39852815df3', brand: '빽다방', first_seen: '2026-10-26T21:06:40.587Z', menu: '말차 전 메뉴', discount_type: 'price', discount_value: 2026, source_url: 'https://paikdabang.com/news/?cate=event', hidden: true };
+  const coffee = { id: 'c_6922043b6761', brand: '빽다방', menu: '아메리카노(ICED)', end_date: '2026-12-14' };
+  const result = withVerifiedEvents({ news, coupons: [matcha, coffee] }, '2026-11-14');
+  assert.deepEqual(result.news.slice(0, 3).map(n => n.end_date), ['2026-11-11', '2026-11-08', '2026-01-08']);
+  assert.equal(result.coupons[0].end_date, '2026-01-08');
+  assert.equal(result.coupons[0].hidden, true);
+  assert.deepEqual(result.coupons[1], coffee);
+  const later = news.map(n => ({ ...n, start_date: '2026-12-01', end_date: '2026-12-31' }));
+  assert.deepEqual(withVerifiedEvents({ news: later }, '2026-11-14').news.slice(0, 3), later);
+  const next = news.map(n => ({ ...n, first_seen: '2026-12-01T00:00:00Z' }));
+  assert.deepEqual(withVerifiedEvents({ news: next }, '2026-11-14').news.slice(0, 3), next);
+});
+
+test('reviewed artwork fills an empty exact event but does not relabel an existing different image', () => {
+  const template = withVerifiedEvents({}, '2026-11-14').news.find(n => n.event_id === 'hans_npay_20261112');
+  const current = { ...template, image_url: 'https://example.com/new-official-poster.jpg', image_kind: undefined, image_checked_at: undefined };
+  const result = withVerifiedEvents({ news: [current] }, '2026-11-14').news.find(n => n.id === current.id);
+  assert.equal(result.image_url, current.image_url);
+  assert.equal(result.image_kind, undefined);
+});

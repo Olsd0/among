@@ -1,4 +1,4 @@
-import { noticeImage, noticePhoto, isListedNoticeImage } from './notice-images.js?v=20261104-1';
+import { noticeImage, noticePhoto, isListedNoticeImage } from './notice-images.js?v=20261114-3';
 
 /** 확인 목록에 있는 공지는 그 목록의 이미지만(비어 있으면 일부러 뺀 것: 예 9MB 원본), 없으면 수집 때 고른 공지 이미지 */
 export function noticeImageFor(n = {}, picked = '', today) {

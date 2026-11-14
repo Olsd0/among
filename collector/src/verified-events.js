@@ -20,6 +20,9 @@ export const verifiedEvents = [
       how_to_use: '참여 매장에서 Npay 포인트·머니로 결제하고 공식 행사 조건을 확인하세요.',
     },
     news: {
+      image_url: './event-images/hans-npay-202611-capture.webp',
+      image_kind: 'official_capture',
+      image_checked_at: '2026-11-14',
       title: 'HANS 네이버페이 50% 포인트 적립', discount_label: '50% 적립',
       summary: '11월 12~18일, Npay 포인트·머니로 10000원 이상 결제하면 50% 포인트 적립. 기간 내 횟수 제한 없이 1인 합계 50000P 한도입니다. 즉시 가격할인과 구분해 주세요.',
     },
@@ -40,6 +43,9 @@ export const verifiedEvents = [
       how_to_use: '가평휴게소에서 행사 참여 매장을 확인하고 Npay 포인트·머니로 결제하세요.',
     },
     news: {
+      image_url: './event-images/gapyeong-npay-202611-capture.webp',
+      image_kind: 'official_capture',
+      image_checked_at: '2026-11-14',
       title: '가평휴게소 네이버페이 50% 적립', discount_label: '50% 적립',
       summary: '11월 6일~12월 6일, Npay 포인트·머니로 10000원 이상 결제하면 50% 포인트 적립. 기간 중 1인 합계 50000P 한도이며 일부 브랜드 매장·편의점 담배는 제외됩니다.',
     },
@@ -81,6 +87,11 @@ export const verifiedEvents = [
       how_to_use: 'Npay QR로 결제하고 결제 전 공식 행사 상세 조건을 확인하세요.',
     },
     news: {
+      image_url: "./event-images/dunkin-npay-dday-20261114.webp",
+      image_fit: 'contain',
+      image_kind: "official_poster",
+      image_source_url: "https://www.dunkindonuts.co.kr/event/view?id=5470",
+      image_checked_at: "2026-11-14",
       title: '던킨 네이버페이 QR 4800원 할인', discount_label: '4800원 할인',
       summary: '11월 14일 종료. 던킨에서 Npay QR로 12000원 결제 시 4800원 할인됩니다. 참여 매장·한도·중복 적용은 공식 행사 상세를 확인하세요.',
     },
@@ -101,6 +112,9 @@ export const verifiedEvents = [
       how_to_use: 'Npay 포인트·머니로 결제하고 공식 행사 상세에서 적립 조건을 확인하세요.',
     },
     news: {
+      image_url: './event-images/sulbing-npay-202611-capture.webp',
+      image_kind: 'official_capture',
+      image_checked_at: '2026-11-14',
       title: '설빙 네이버페이 50% 포인트 적립', discount_label: '50% 적립',
       summary: '11월 15일까지 Npay 포인트·머니로 9900원 이상 결제 시 50% 포인트 적립. 즉시 가격할인이 아니며 참여 매장·적립 한도·중복 적용은 공식 상세를 확인하세요.',
     },
@@ -120,6 +134,9 @@ export const verifiedEvents = [
       how_to_use: 'Npay QR로 결제하고 결제 전 공식 행사 상세 조건을 확인하세요.',
     },
     news: {
+      image_url: './event-images/shakeshack-npay-202611-capture.webp',
+      image_kind: 'official_capture',
+      image_checked_at: '2026-11-14',
       title: '쉐이크쉑 네이버페이 QR 30% 할인', discount_label: '30% 할인',
       summary: '11월 15일까지 쉐이크쉑에서 Npay QR로 결제 시 30% 할인. 참여 매장·대상 상품·한도·중복 적용은 공식 행사 상세를 확인하세요.',
     },
@@ -139,6 +156,9 @@ export const verifiedEvents = [
       how_to_use: 'Npay 포인트·머니·카드 QR로 결제하고 공식 행사 상세 조건을 확인하세요.',
     },
     news: {
+      image_url: './event-images/pascucci-npay-202611-capture.webp',
+      image_kind: 'official_capture',
+      image_checked_at: '2026-11-14',
       title: '파스쿠찌 네이버페이 QR 40% 할인', discount_label: '40% 할인',
       summary: '11월 15일까지 Npay 포인트·머니·카드 QR로 10000원 이상 결제 시 40% 할인. 참여 매장·한도·중복 적용은 공식 행사 상세를 확인하세요.',
     },
@@ -159,6 +179,11 @@ export const verifiedEvents = [
     },
     news: {
       title: '던킨콤보 바로 픽업 시 글레이즈드 증정', discount_label: '도넛 증정',
+      image_url: './event-images/dunkin-combo-gift-2026.webp',
+      detail_image_url: './event-images/dunkin-combo-gift-2026-detail.webp',
+      image_kind: 'official_poster',
+      image_source_url: 'https://www.dunkindonuts.co.kr/index.php/event/view?id=5407',
+      image_checked_at: '2026-11-14',
       summary: '12월 31일까지 해피오더 던킨콤보 바로 픽업 주문 시 글레이즈드를 증정합니다. 예약 주문 제외, ID당 하루 1회·주문당 쿠폰 1장. 쿠폰은 발급 당일만 유효하며 참여 매장·재고를 확인하세요.',
     },
   },
@@ -285,6 +310,11 @@ function enrichExact(existing, template) {
   for (const field of ['event_id', 'start_date', 'end_date', 'conditions', 'how_to_use', 'program_note', 'discount_unit', 'period_source', 'period_refs', 'verified_detail_checked_at', 'verified_detail_source_url', 'notice_only']) {
     if (!out[field] && template[field] !== undefined) out[field] = template[field];
   }
+  if (template.image_url && (!out.image_url || out.image_url === template.image_url)) {
+    for (const field of ['image_url', 'detail_image_url', 'image_kind', 'image_fit', 'image_source_url', 'image_checked_at']) {
+      if (!out[field] && template[field] !== undefined) out[field] = template[field];
+    }
+  }
   if (!out.checked_at) out.checked_at = template.checked_at;
   return out;
 }
@@ -302,6 +332,29 @@ function enrichAlias(existing, template) {
   };
 }
 
+// Exact stale list rows whose dates are legible on the official posters.
+// Preserve explicit newer dates and a new collector generation.
+export function withReviewedNoticePeriods(news = []) {
+  const fixes = [
+    { brand: '파파이스', id: 'n_c94c469d4626', first_seen: '2026-10-28T02:35:17.344Z', title: '수요일 치킨 1+1 및 콜라 100원', summary: '11월 11일', start: '2026-11-11', end: '2026-11-11', url: 'https://popeyes.co.kr/event/69' },
+    { brand: '파파이스', id: 'n_5115cf53eee2', first_seen: '2026-11-03T08:41:44.039Z', title: '버거 2종 7,900원 특가', summary: '루이 치킨휠레', start: '2026-10-23', end: '2026-11-08', url: 'https://popeyes.co.kr/event/67' },
+    { brand: '빽다방', id: 'n_8d748f7d6591', first_seen: '2026-10-28T20:19:12.194Z', title: '말차 전 메뉴 2,026원 프로모션', summary: '2026년 말의해', start: '2026-01-02', end: '2026-01-08', url: 'https://paikdabang.com/post_news/2026_promotion/', sources: ['https://paikdabang.com/news/?cate=event'] },
+  ];
+  return news.map((n) => {
+    if (n.id === 'n_fd4864185ad9' && n.brand === '파파존스' && n.first_seen === '2026-11-08T15:23:18.358Z'
+      && n.start_date === '2026-11-09' && n.end_date === '2026-11-18' && n.source_url === 'https://www.pji.co.kr/event/ongoing') {
+      return { ...n, start_date: '2026-11-18', summary: '11월 18일 하루, 온라인 주문 시 라지 사이즈 이상 모든 피자 30% 할인. 참여 매장과 제외 조건은 공식 상세에서 확인하세요.',
+        period_source: '공식 공지 이미지', period_refs: 'https://www.pji.co.kr/event/ongoing/9638', verified_detail_checked_at: CHECKED_AT };
+    }
+    const fix = fixes.find((f) => n.id === f.id && n.brand === f.brand && n.first_seen === f.first_seen
+      && n.title === f.title && String(n.summary || '').includes(f.summary)
+      && [...(f.sources || ['https://popeyes.co.kr/event', 'https://www.popeyes.co.kr/event']), f.url].includes(n.source_url)
+      && !n.start_date && !n.end_date);
+    return fix ? { ...n, start_date: fix.start, end_date: fix.end, period_source: '공식 공지 이미지',
+      period_refs: fix.url, verified_detail_source_url: fix.url, verified_detail_checked_at: CHECKED_AT } : n;
+  });
+}
+
 /**
  * Merge reviewed events into a collector/API snapshot without mutating it.
  * Date may be a Date, timestamp, or a YYYY-MM-DD KST day; end dates are inclusive.
@@ -310,8 +363,13 @@ function enrichAlias(existing, template) {
  */
 export function withVerifiedEvents(data = {}, date = new Date()) {
   const today = kstDay(date);
-  let coupons = [...(data.coupons || [])];
-  let news = [...(data.news || [])];
+  let coupons = (data.coupons || []).map((c) => c.id === 'c_f39852815df3' && c.brand === '빽다방'
+    && c.first_seen === '2026-10-26T21:06:40.587Z' && c.menu === '말차 전 메뉴' && c.discount_type === 'price'
+    && Number(c.discount_value) === 2026 && c.source_url === 'https://paikdabang.com/news/?cate=event'
+    && !c.start_date && !c.end_date ? { ...c, start_date: '2026-01-02', end_date: '2026-01-08',
+      period_source: '공식 공지 이미지', period_refs: 'https://paikdabang.com/post_news/2026_promotion/',
+      verified_detail_checked_at: CHECKED_AT } : c);
+  let news = withReviewedNoticePeriods(data.news || []);
   for (const event of verifiedEvents) {
     const { coupon, news: notice } = templates(event);
     const cm = (x) => matchesEvent(x, event, coupon);

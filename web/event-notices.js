@@ -1,4 +1,4 @@
-import { benefitLabel, normPrograms, noticeImageFor, todayKST, verificationStatus } from './engine.js?v=20261114-1';
+import { benefitLabel, normPrograms, noticeImageFor, todayKST, verificationStatus } from './engine.js?v=20261114-3';
 
 // 쿠폰으로만 추출된 기간 한정 결제·증정 행사도 같은 원문으로 공지를 만든다.
 // 가격·혜택·확인 시각은 쿠폰 그대로이고, 상품 이미지는 공지에 옮기지 않는다.

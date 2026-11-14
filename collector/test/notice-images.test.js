@@ -74,3 +74,14 @@ test('10월 31일 대조한 공식 행사 8건은 파일로 저장하지 않고 
     assert.equal(noticeImage(n, '2027-01-01'), '');
   }
 });
+
+
+test('local official artwork matches the exact event and cannot be reused for an unrelated notice', async () => {
+  const { noticeImageFor } = await import('../src/engine.js');
+  const n = { brand: '배스킨라빈스', title: '호빵맨 무선이어폰 케이스 특가', source_url: 'https://www.baskinrobbins.co.kr/m/play/event/list.php', end_date: '2026-11-19' };
+  const image = noticeImage(n, '2026-11-14');
+  assert.equal(image, './event-images/baskin-hoppang-case-202611.webp');
+  assert.equal(noticeImageFor({ brand: '다른 브랜드', title: '다른 행사' }, image, '2026-11-14'), '');
+  assert.equal(noticeImageFor({ brand: '다른 브랜드', title: '다른 행사' }, 'https://www.amongpick.com/event-images/baskin-hoppang-case-202611.webp', '2026-11-14'), '');
+  assert.equal(noticeImage(n, '2026-11-20'), '');
+});

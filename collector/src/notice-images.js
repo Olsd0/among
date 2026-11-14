@@ -3,6 +3,15 @@
 // 해당 공지에서 확인한 원본 이미지. 상품 사진과 별개로 관리한다.
 // 목록 페이지에서 수집된 소식도 브랜드·제목·기간으로 정확한 공지에 연결한다.
 const notices = [
+  {"brand":"뚜레쥬르","words":["11월","18일","T day"],"until":"2026-11-18","sources":["https://m.tworld.co.kr/v6/benefit"],"source":"https://m.tworld.co.kr/v6/benefit","image":"./event-images/tlj-tday-20261118.webp","verifiedAt":"2026-11-14"},
+  {"brand":"파리바게뜨","words":["홀리데이","케이크"],"until":"2026-12-19","sources":["https://www.paris.co.kr/promotion/?cat=payment","https://www.paris.co.kr/promotion/holiday-2026-preorder/"],"source":"https://www.paris.co.kr/promotion/holiday-2026-preorder/","image":"./event-images/paris-holiday-2026.webp","verifiedAt":"2026-11-14"},
+  {"brand":"파리바게뜨","words":["11월","유플투쁠"],"until":"2026-11-20","sources":["https://www.paris.co.kr/promotion/?cat=payment","https://www.paris.co.kr/promotion/pb-benefit-nov-2026/"],"source":"https://www.paris.co.kr/promotion/pb-benefit-nov-2026/","image":"./event-images/paris-uplus-20261116.webp","verifiedAt":"2026-11-14"},
+  {"brand":"스타벅스","words":["크리스마스","1","프로모션"],"until":"2026-11-18","sources":["https://www.starbucks.co.kr/whats_new/campaign_list.do","https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq=3567"],"source":"https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq=3567","image":"./event-images/starbucks-christmas1-2026.webp","verifiedAt":"2026-11-14"},
+  {"brand":"스타벅스","words":["2026","윈터","프리퀀시"],"until":"2026-12-31","sources":["https://www.starbucks.co.kr/whats_new/campaign_list.do","https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq=3499"],"source":"https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq=3499","image":"./event-images/starbucks-winter-frequency-2026.webp","detailImage":"https://image.istarbucks.co.kr/img/event/2026/wn_2026eFreqWinter_eventInfo_260929_01.jpg","verifiedAt":"2026-11-14"},
+  // 2026-11-14: exact official posters, optimized local copies.
+  {"brand":"파파존스","words":["파파스데이"],"until":"2026-11-18","sources":["https://www.pji.co.kr/event/ongoing","https://www.pji.co.kr/event/ongoing/9638"],"source":"https://www.pji.co.kr/event/ongoing/9638","image":"./event-images/papajohns-papasday-20261118.webp","verifiedAt":"2026-11-14"},
+  {"brand":"KFC","words":["둠","챌린지"],"until":"2027-01-04","sources":["https://www.kfckorea.com/promotion/promotionList/detail/1134"],"source":"https://www.kfckorea.com/promotion/promotionList/detail/1134","image":"./event-images/kfc-doom-challenge-202611.webp","verifiedAt":"2026-11-14"},
+  {"brand":"배스킨라빈스","words":["호빵맨","케이스"],"until":"2026-11-19","sources":["https://www.baskinrobbins.co.kr/m/play/event/list.php","https://www.baskinrobbins.co.kr/play/event/list.php","https://www.baskinrobbins.co.kr/play/event/view.php?seq=646&category=ALL"],"source":"https://www.baskinrobbins.co.kr/play/event/view.php?seq=646&category=ALL","image":"./event-images/baskin-hoppang-case-202611.webp","detailImage":"https://www.baskinrobbins.co.kr/upload/ckeditor/4ae6f1f338c09ed33845b4f18b0f2338.jpg","verifiedAt":"2026-11-14"},
   // 2026-10-31 공식 목록·상세를 대조. 파일로 저장하지 않고 공식 썸네일 주소를 그대로 쓴다 (2026-11-03).
   {"brand": "배스킨라빈스", "words": ["젤라또", "피케", "파우치"], "until": "2026-11-03", "sources": ["https://www.baskinrobbins.co.kr/m/play/event/list.php", "https://www.baskinrobbins.co.kr/play/event/list.php", "https://www.baskinrobbins.co.kr/play/event/view.php?seq=636&category=ALL"], "source": "https://www.baskinrobbins.co.kr/play/event/view.php?seq=636&category=ALL", "image": "https://www.baskinrobbins.co.kr/upload/promotion/event/30b00b84406b9846c86f2a9975084c25.png", "verifiedAt": "2026-10-31", "detailImage": "https://www.baskinrobbins.co.kr/upload/ckeditor/3f8b8757879ae5208410d1ae7c0e87ce.jpg"},
   {"brand": "배스킨라빈스", "words": ["파인트", "10년"], "until": "2026-11-03", "sources": ["https://www.baskinrobbins.co.kr/m/play/event/list.php", "https://www.baskinrobbins.co.kr/play/event/list.php", "https://www.baskinrobbins.co.kr/play/event/view.php?seq=637&category=ALL"], "source": "https://www.baskinrobbins.co.kr/play/event/view.php?seq=637&category=ALL", "image": "https://www.baskinrobbins.co.kr/upload/promotion/event/1acda682bf0122b84b87ad886b474d8e.png", "verifiedAt": "2026-10-31", "detailImage": "https://www.baskinrobbins.co.kr/upload/ckeditor/9f2f5b287a601b6098ebef76f44a015b.png"},
@@ -67,5 +76,11 @@ export const noticeImage = (news, today) => noticePhoto(news, today)?.image || '
 
 // 확인 목록에 다른 공지의 이미지로 올라 있는 주소인가 — 자동으로 고른 이미지가 이것이면 다른 행사 것이다
 // (11/03 피자헛 '슈프림 3종 콜라 1천원'에 '클리커 증정' 공지의 확인된 이미지가 붙음)
-const listedImages = new Set(notices.flatMap((n) => [n.image, n.detailImage]).filter(Boolean).map(urlKey).filter(Boolean));
-export const isListedNoticeImage = (url) => listedImages.has(urlKey(url));
+const imageKey = (value) => {
+  const s = String(value || '');
+  if (/^\.\/event-images\/[a-z0-9-]+\.(?:webp|jpg|png)$/.test(s)) return s;
+  try { const u = new URL(s); if (u.protocol === 'https:' && /^\/event-images\/[a-z0-9-]+\.(?:webp|jpg|png)$/.test(u.pathname) && !u.search && !u.hash) return '.' + u.pathname; } catch {}
+  return urlKey(s);
+};
+const listedImages = new Set(notices.flatMap((n) => [n.image, n.detailImage]).filter(Boolean).map(imageKey).filter(Boolean));
+export const isListedNoticeImage = (url) => listedImages.has(imageKey(url));
