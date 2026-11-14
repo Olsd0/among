@@ -150,10 +150,10 @@ export const verifiedEvents = [
   {
     id: 'pascucci_npay_20261115', brand: '파스쿠찌', category: '카페',
     alias_ids: ['c_2efc69e53209'], alias_first_seen_from: '2026-11-11',
-    start_date: null, end_date: '2026-11-15', programs: ['네이버페이'],
+    start_date: '2026-11-11', end_date: '2026-11-15', programs: ['네이버페이'],
     source_url: 'https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB',
     checked_at: CHECKED_AT,
-    evidence: '2026년 11월 14일 Npay 공식 현장결제 목록에서 파스쿠찌 포인트·머니·카드 QR 1만원 이상 결제 시 40% 할인, D-1을 확인.',
+    evidence: '2026년 11월 14일 Npay 공식 현장결제 목록에서 파스쿠찌 포인트·머니·카드 QR 1만원 이상 결제 시 40% 할인, D-1을 확인. 삼립 제공 11/2 보도자료에서 11/11~15 신제품 출시 기념 Npay 40% 프로모션과 해당 공식 캠페인 포스터를 대조.',
     coupon: {
       menu: '전 메뉴', item_type: '기타', discount_type: 'percent', discount_value: 40,
       discount_rate: 40, min_order: 10000, channels: ['매장'],
@@ -162,9 +162,10 @@ export const verifiedEvents = [
       how_to_use: 'Npay 포인트·머니·카드 QR로 결제하고 공식 행사 상세 조건을 확인하세요.',
     },
     news: {
-      image_url: './event-images/pascucci-coffee-official.webp',
-      image_kind: 'official_related',
-      image_source_url: 'https://www.sangmidang.co.kr/brand/drink_detail?idx=13',
+      image_url: './event-images/pascucci-christmas-campaign-202611.webp',
+      image_kind: 'official_campaign',
+      image_fit: 'contain',
+      image_source_url: 'https://www.hankyung.com/article/202611029284P',
       image_checked_at: '2026-11-14',
       title: '파스쿠찌 네이버페이 QR 40% 할인', discount_label: '40% 할인',
       summary: '11월 15일까지 Npay 포인트·머니·카드 QR로 10000원 이상 결제 시 40% 할인. 참여 매장·한도·중복 적용은 공식 행사 상세를 확인하세요.',

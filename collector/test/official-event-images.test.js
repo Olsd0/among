@@ -103,3 +103,14 @@ test('official related product and place images are distinguished from event pos
   assert.equal(card.label, '공식 공지 이미지');
   assert.equal(card.related, false, 'a registry poster selected by the engine does not inherit the replaced related-image label');
 });
+
+test('campaign artwork accompanying a promotion is labelled separately from an exact benefit poster', () => {
+  const item = { brand: '파스쿠찌', notice_only: true, image_kind: 'official_campaign', image_fit: 'contain', image_url: './event-images/pascucci-christmas-campaign-202611.webp' };
+  const visual = noticeVisual()(item, true);
+  assert.equal(visual.label, '공식 캠페인 이미지');
+  assert.equal(visual.campaign, true);
+  assert.equal(visual.contain, true);
+  const exact = noticeVisual({ image: 'https://brand.example/npay-poster.jpg' })(item, true);
+  assert.equal(exact.label, '공식 공지 이미지');
+  assert.equal(exact.campaign, false);
+});

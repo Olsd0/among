@@ -1,6 +1,6 @@
 {
   "reviewed_at": "2026-11-14T06:37:48.321Z",
-  "method": "Prefer verified event posters, then official related product or venue images. Screenshots are a last resort; no active artwork entry uses one. Original images are optimized to WebP without recreated text.",
+  "method": "Prefer exact official event posters. Next use official campaign artwork published with the same promotion, or independently verified brand-provided event imagery in news. Generic product/place photos are legacy placeholders, not completed event artwork. Screenshots are last resort; exclude AI-generated news illustrations and other-period posters.",
   "artwork": [
     {
       "file": "dunkin-npay-dday-20261114.webp",
@@ -44,11 +44,11 @@
       "note": "Official brand-page burger photo. Related product image, not the Npay event poster."
     },
     {
-      "file": "pascucci-coffee-official.webp",
-      "source": "https://www.sangmidang.co.kr/brand/drink_detail?idx=13",
-      "original": "https://www.sangmidang.co.kr/files/brand/2024/06/b63b9bba-1fa4-4ace-9106-1c74ce6e4046.png",
-      "kind": "official_related",
-      "note": "Official brand-page coffee photo. Related product image, not the Npay event poster."
+      "file": "pascucci-christmas-campaign-202611.webp",
+      "source": "https://www.hankyung.com/article/202611029284P",
+      "original": "https://img.hankyung.com/photo/202611/ce805418a3f045c870f0cbe47ec44d3b.jpg",
+      "kind": "official_campaign",
+      "note": "Samlip-supplied official Christmas campaign poster published with the exact Nov 11–15 Npay 40% launch promotion. Campaign art, not a dedicated Npay benefit poster; retain this distinction in UI."
     },
     {
       "file": "baskin-hoppang-case-202611.webp",
