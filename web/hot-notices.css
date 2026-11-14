@@ -58,3 +58,12 @@
 
 /* Official-page captures and posters marked contain keep every word visible. */
 .hcard .hot-visual .ph.official-contain { object-fit: contain; object-position: center; }
+
+/* Every active notice remains reachable beyond the eight-card recommendation rail. */
+.all-notices-toggle{display:block;margin:12px auto 0;padding:10px 18px;border:1px solid var(--line,#e4e0d6);border-radius:12px;background:var(--card,#fff);color:inherit;font:inherit;font-weight:650;cursor:pointer}
+.all-hot-notices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+.all-hot-notices .hcard{width:auto;min-width:0;max-width:none;flex-basis:auto}
+.all-hot-notices[hidden],.all-notices-toggle[hidden]{display:none}
+.notice-image-credit{font-size:12px;color:var(--muted,#69645b);margin:8px 22px}.notice-image-credit a{color:inherit;text-decoration:underline}
+@media(max-width:760px){.all-hot-notices{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+@media(max-width:480px){.all-hot-notices{grid-template-columns:minmax(0,1fr)}}

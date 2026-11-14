@@ -1,14 +1,14 @@
 // AMONG 화면 스크립트 (index.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
+  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
 } from './engine.js?v=20261114-3';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261114-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
-import { withVerifiedEvents } from './verified-events.js?v=20261114-6';
+import { withVerifiedEvents } from './verified-events.js?v=20261114-7';
 import { withCouponEventNews } from './event-notices.js?v=20261114-3';
 import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
@@ -96,6 +96,7 @@ const state = {
   appCoupons: [],
   appCouponRefs: [],
   news: [],
+  hotExpanded: false,
   meta: {},
   loading: true,
   checkingNetwork: false,
@@ -175,7 +176,24 @@ const safeImg = (u) => {
       && /^[a-z0-9-]+\.(?:webp|jpg|png)$/.test(value.slice(localFolder.length)) ? x.href : '';
   } catch { return ''; }
 };
+const imageRenderRecovered = new Set();
 const phFail = (img) => {
+  const original = img.dataset.originalSrc || img.src;
+  try {
+    const u = new URL(original);
+    if (u.origin === location.origin && /\/event-images\//.test(u.pathname) && !img.dataset.retried) {
+      img.dataset.retried = '1';
+      img.dataset.originalSrc = original;
+      u.searchParams.set('image_retry', '1');
+      img.src = u.href;
+      return;
+    }
+  } catch { /* invalid source uses the normal fallback */ }
+  if (!imageRenderRecovered.has(original)) {
+    imageRenderRecovered.add(original);
+    const container = img.closest('#hotRail, #allHotNotices');
+    if (container) renderedHTML.delete(container);
+  }
   // 공식 공지 이미지를 못 불러오면 같은 브랜드의 관련 상품 사진으로 한 번 더 (표시 문구도 함께 바꿈)
   const fb = img.dataset.fb;
   if (fb) {
@@ -510,8 +528,9 @@ function noticeVisual(n, detail = false) {
     const capture = !registryPoster && n.image_kind === 'official_capture';
     const related = !registryPoster && n.image_kind === 'official_related';
     const campaign = !registryPoster && n.image_kind === 'official_campaign';
-    const label = capture ? '공식 페이지 캡처' : campaign ? '공식 캠페인 이미지' : related ? '공식 관련 이미지' : '공식 공지 이미지';
-    return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, related, campaign, contain: capture || n.image_fit === 'contain', fallback: product };
+    const press = !registryPoster && n.image_kind === 'press_related';
+    const label = press ? '기사 관련 이미지' : capture ? '공식 페이지 캡처' : campaign ? '공식 캠페인 이미지' : related ? '공식 관련 이미지' : '공식 공지 이미지';
+    return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, related, campaign, press, source: safeUrl(n.image_source_url), contain: capture || n.image_fit === 'contain', fallback: product };
   }
   return product;
 }
@@ -522,9 +541,9 @@ function couponVisual(c, title = '') {
 }
 function visualImg(v, i) {
   if (!v) return '';
-  if (v.parts) return `${partsImgs(v.parts, !!i)}${v.label ? `<span class="notice-image-label">${esc(v.label)}</span>` : ''}`;
+  if (v.parts) return `${partsImgs(v.parts, i >= 3)}${v.label ? `<span class="notice-image-label">${esc(v.label)}</span>` : ''}`;
   const fb = v.fallback ? ` data-fb="${esc(v.fallback.src)}" data-fb-label="${esc(v.fallback.label)}" data-fb-alt="${esc(v.fallback.alt)}"` : '';
-  return `<img class="ph${v.contain ? ' official-contain' : ''}" src="${esc(v.src)}" alt="${esc(v.alt)}" loading="${i ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer"${fb}>${v.label ? `<span class="notice-image-label">${esc(v.label)}</span>` : ''}`;
+  return `<img class="ph${v.contain ? ' official-contain' : ''}" src="${esc(v.src)}" alt="${esc(v.alt)}" loading="${i >= 3 ? 'lazy' : 'eager'}" decoding="async" referrerpolicy="no-referrer"${fb}>${v.label ? `<span class="notice-image-label">${esc(v.label)}</span>` : ''}`;
 }
 /** 공지의 확인된 행사 기간 한 줄 (끝나는 날이 가까우면 D-n을 함께) */
 function noticePeriod(n, today = todayKST()) {
@@ -591,10 +610,27 @@ function renderHot() {
     // 11/10 핫딜 순서(임박 → 진행 중·공지 최신 → 시작 전 → 상시)에 맞춰 발급 기간을 날짜로. 매달 반복되는 쿠폰은 상시
     start_date: kstDate(c.issue_start), end_date: kstDate(c.issue_end), first_seen: c.issue_start || c.updated_at || c.checked_at || '', weekly: !!c.recurring,
   }));
-  const hot = state.q || state.view === 'appCoupons' || (state.view === 'brands' && !state.brand) ? [] : orderHeadlines([...base, ...appHeads], { today: todayKST(), limit: 8 });
+  const hideHot = state.q || state.view === 'appCoupons' || (state.view === 'brands' && !state.brand);
+  const hot = hideHot ? [] : orderHeadlines([...base, ...appHeads], { today: todayKST(), limit: 8 });
+  const today = todayKST();
+  const allNotices = hideHot ? [] : state.news.filter(n => fresh(n) && brandMatch(n) && (!n.end_date || n.end_date >= today)
+    && !state.appCouponRefs.includes('news:' + n.id) && !managedLinks.has(n.official_link))
+    .map(n => ({ ...n, kind: 'news' })).sort((a, b) => compareHeadlines(a, b, today));
   state.hot = hot;
-  $('#hot').hidden = !hot.length;
-  if (!hot.length) return;
+  $('#hot').hidden = !hot.length && !allNotices.length;
+  const allButton = $('#showAllNotices');
+  allButton.hidden = !allNotices.length;
+  allButton.textContent = state.hotExpanded ? '공지 접기' : '공지 전체 보기 (' + allNotices.length + ')';
+  allButton.setAttribute('aria-expanded', String(state.hotExpanded));
+  $('#allHotNotices').hidden = !state.hotExpanded;
+  if (state.hotExpanded) setHTML($('#allHotNotices'), allNotices.map(hotCard).join(''));
+  if (!hot.length) {
+    setHTML($('#hotRail'), '');
+    $('#hotDots').innerHTML = '';
+    $('#hotCount').textContent = '';
+    $('#railControls').hidden = true;
+    return;
+  }
   if (!setHTML($('#hotRail'), hot.map(hotCard).join(''))) return;
   $('#hotRail').scrollLeft = 0;
   updateRailControls();
@@ -1082,7 +1118,8 @@ $('#grid').addEventListener('click', (e) => {
 });
 $('#clearGrid').addEventListener('click', () => { state.category = '전체'; state.kind = ''; savePrefs(); render(); });
 // 핫딜 카드: 소식이면 소식 상세, 쿠폰이면 그 쿠폰으로 이동
-$('#hotRail').addEventListener('click', (e) => {
+$('#showAllNotices').addEventListener('click', () => { state.hotExpanded = !state.hotExpanded; renderHot(); });
+$('#hot').addEventListener('click', (e) => {
   if (e.target.closest('a')) return;
   const b = e.target.closest('[data-hot]'); if (!b) return;
   const [kind, id] = b.dataset.hot.split(/:(.+)/);
@@ -1202,7 +1239,8 @@ function openNews(id) {
       ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
-    ${v?.official ? `<a class="notice-original" href="${esc(originalImg)}" target="_blank" rel="noopener">${originalVisual?.capture ? '공식 페이지 캡처' : originalVisual?.campaign ? '공식 캠페인 이미지' : originalVisual?.related ? '공식 관련 이미지' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
+    ${v?.official ? `<a class="notice-original" href="${esc(originalImg)}" target="_blank" rel="noopener">${originalVisual?.press ? '기사 관련 이미지' : originalVisual?.capture ? '공식 페이지 캡처' : originalVisual?.campaign ? '공식 캠페인 이미지' : originalVisual?.related ? '공식 관련 이미지' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
+    ${v?.source ? `<p class="notice-image-credit">이미지 출처: <a href="${esc(v.source)}" target="_blank" rel="noopener noreferrer">${esc(host(v.source))} ↗</a></p>` : ''}
     <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 원문에서 확인해 주세요.</p>
     ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}"><span>${esc(target.label)}</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(pf ? `${md(n.start_date)} ~ ${md(n.end_date)} ${pf.note}` : period)}${need ? ` · ${esc(need)}` : ''}</p>
@@ -1211,7 +1249,7 @@ function openNews(id) {
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
     ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}
     <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">${esc(target.kind === 'detail' ? '공식 공지 보기' : `${target.label} 보기`)}</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
-    <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.capture ? ' 이미지는 공식 행사 페이지를 캡처한 화면이에요.' : v.campaign ? ' 이미지는 이번 프로모션과 함께 브랜드가 공개한 공식 캠페인 포스터예요. 결제 혜택의 조건은 행사 안내를 확인해 주세요.' : v.related ? ' 사진은 공식 출처의 관련 상품·매장 이미지예요. 행사 포스터와는 구분해 주세요.' : v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
+    <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.press ? ' 사진은 기사에 실린 브랜드 관련 홍보 이미지예요. 이 결제 행사의 전용 포스터는 아니에요.' : v.capture ? ' 이미지는 공식 행사 페이지를 캡처한 화면이에요.' : v.campaign ? ' 이미지는 이번 프로모션과 함께 브랜드가 공개한 공식 캠페인 포스터예요. 결제 혜택의 조건은 행사 안내를 확인해 주세요.' : v.related ? ' 사진은 공식 출처의 관련 상품·매장 이미지예요. 행사 포스터와는 구분해 주세요.' : v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
   if (!newsSheet.open) newsSheet.showModal();
   history.replaceState(null, '', `${location.pathname}?n=${encodeURIComponent(id)}`);
 }

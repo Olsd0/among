@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="home.css?v=20261113-1">
 <link rel="stylesheet" href="app-coupons.css?v=20261107-3">
 <link rel="stylesheet" href="launch.css?v=20261112-1">
-<link rel="stylesheet" href="hot-notices.css?v=20261114-3">
+<link rel="stylesheet" href="hot-notices.css?v=20261114-4">
 <!-- deploy-meta -->
 <link rel="canonical" href="https://olsd0.github.io/among/">
 <meta property="og:url" content="https://olsd0.github.io/among/">
@@ -78,6 +78,8 @@
     <div class="sec-h"><h2>오늘의 핫딜</h2><small>놓치기 아쉬운 공식 소식</small><span class="sp"></span><span class="count" id="hotCount"></span><div class="rail-controls" id="railControls" hidden><button type="button" id="hotAuto" class="auto" aria-pressed="true" aria-label="핫딜 자동 넘김 멈추기">❚❚</button><button type="button" id="previousDeal" aria-label="이전 핫딜" aria-controls="hotRail">‹</button><button type="button" id="nextDeal" aria-label="다음 핫딜" aria-controls="hotRail">›</button></div></div>
     <div class="rail" id="hotRail"></div>
     <div class="dots" id="hotDots" aria-hidden="true"></div>
+    <button class="all-notices-toggle" type="button" id="showAllNotices" aria-expanded="false" aria-controls="allHotNotices" hidden>공지 전체 보기</button>
+    <div class="all-hot-notices" id="allHotNotices" role="region" aria-label="전체 핫딜 공지" hidden></div>
   </section>
 
   <nav class="grid" id="grid" aria-label="종류별로 보기"></nav>
@@ -197,7 +199,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="app.js?v=20261114-7"></script>
+<script type="module" src="app.js?v=20261114-8"></script>
 <script type="module" src="sponsor.js?v=20261031-1"></script>
 </body>
 </html>

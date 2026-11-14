@@ -9,10 +9,12 @@ const app = readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
 const safeImgCode = app.slice(app.indexOf('const safeImg ='), app.indexOf('const phFail ='));
 const visualCode = app.slice(app.indexOf('function noticeVisual('), app.indexOf('function couponVisual('));
 const location = { href: 'https://www.amongpick.com/index.html?n=example', origin: 'https://www.amongpick.com' };
+const safeUrlCode = app.slice(app.indexOf('const safeUrl ='), app.indexOf('const host ='));
+const safeUrl = runInNewContext(safeUrlCode + '\nsafeUrl', { URL });
 const safeImg = runInNewContext(`${safeImgCode}\nsafeImg`, { URL, location });
 function noticeVisual(verified = null) {
   return runInNewContext(`${visualCode}\nnoticeVisual`, {
-    safeImg, noticePhoto: () => verified,
+    safeImg, safeUrl, noticePhoto: () => verified,
     relatedCoupons: () => [], brandPhoto: () => ({ url: 'https://brand.example/menu.jpg' }),
     asVisual: (p) => ({ src: p.url, official: false }),
   });
@@ -113,4 +115,18 @@ test('campaign artwork accompanying a promotion is labelled separately from an e
   const exact = noticeVisual({ image: 'https://brand.example/npay-poster.jpg' })(item, true);
   assert.equal(exact.label, '공식 공지 이미지');
   assert.equal(exact.campaign, false);
+});
+
+test('article related photos keep their source and never inherit an event-poster label', () => {
+  const item = { brand: '쉐이크쉑', notice_only: true, image_kind: 'press_related', image_fit: 'contain', image_url: './event-images/shakeshack-bbq-press-202610.webp', image_source_url: 'https://www.bigtanews.co.kr/article/view/big202610010011' };
+  for (const detail of [false, true]) {
+    const visual = noticeVisual()(item, detail);
+    assert.equal(visual.label, '기사 관련 이미지');
+    assert.equal(visual.press, true);
+    assert.equal(visual.source, item.image_source_url);
+    assert.equal(visual.contain, true);
+  }
+  const exact = noticeVisual({ image: 'https://brand.example/npay-poster.jpg' })(item, true);
+  assert.equal(exact.label, '공식 공지 이미지');
+  assert.equal(exact.press, false);
 });

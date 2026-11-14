@@ -37,11 +37,11 @@
       "note": "Original official Instagram poster linked from the Sulbing homepage. Poster confirms Nov 12–15 and a period-total cap of 30000P per person; it does not state a one-transaction limit."
     },
     {
-      "file": "shakeshack-burgers-official.webp",
-      "source": "https://www.sangmidang.co.kr/brand/eat_detail?idx=38",
-      "original": "https://www.sangmidang.co.kr/files/brand/eng/2024/06/aef71c88-32b1-44a3-b0f5-55351f3d31a5.webp",
-      "kind": "official_related",
-      "note": "Official brand-page burger photo. Related product image, not the Npay event poster."
+      "file": "shakeshack-bbq-press-202610.webp",
+      "source": "https://www.bigtanews.co.kr/article/view/big202610010011",
+      "original": "https://www.bigtanews.co.kr/data/big/image/2026/10/01/big20261001000010.800x.0.png",
+      "kind": "press_related",
+      "note": "Brand product publicity photograph from independent Oct 1 autumn-menu reporting. Visually inspected. Not a dedicated Npay benefit poster; label and source shown separately."
     },
     {
       "file": "pascucci-christmas-campaign-202611.webp",
@@ -117,5 +117,5 @@
       "end": "2026-11-18"
     }
   ],
-  "updated_at": "2026-11-14T11:05:18.705Z"
+  "updated_at": "2026-11-14T12:05:25.245Z"
 }

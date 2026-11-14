@@ -139,9 +139,10 @@ export const verifiedEvents = [
       how_to_use: 'Npay QR로 결제하고 결제 전 공식 행사 상세 조건을 확인하세요.',
     },
     news: {
-      image_url: './event-images/shakeshack-burgers-official.webp',
-      image_kind: 'official_related',
-      image_source_url: 'https://www.sangmidang.co.kr/brand/eat_detail?idx=38',
+      image_url: './event-images/shakeshack-bbq-press-202610.webp',
+      image_kind: 'press_related',
+      image_fit: 'contain',
+      image_source_url: 'https://www.bigtanews.co.kr/article/view/big202610010011',
       image_checked_at: '2026-11-14',
       title: '쉐이크쉑 네이버페이 QR 30% 할인', discount_label: '30% 할인',
       summary: '11월 15일까지 쉐이크쉑에서 Npay QR로 결제 시 30% 할인. 참여 매장·대상 상품·한도·중복 적용은 공식 행사 상세를 확인하세요.',
