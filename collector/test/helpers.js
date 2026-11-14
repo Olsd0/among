@@ -1,11 +1,11 @@
 // 테스트용 정적 서버
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { resolve as resolvePath, relative, sep, isAbsolute, extname } from 'node:path';
+import { resolve as resolvePath, relative, sep, isAbsolute, extname, basename } from 'node:path';
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json', '.js': 'text/javascript', '.png': 'image/png', '.css': 'text/css', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.ttf': 'font/ttf' };
 
-export function serveDir(root) {
+export function serveDir(root, { reviewedEvents = false } = {}) {
   return new Promise((resolve) => {
     const hits = [];
     const server = createServer(async (req, res) => {
@@ -17,7 +17,13 @@ export function serveDir(root) {
         if (isAbsolute(local) || local === '..' || local.startsWith('..' + sep)) {
           res.writeHead(404); res.end(); return;
         }
-        const body = await readFile(file);
+        let body = await readFile(file);
+        // Ordinary UI fixtures own their API data; calendar-bound production
+        // supplements must not change their counts as the real clock advances.
+        // Event integration tests explicitly opt in to the real shared module.
+        if (!reviewedEvents && basename(file) === 'verified-events.js') {
+          body = 'export const withVerifiedEvents = (data) => data;\n';
+        }
         res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream' });
         res.end(body);
       } catch {

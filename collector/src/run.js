@@ -12,6 +12,8 @@ import { checkPeriods, needsPeriod } from './period-check.js';
 import { officialReader } from './official-period.js';
 import { pressFromEnv } from './press-search.js';
 import { SheetClient } from './sheet.js';
+import { withCouponEventNews } from './event-notices.js';
+import { repairEventSources } from './event-sources.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -88,7 +90,7 @@ export async function runCollector(o = {}) {
     // 시험 실행(dry)에서 아직 시트에 없는 출처 id를 지정하면 sources.example.json에서 가져온다 (시트에 넣기 전에 추출 품질 확인)
     if (env.DRY_RUN === '1' && env.ONLY) sources = withExampleSources(sources, env.ONLY.split(',').map((x) => x.trim()));
     const only = env.ONLY ? env.ONLY.split(',').map((s) => s.trim()) : null;
-    sources = sources.filter(isActive).filter((s) => !only || only.includes(s.id));
+    sources = repairEventSources(sources.filter(isActive)).filter((s) => !only || only.includes(s.id));
     log(`[${run_id}] 출처 ${sources.length}개 수집 시작 (trigger=${trigger}, model=${report.model})`);
 
     ctx = o.browser || (await openBrowser());
@@ -246,6 +248,11 @@ export async function runCollector(o = {}) {
       report.period = pc.summary;
       log(`  기간 확인: 새로 확인 ${pc.summary.checked} · 채움 ${pc.summary.filled.length} · 못 채움 ${pc.summary.failed.length} · 저장된 기간 반영 ${pc.summary.reused} · 기사 확인 ${pc.summary.press}`);
     }
+    // 이번 실행에서 실제 수집·검증된 쿠폰만 공지로 연결한다.
+    // 수동 확인 행사는 브라우저에서 원래 확인 시각으로 합치며 자동 ingest로 시각을 갱신하지 않는다.
+    news = withCouponEventNews(news, merged, { today: todayKST(now), now: now.getTime() });
+    merged = merged.map(c => ({ ...c, hash: contentHash(c) }));
+    report.summary = summarize(merged);
     news = news.map((n) => ({ ...n, hash: newsHash(n) }));
     report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };
     report.with_image = merged.filter((c) => c.status === 'published' && c.image_url).length;

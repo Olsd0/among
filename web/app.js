@@ -3,11 +3,13 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261113-3';
+} from './engine.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261104-1';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
+import { withVerifiedEvents } from './verified-events.js?v=20261114-2';
+import { withCouponEventNews } from './event-notices.js?v=20261114-2';
 import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';
@@ -298,10 +300,13 @@ async function readCoupons() {
   }
 }
 function applyData(data) {
+  // 공식 원문으로 확인한 행사만 보강한다. 쿠폰과 공지는 같은 행사·기간을 공유한다.
+  if (!DEMO) data = withVerifiedEvents(data);
   state.appCoupons = (data.app_coupons || []).filter(c => acPublic(c));
   state.appCouponRefs = data.app_coupon_refs || [];
   state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: couponImage(c), programs: c.programs || [] }));
-  state.news = (DEMO ? (data.news || []) : withVerifiedNews(data.news || [])).filter((n) => !n.end_date || n.end_date >= todayKST()).map((n) => ({ ...n, image_url: noticeImageFor(n, safeImg(n.image_url)), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
+  const notices = DEMO ? (data.news || []) : withCouponEventNews(withVerifiedNews(data.news || []), state.coupons.map(c => ({ status: 'published', ...c })));
+  state.news = notices.filter((n) => (!n.status || n.status === 'published') && (!n.end_date || n.end_date >= todayKST())).map((n) => ({ ...n, image_url: noticeImageFor(n, safeImg(n.image_url)), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
   state.meta = { last_checked_at: data.last_checked_at };
   state.loading = false;
   render();
@@ -483,7 +488,7 @@ const asVisual = (p) => { const src = p && safeImg(p.url); return src ? { src, l
 function noticeVisual(n, detail = false) {
   const verified = noticePhoto(n);
   const official = safeImg(detail ? (verified?.detailImage || verified?.image || n.image_url) : n.image_url);
-  const product = asVisual(brandPhoto(n.brand, `${n.title || ''} ${n.summary || ''}`, relatedCoupons(n)));
+  const product = n.notice_only ? null : asVisual(brandPhoto(n.brand, `${n.title || ''} ${n.summary || ''}`, relatedCoupons(n)));
   if (official) return { src: official, label: '공식 공지 이미지', alt: `${n.brand} 공식 공지 이미지`, official: true, fallback: product };
   return product;
 }
@@ -684,7 +689,8 @@ function nutritionBlock(c) {
 function detailHtml(c, today) {
   const photo = couponPhoto(c, today);
   const progs = c.programs || [];
-  const cond = [c.min_order ? `${money(c.min_order)}원 이상 주문` : '', c.max_discount ? `최대 ${moneyDigits(c.max_discount)}원 할인` : '', !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
+  const cap = c.max_discount ? (c.discount_type === 'point_back' ? `최대 ${moneyDigits(c.max_discount)}P 적립` : `최대 ${moneyDigits(c.max_discount)}원 할인`) : '';
+  const cond = [c.min_order ? `${money(c.min_order)}원 이상 주문` : '', cap, !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
   const period = c.end_date
     ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${daysLeft(c.end_date, today) === 0 ? '오늘 끝나요' : daysLeft(c.end_date, today) + '일 남음'})`
     : '종료일 정보 없음 · 공식 페이지에서 확인해요';

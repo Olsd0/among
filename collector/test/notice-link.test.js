@@ -15,6 +15,8 @@ test('T멤버십 공통 목록은 T멤버십 혜택 목록, 행사 상세는 공
   assert.equal(noticeLinkTarget('https://www.twosome.co.kr/').kind, 'home');
   assert.equal(noticeLinkTarget('').kind, 'detail');
   assert.equal(noticeLinkTarget('not a url').label, '공식 원문');
+  assert.equal(noticeLinkTarget('https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB').kind, 'list');
+  assert.equal(noticeLinkTarget('https://pay.naver.com/benefit/payment/detail/24278798653708').kind, 'detail');
 });
 
 test('수집 출처의 목록 주소는 모두 목록·홈페이지로 분류된다 (새 출처를 더하면 분류표도 갱신)', () => {

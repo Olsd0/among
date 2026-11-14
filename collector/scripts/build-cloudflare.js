@@ -13,7 +13,7 @@ export const SITE_URL = 'https://www.amongpick.com/';
 // 대표 주소(www.amongpick.com)로 빌드할 때만 기본값을 쓰고, 다른 주소로 빌드하면 환경변수로만 넣는다.
 export const ADSENSE_PUBLISHER_ID = 'pub-3507520612481684';
 // collector와 web에 같은 내용이 있어야 하는 파일 (pages.yml의 '사본 확인'과 같은 목록)
-export const COPIES = ['engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'app-coupons.js', 'online-deals-core.js'];
+export const COPIES = ['engine.js', 'product-images.js', 'notice-images.js', 'verified-news.js', 'verified-events.js', 'event-notices.js', 'app-coupons.js', 'online-deals-core.js'];
 
 export function checkCopies(rootDir) {
   const stale = COPIES.filter((name) => readFileSync(resolve(rootDir, 'collector/src', name), 'utf8') !== readFileSync(resolve(rootDir, 'web', name), 'utf8'));

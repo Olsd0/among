@@ -70,6 +70,7 @@ export const BRANDS = [
   ['배스킨라빈스', '디저트', /배스킨|베스킨|baskin/i],
   ['던킨', '디저트', /던킨|dunkin/i],
   ['설빙', '디저트', /설빙/],
+  ['HANS', '디저트', /\bhans\b|한스케이크/i],
 ];
 
 /** 표기가 달라도 같은 브랜드면 표준 이름과 카테고리를. 모르는 브랜드면 null */
@@ -1616,6 +1617,7 @@ const LIST_PAGES = {
   'm.lguplus.com/benefit-membership': [MEMBERSHIP_LIST.U, ['urcmbspdivscd', 'urcmbspbnftdivscd']], 'm.lguplus.com/membership/intro': [MEMBERSHIP_LIST.U],
   'lguplus.com/benefit-membership': [MEMBERSHIP_LIST.U, ['urcmbspdivscd', 'urcmbspbnftdivscd']], 'lguplus.com/membership/intro': [MEMBERSHIP_LIST.U],
   'campaign2.naver.com/npay/cafe': [MEMBERSHIP_LIST.N],
+  'pay.naver.com/benefit/payment/list': [MEMBERSHIP_LIST.N, ['firstcategory', 'secondcategory']],
   'mcdonalds.co.kr/kor/promotion/list': [EVENT_LIST], 'burgerking.co.kr/event/ongoing': [EVENT_LIST],
   'kfckorea.com/promotion/promotionlist/a801': [EVENT_LIST], 'popeyes.co.kr/event': [EVENT_LIST],
   'momstouch.co.kr/promotion/list.php': [EVENT_LIST], 'lotteeatz.com/event/main': [EVENT_LIST],
