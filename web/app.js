@@ -8,7 +8,7 @@ import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=2026
 
 import { noticePhoto } from './notice-images.js?v=20261114-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
-import { withVerifiedEvents } from './verified-events.js?v=20261114-4';
+import { withVerifiedEvents } from './verified-events.js?v=20261114-5';
 import { withCouponEventNews } from './event-notices.js?v=20261114-3';
 import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
@@ -506,9 +506,11 @@ function noticeVisual(n, detail = false) {
   const official = safeImg(detail ? (verifiedDetail || n.detail_image_url || n.image_url) : n.image_url);
   const product = n.notice_only ? null : asVisual(brandPhoto(n.brand, `${n.title || ''} ${n.summary || ''}`, relatedCoupons(n)));
   if (official) {
-    const capture = !verifiedDetail && n.image_kind === 'official_capture';
-    const label = capture ? '공식 페이지 캡처' : '공식 공지 이미지';
-    return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, contain: capture || n.image_fit === 'contain', fallback: product };
+    const registryPoster = !!verifiedDetail || (!detail && safeImg(verified?.image) === official);
+    const capture = !registryPoster && n.image_kind === 'official_capture';
+    const related = !registryPoster && n.image_kind === 'official_related';
+    const label = capture ? '공식 페이지 캡처' : related ? '공식 관련 이미지' : '공식 공지 이미지';
+    return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, related, contain: capture || n.image_fit === 'contain', fallback: product };
   }
   return product;
 }
@@ -1199,7 +1201,7 @@ function openNews(id) {
       ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
-    ${v?.official ? `<a class="notice-original" href="${esc(originalImg)}" target="_blank" rel="noopener">${v.capture ? '공식 페이지 캡처' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
+    ${v?.official ? `<a class="notice-original" href="${esc(originalImg)}" target="_blank" rel="noopener">${originalVisual?.capture ? '공식 페이지 캡처' : originalVisual?.related ? '공식 관련 이미지' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
     <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 원문에서 확인해 주세요.</p>
     ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}"><span>${esc(target.label)}</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(pf ? `${md(n.start_date)} ~ ${md(n.end_date)} ${pf.note}` : period)}${need ? ` · ${esc(need)}` : ''}</p>
@@ -1208,7 +1210,7 @@ function openNews(id) {
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
     ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}
     <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">${esc(target.kind === 'detail' ? '공식 공지 보기' : `${target.label} 보기`)}</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
-    <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.capture ? ' 이미지는 공식 행사 페이지를 캡처한 화면이에요.' : v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
+    <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.capture ? ' 이미지는 공식 행사 페이지를 캡처한 화면이에요.' : v.related ? ' 사진은 공식 출처의 관련 상품·매장 이미지예요. 행사 포스터와는 구분해 주세요.' : v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
   if (!newsSheet.open) newsSheet.showModal();
   history.replaceState(null, '', `${location.pathname}?n=${encodeURIComponent(id)}`);
 }

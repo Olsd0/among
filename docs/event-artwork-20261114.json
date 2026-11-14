@@ -1,6 +1,6 @@
 {
   "reviewed_at": "2026-11-14T06:37:48.321Z",
-  "method": "Exact official event posters downloaded and optimized to WebP; official_capture files are unaltered crops of the rendered official page. No generated artwork or recreated text.",
+  "method": "Prefer verified event posters, then official related product or venue images. Screenshots are a last resort; no active artwork entry uses one. Original images are optimized to WebP without recreated text.",
   "artwork": [
     {
       "file": "dunkin-npay-dday-20261114.webp",
@@ -15,14 +15,18 @@
       "crop": "card: top 940×1440 pixels; detail: full original"
     },
     {
-      "file": "hans-npay-202611-capture.webp",
-      "source": "https://pay.naver.com/benefit/payment/detail/24278798653708",
-      "kind": "official_capture"
+      "file": "hans-ganache-official.webp",
+      "source": "http://www.hanscake.co.kr/front/taste/cake/cake_view.php?category=C&no=13&page=1",
+      "original": "http://www.hanscake.co.kr/upload/cake/20201111/hpnZrEiXVLPycsTw_20201111.png",
+      "kind": "official_related",
+      "note": "Official Ganache Chocolate Cake product photo. Related product image, not the Npay event poster."
     },
     {
-      "file": "gapyeong-npay-202611-capture.webp",
-      "source": "https://pay.naver.com/benefit/payment/detail/24278798653677",
-      "kind": "official_capture"
+      "file": "gapyeong-rest-area-official.webp",
+      "source": "http://www.schighway.co.kr/homepage/highway/rest_info.do",
+      "original": "http://www.schighway.co.kr/resources/image/homepage/sc_sub1/rest_final.jpg",
+      "kind": "official_related",
+      "note": "Related venue image: unaltered top 660×386 crop from the official rest-area guide, showing its name and facade. Not the Npay event poster."
     },
     {
       "file": "sulbing-npay-202611-poster.webp",
@@ -30,19 +34,21 @@
       "official_post": "https://www.instagram.com/p/Dfgh7PznQ9z/",
       "official_embedded_feed": "https://lightwidget.com/widgets/5c0b63b1dd1d5204bcf0cf1ea0387291.html",
       "kind": "official_poster",
-      "note": "Original official Instagram poster linked from the Sulbing homepage. Poster confirms Nov 12–15 and one reward up to 30000P per person."
+      "note": "Original official Instagram poster linked from the Sulbing homepage. Poster confirms Nov 12–15 and a period-total cap of 30000P per person; it does not state a one-transaction limit."
     },
     {
-      "file": "shakeshack-npay-202611-capture.webp",
-      "source": "https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB",
-      "kind": "official_capture",
-      "note": "Exact event row including official brand image, payment conditions and current deadline; poster not independently available."
+      "file": "shakeshack-burgers-official.webp",
+      "source": "https://www.sangmidang.co.kr/brand/eat_detail?idx=38",
+      "original": "https://www.sangmidang.co.kr/files/brand/eng/2024/06/aef71c88-32b1-44a3-b0f5-55351f3d31a5.webp",
+      "kind": "official_related",
+      "note": "Official brand-page burger photo. Related product image, not the Npay event poster."
     },
     {
-      "file": "pascucci-npay-202611-capture.webp",
-      "source": "https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB",
-      "kind": "official_capture",
-      "note": "Exact event row including official brand image, payment conditions and current deadline; poster not independently available."
+      "file": "pascucci-coffee-official.webp",
+      "source": "https://www.sangmidang.co.kr/brand/drink_detail?idx=13",
+      "original": "https://www.sangmidang.co.kr/files/brand/2024/06/b63b9bba-1fa4-4ace-9106-1c74ce6e4046.png",
+      "kind": "official_related",
+      "note": "Official brand-page coffee photo. Related product image, not the Npay event poster."
     },
     {
       "file": "baskin-hoppang-case-202611.webp",
@@ -110,5 +116,6 @@
       "start": "2026-11-18",
       "end": "2026-11-18"
     }
-  ]
+  ],
+  "updated_at": "2026-11-14T11:05:18.705Z"
 }

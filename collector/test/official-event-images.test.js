@@ -80,3 +80,26 @@ test('official posters retain their labels and verified registry detail images r
   assert.equal(detail.label, '공식 공지 이미지');
   assert.equal(detail.capture, false);
 });
+
+test('official related product and place images are distinguished from event posters', () => {
+  const item = {
+    brand: 'HANS', notice_only: true, image_kind: 'official_related',
+    image_url: './event-images/hans-cake.webp', detail_image_url: './event-images/hans-cake-detail.webp',
+  };
+  for (const detail of [false, true]) {
+    const image = noticeVisual()(item, detail);
+    assert.equal(image.label, '공식 관련 이미지');
+    assert.equal(image.alt, 'HANS 공식 관련 이미지');
+    assert.equal(image.related, true);
+    assert.equal(image.capture, false);
+    assert.equal(image.official, true);
+  }
+  const registry = noticeVisual({ image: 'https://brand.example/card.jpg', detailImage: 'https://brand.example/poster.png' });
+  const detail = registry(item, true);
+  assert.equal(detail.src, 'https://brand.example/poster.png');
+  assert.equal(detail.label, '공식 공지 이미지');
+  assert.equal(detail.related, false);
+  const card = registry({ ...item, image_url: 'https://brand.example/card.jpg' });
+  assert.equal(card.label, '공식 공지 이미지');
+  assert.equal(card.related, false, 'a registry poster selected by the engine does not inherit the replaced related-image label');
+});
