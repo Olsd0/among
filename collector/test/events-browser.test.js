@@ -105,3 +105,16 @@ test('확인한 던킨 공지에는 해당 행사 포스터와 공식 상세 링
   assert.match(await page.locator('.news-meta').innerText(), /11\/9.*11\/30/);
   assert.match(await page.locator('.img-note').innerText(), /공식 공지 이미지/);
 });
+
+
+test('local official poster previews stay readable while the full original opens separately', { timeout: 30000 }, async (t) => {
+  const { context, page } = await setup();
+  t.after(() => context.close());
+  await page.goto(`${site.base}/index.html?n=n_verified_dunkin_combo_gift_20260701`);
+  await page.locator('#newsSheet[open]').waitFor();
+  const poster = page.locator('#newsBody .news-hero img.ph');
+  await poster.evaluate(img => img.decode());
+  assert.equal(await poster.getAttribute('src'), site.base + '/event-images/dunkin-combo-gift-2026.webp');
+  assert.equal(await page.locator('.notice-original').getAttribute('href'), site.base + '/event-images/dunkin-combo-gift-2026-detail.webp');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});

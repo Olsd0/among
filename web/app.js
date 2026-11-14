@@ -1172,8 +1172,13 @@ function openNews(id) {
   if (!n) { toast('이 소식은 이미 끝났거나 바뀌었어요.'); return; }
   const today = todayKST();
   const rel = relatedCoupons(n);
-  const v = noticeVisual(n, true);
+  const originalVisual = noticeVisual(n, true);
+  const cardVisual = noticeVisual(n);
+  // Our optimized card crops stay readable; the full poster opens separately.
+  const localPreview = cardVisual?.src && /^\/event-images\/[a-z0-9-]+\.(?:webp|jpg|png)$/.test(new URL(cardVisual.src).pathname) && new URL(cardVisual.src).origin === location.origin;
+  const v = localPreview ? cardVisual : originalVisual;
   const img = v?.src || '';
+  const originalImg = originalVisual?.src || img;
   const d = daysLeft(n.end_date, today);
   // 끝나는 날이 공개되지 않은 행사는 공식 페이지에서 마지막으로 확인한 날을 함께 적는다 (11/09 공식 이벤트 목록의 가격 행사)
   const seen = Number.isFinite(Date.parse(n.checked_at || '')) ? todayKST(new Date(n.checked_at)) : '';
@@ -1194,7 +1199,7 @@ function openNews(id) {
       ${n.discount_label ? `<span class="lbl${/[0-9]원/.test(n.discount_label) ? ' money' : ''}">${esc(n.discount_label)}</span>` : ''}
       <button class="x-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
-    ${v?.official ? `<a class="notice-original" href="${esc(img)}" target="_blank" rel="noopener">${v.capture ? '공식 페이지 캡처' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
+    ${v?.official ? `<a class="notice-original" href="${esc(originalImg)}" target="_blank" rel="noopener">${v.capture ? '공식 페이지 캡처' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
     <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 원문에서 확인해 주세요.</p>
     ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}"><span>${esc(target.label)}</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(pf ? `${md(n.start_date)} ~ ${md(n.end_date)} ${pf.note}` : period)}${need ? ` · ${esc(need)}` : ''}</p>
