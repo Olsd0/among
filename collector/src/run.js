@@ -4,7 +4,7 @@ import { noticeImage } from './notice-images.js';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, pickImage, pickNoticeImage, dropSharedNoticeImages, noticeImageFor } from './engine.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, postLinkFor, pickImage, pickNoticeImage, dropSharedNoticeImages, noticeImageFor } from './engine.js';
 import { couponId, contentHash, newsId, newsHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource, captureNoticeDetail, renderPage } from './fetch.js';
@@ -142,6 +142,11 @@ export async function runCollector(o = {}) {
           const pageNews = (ext.news || []).map((raw) => normalizeNews(raw, nctx));
           const live = pageNews.filter((n) => n.status !== 'rejected').length;
           for (const n of pageNews) {
+            // 목록에서 읽은 공지는 그 행사 글 주소로 (클릭으로만 열리는 게시판 — fetch.js POST_RULES)
+            if (page.posts && page.posts.length && n.source_url === nctx.sourceUrl) {
+              const post = postLinkFor(n, page.posts);
+              if (post) { n.list_url = n.source_url; n.source_url = post; }  // list_url: 같은 목록에서 읽은 쿠폰과 잇는 데만 쓰고 보내기 전에 지운다
+            }
             n.id = newsId(n);
             n.checked_at = now.toISOString();
             srcNews.push([n, page, live === 1]);
@@ -284,7 +289,7 @@ export async function runCollector(o = {}) {
     if (sheet) {
       report.ingest = (await sheet.post('ingest', {
         run_id, checked_at: now.toISOString(), coupons: keep,
-        news: news.filter((n) => n.status !== 'rejected'),
+        news: news.filter((n) => n.status !== 'rejected').map(({ list_url, ...n }) => n),
         sources_ok: report.sources.filter((s) => s.ok).map((s) => s.id),
       })).result;
     }

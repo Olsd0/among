@@ -59,7 +59,7 @@ async function setup(data, options = {}) {
   return { context, page };
 }
 
-test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고 작은 할인과 종료 행사는 제외한다', { timeout: 30000 }, async (t) => {
+test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고(작은 할인은 뒤) 종료 행사는 제외한다', { timeout: 30000 }, async (t) => {
   const now = '2026-10-29T03:00:00.000Z';
   const eligible = { id: 'happy-public', brand: '테스트버거', category: '햄버거', title: '기간 한정 50% 할인', summary: '공식 웹 공지에서 조건을 확인한 행사', discount_label: '50% 할인', programs: ['해피포인트'], source_url: 'https://example.test/event', start_date: '2026-10-26', end_date: '2026-10-30', checked_at: now };
   const low = { ...eligible, id: 'happy-small', brand: '테스트카페', title: '40% 할인', summary: '기간 한정 40% 할인 행사', discount_label: '40%' };
@@ -69,7 +69,10 @@ test('공개 공지로 확인한 해피포인트 50% 할인만 추천하고 작�
   await page.goto(`${site.base}/index.html`);
   const card = page.locator('[data-hot="news:happy-public"]');
   await card.waitFor();
-  assert.equal(await page.locator('[data-hot="news:happy-small"]').count(), 0);
+  // 11/16 대표 요청: 핫딜 줄을 밀면 공지를 전부 볼 수 있다 — 추천(50% 이상)이 앞, 추천하지 않는 작은 할인은 그 뒤
+  const rail = await page.locator('#hotRail [data-hot]').evaluateAll((cards) => cards.map((x) => x.dataset.hot));
+  assert.equal(rail[0], 'news:happy-public');
+  assert.ok(rail.indexOf('news:happy-small') > 0);
   assert.equal(await card.locator('.lbl').count(), 0);
   await card.click();
   assert.equal(await page.locator('[data-news-src]').getAttribute('href'), eligible.source_url);

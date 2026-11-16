@@ -39,6 +39,23 @@ async function autoScroll(page, maxSteps = 25) {
 }
 
 /**
+ * 목록의 글이 주소 없이 클릭으로만 열리는 공식 게시판 → 글 주소를 만드는 규칙.
+ * 11/16 대표 지적: 스타벅스 핫딜이 해당 이벤트 글이 아니라 이벤트 게시판으로만 열림.
+ * 스타벅스 목록은 <a class="goPromotionView" prod="3627"> 이고 글 주소는 campaign_view.do?pro_seq=3627 (11/16 실제 화면 확인).
+ * follow = 설명을 채우려고 상세 글을 읽는 최대 개수 (출처의 max_follow가 더 크면 그 값)
+ */
+export const POST_RULES = {
+  'starbucks.co.kr/whats_new/campaign_list.do': {
+    selector: 'a.goPromotionView[prod]', attr: 'prod', pattern: '^\\d{1,8}$',
+    url: 'https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq={v}', follow: 10,
+    followText: '할인|이벤트|적립|증정|쿠폰|딜리버스|충전|혜택|1\\+1',
+  },
+};
+export function postRuleFor(url) {
+  try { const u = new URL(url); return POST_RULES[u.hostname.replace(/^www\./, '') + u.pathname] || null; } catch { return null; }
+}
+
+/**
  * 한 페이지를 렌더링해 텍스트·이미지 대체텍스트·스크린샷·링크를 돌려준다.
  * opts: { selector, exclude, follow, followText, maxShots, outDir, waitMs }
  */
@@ -59,7 +76,7 @@ export async function renderPage(ctx, url, opts = {}) {
     const root = await page.$(selector);
     if (!root) throw Object.assign(new Error(`${url}: selector "${selector}" 없음`), { code: 'SELECTOR' });
 
-    const data = await page.evaluate(({ selector, exclude, follow }) => {
+    const data = await page.evaluate(({ selector, exclude, follow, post }) => {
       const el = document.querySelector(selector);
       const clone = el.cloneNode(true);
       for (const sel of exclude || []) clone.querySelectorAll(sel).forEach((n) => n.remove());
@@ -75,6 +92,14 @@ export async function renderPage(ctx, url, opts = {}) {
         href: a.href,
         text: [a.innerText, a.getAttribute('title'), a.getAttribute('aria-label'), ...[...a.querySelectorAll('img[alt]')].map((i) => i.alt)].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
       })).filter((l) => l.href) : [];
+      // 클릭으로만 열리는 글의 주소 (POST_RULES) — 글 제목(주변 글)과 함께
+      const posts = post ? [...document.querySelectorAll(post.selector)].map((a) => {
+        const v = (a.getAttribute(post.attr) || '').trim();
+        if (!new RegExp(post.pattern).test(v)) return null;
+        const box = a.closest('li') || a.parentElement;
+        const text = [...[...a.querySelectorAll('img[alt]')].map((i) => i.alt), box ? box.innerText : a.innerText].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        return { href: post.url.replace('{v}', encodeURIComponent(v)), text };
+      }).filter(Boolean).slice(0, 120) : [];
       // 공지 이미지 후보 (주소·대체텍스트·크기·주변 글만 — 이미지 파일은 받지도 저장하지도 않음)
       // nearLen: 주변 글 전체 길이 — 카드 하나 분량인지(목록 전체가 아닌지) 판단용
       const nearText = (img) => {
@@ -92,8 +117,8 @@ export async function renderPage(ctx, url, opts = {}) {
       const og = document.querySelector('meta[property="og:image"], meta[name="og:image"], meta[property="og:image:url"]');
       let ogImage = '';
       try { ogImage = og && og.content ? new URL(og.content, location.href).href : ''; } catch (e) { ogImage = ''; }
-      return { title: document.title, text, alts: [...new Set(alts)], links, images, ogImage };
-    }, { selector, exclude: opts.exclude || [], follow: opts.follow || '' });
+      return { title: document.title, text, alts: [...new Set(alts)], links, images, ogImage, posts };
+    }, { selector, exclude: opts.exclude || [], follow: opts.follow || '', post: opts.post || null });
 
     let text = data.text.replace(/\n{3,}/g, '\n\n').trim();
     if (data.alts.length) text += '\n\n[이미지 대체텍스트]\n' + data.alts.join('\n');
@@ -111,7 +136,7 @@ export async function renderPage(ctx, url, opts = {}) {
       .filter((l) => !textRe || textRe.test(l.text) || textRe.test(decodeURIComponent(l.href)))
       .map((l) => l.href))];
     return {
-      url, finalUrl: page.url(), status, title: data.title, text, links, images: data.images || [], ogImage: data.ogImage || '',
+      url, finalUrl: page.url(), status, title: data.title, text, links, images: data.images || [], ogImage: data.ogImage || '', posts: data.posts || [],
       screenshots: screenshots.map(({ base64 }) => ({ media_type: 'image/jpeg', data: base64 })),
     };
   } finally {
@@ -149,9 +174,17 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
     waitMs: +source.wait_ms || 0,
     outDir, name: source.id,
   };
-  const first = await renderPage(ctx, source.url, opts);
+  const rule = postRuleFor(source.url);
+  const first = await renderPage(ctx, source.url, { ...opts, post: rule });
   const pages = [first];
-  const limit = source.max_follow === '' || source.max_follow === undefined ? 6 : +source.max_follow;
+  let limit = source.max_follow === '' || source.max_follow === undefined ? 6 : +source.max_follow;
+  if (rule && first.posts.length) {
+    // 혜택 글부터 (공지·안내 글은 뒤로) 상세를 읽어 설명을 채운다
+    const re = rule.followText ? new RegExp(rule.followText, 'i') : null;
+    const hrefs = [...new Set(first.posts.filter((p) => !re || re.test(p.text)).map((p) => p.href))];
+    first.links = [...new Set([...hrefs, ...first.links])];
+    limit = Math.max(limit, rule.follow || 0);
+  }
   const seen = new Set([first.finalUrl, source.url]);
   const detailSelector = source.detail_selector || undefined;
   for (const link of first.links) {
@@ -160,7 +193,7 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
     seen.add(link);
     await sleep(delayMs);
     try {
-      const d = await renderPage(ctx, link, { ...opts, follow: '', selector: detailSelector, name: `${source.id}_d${pages.length}` });
+      const d = await renderPage(ctx, link, { ...opts, follow: '', post: null, selector: detailSelector, name: `${source.id}_d${pages.length}` });
       d.isDetail = true;
       // 목록 페이지와 같은 og:image는 사이트 기본 공유 이미지(대개 로고) → 행사 사진이 아님
       if (d.ogImage && d.ogImage === first.ogImage) d.ogImage = '';

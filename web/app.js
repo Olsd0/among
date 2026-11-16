@@ -3,7 +3,7 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261114-3';
+} from './engine.js?v=20261116-1';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
@@ -505,7 +505,7 @@ function renderGrid() {
 
 /** 오늘의 핫딜: 공식 소식 + 마감 임박·새로 시작한 큰 혜택 (엔진 pickHeadlines) */
 function noticeSource(n) {
-  const value = noticePhoto(n)?.source || n.source_url;
+  const value = noticePhoto(n)?.source || String(n.source_url || '').trim().split(/\s+/)[0];
   try {
     const url = new URL(value);
     return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
@@ -620,7 +620,11 @@ function renderHot() {
   const allNotices = hideHot ? [] : state.news.filter(n => fresh(n) && brandMatch(n) && (!n.end_date || n.end_date >= today)
     && !state.appCouponRefs.includes('news:' + n.id) && !managedLinks.has(n.official_link))
     .map(n => ({ ...n, kind: 'news' })).sort((a, b) => compareHeadlines(a, b, today));
-  state.hot = hot;
+  // 11/16 대표 요청: "8개만 보이게 하지 말고 슬라이드하면 다 볼 수 있게" — 고른 8장 뒤에 나머지 공지를 같은 순서 기준으로 모두 잇는다.
+  // ('공지 전체 보기'는 그대로 아래에 한꺼번에 펼친다)
+  const shown = new Set(hot.filter(h => h.kind === 'news').map(h => h.id));
+  const rail = [...hot, ...allNotices.filter(n => !shown.has(n.id))];
+  state.hot = rail;
   $('#hot').hidden = !hot.length && !allNotices.length;
   const allButton = $('#showAllNotices');
   allButton.hidden = !allNotices.length;
@@ -628,18 +632,19 @@ function renderHot() {
   allButton.setAttribute('aria-expanded', String(state.hotExpanded));
   $('#allHotNotices').hidden = !state.hotExpanded;
   if (state.hotExpanded) setHTML($('#allHotNotices'), allNotices.map(hotCard).join(''));
-  if (!hot.length) {
+  if (!rail.length) {
     setHTML($('#hotRail'), '');
     $('#hotDots').innerHTML = '';
     $('#hotCount').textContent = '';
     $('#railControls').hidden = true;
     return;
   }
-  if (!setHTML($('#hotRail'), hot.map(hotCard).join(''))) return;
+  if (!setHTML($('#hotRail'), rail.map(hotCard).join(''))) return;
   $('#hotRail').scrollLeft = 0;
   updateRailControls();
-  $('#hotDots').innerHTML = hot.length > 1 ? hot.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
-  $('#hotCount').textContent = hot.length > 1 ? `1 / ${hot.length}` : '';
+  // 점 표시는 12장까지만 (그보다 많으면 'n / N' 숫자만)
+  $('#hotDots').innerHTML = rail.length > 1 && rail.length <= 12 ? rail.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
+  $('#hotCount').textContent = rail.length > 1 ? `1 / ${rail.length}` : '';
 }
 
 function dueChip(c, today) {

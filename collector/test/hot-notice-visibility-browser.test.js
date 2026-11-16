@@ -72,8 +72,12 @@ test('all notices exposes events beyond the eight recommendations, opens their r
   const toggle = page.locator('#showAllNotices');
   const list = page.locator('#allHotNotices');
   const card = list.locator(`[data-hot="news:${HANS_ID}"]`);
-  assert.equal(await page.locator('#hotRail [data-hot]').count(), 8);
-  assert.equal(await page.locator(`#hotRail [data-hot="news:${HANS_ID}"]`).count(), 0);
+  // 2026-11-16 owner request: the rail no longer stops at eight — sliding reaches every notice, recommendations first.
+  const railIds = await page.locator('#hotRail [data-hot]').evaluateAll(cards => cards.map(card => card.dataset.hot));
+  assert.ok(railIds.length > 8);
+  assert.equal(new Set(railIds).size, railIds.length, 'no notice appears twice in the rail');
+  assert.ok(railIds.indexOf(`news:${HANS_ID}`) >= 8, 'notices beyond the eight recommendations follow them in the rail');
+  assert.equal(await page.locator('#hotCount').innerText(), `1 / ${railIds.length}`);
   assert.equal(await toggle.getAttribute('aria-controls'), 'allHotNotices');
   assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(await list.isVisible(), false);
@@ -81,6 +85,8 @@ test('all notices exposes events beyond the eight recommendations, opens their r
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
   assert.ok(await list.locator('[data-hot]').count() > 8);
+  const listIds = await list.locator('[data-hot]').evaluateAll(cards => cards.map(card => card.dataset.hot));
+  assert.deepEqual(railIds.filter(id => id.startsWith('news:')).sort(), [...listIds].sort(), 'the rail and the full list hold the same notices');
   await card.waitFor();
   await card.scrollIntoViewIfNeeded();
   const poster = card.locator('img.ph');
@@ -111,8 +117,10 @@ test('the first three visible recommendation images load eagerly while later car
   const { page, errors } = await setup(t, 1200);
   await ready(page);
   const pictures = page.locator('#hotRail .hot-visual img.ph');
-  assert.equal(await pictures.count(), 8);
-  assert.deepEqual(await pictures.evaluateAll(images => images.map(img => img.loading)), ['eager', 'eager', 'eager', 'lazy', 'lazy', 'lazy', 'lazy', 'lazy']);
+  const loading = await pictures.evaluateAll(images => images.map(img => img.loading));
+  assert.ok(loading.length > 8);
+  assert.deepEqual(loading.slice(0, 3), ['eager', 'eager', 'eager']);
+  assert.ok(loading.slice(3).every(value => value === 'lazy'));
   for (let i = 0; i < 3; i++) {
     assert.ok(await pictures.nth(i).evaluate(async img => { await img.decode(); return img.naturalWidth; }) >= 80);
   }

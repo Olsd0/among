@@ -1404,6 +1404,12 @@ export function mergeNews(list) {
       // (11/13 실제: '파파스데이 30% 할인'에 '불닭 통신사 30%' 목록 이미지가 붙음)
       if (!dup.image_url && n.image_url && similarMenu(dup.title, n.title, 4)) dup.image_url = n.image_url;
       if (!dup.start_date && n.start_date) dup.start_date = n.start_date;
+      // 같은 공지를 목록과 상세 글에서 따로 읽었으면: 원문 링크는 그 행사 글로, 설명은 더 자세한 쪽으로 (11/16 대표 지적: 게시판만 열림·설명 부족)
+      if (similarMenu(dup.title, n.title, 4)) {
+        const isBoard = (x) => !x.source_url || x.source_url === x.official_link;
+        if (isBoard(dup) && !isBoard(n)) dup.source_url = n.source_url;
+        if (n.status === dup.status && String(n.summary || '').length > String(dup.summary || '').length + 15) dup.summary = n.summary;
+      }
       continue;
     }
     out.push({ ...n });
@@ -1411,10 +1417,33 @@ export function mergeNews(list) {
   return out;
 }
 
+/**
+ * 목록에서 읽은 공지 → 그 행사 글 주소 (fetch.js POST_RULES가 모은 posts 중 제목이 맞는 하나).
+ * 글 제목의 낱말이 공지 제목·근거에 모두(낱말이 하나뿐이면 4자 이상) 있어야 하고, 같은 점수가 둘이면 고르지 않는다(틀린 글로 보내지 않음).
+ */
+const POST_STOP = /^(이벤트|안내|프로모션|혜택|스타벅스|행사|event|\d{1,2}월)$/i;
+export function postLinkFor(n, posts) {
+  if (!posts || !posts.length) return '';
+  const sq = (t) => String(t || '').normalize('NFKC').toLowerCase().replace(/[^0-9a-z가-힣]+/g, '');
+  const hay = sq(`${n.title} ${n.evidence}`);
+  const scored = [];
+  for (const p of posts) {
+    const title = String(p.text || '').normalize('NFKC').replace(/\d{4}[-.]\d{1,2}[-.]\d{1,2}.*$/, '').replace(/^중요/, '');
+    const toks = [...new Set(title.toLowerCase().split(/[^0-9a-z가-힣+]+/).filter((t) => t.length >= 2 && !POST_STOP.test(t)))];
+    if (!toks.length || !toks.every((t) => hay.includes(sq(t)))) continue;
+    const len = toks.join('').length;
+    if (toks.length < 2 && len < 4) continue;
+    scored.push([len, p.href]);
+  }
+  scored.sort((a, b) => b[0] - a[0]);
+  if (!scored.length || (scored[1] && scored[1][0] === scored[0][0] && scored[1][1] !== scored[0][1])) return '';
+  return /^https:\/\//.test(scored[0][1]) ? scored[0][1] : '';
+}
+
 /** 소식과 같은 페이지·같은 브랜드(멀티 브랜드 출처면 같은 프로그램)의 게시 쿠폰을 연결 (최대 6개) */
 export function linkNews(newsList, coupons) {
   return newsList.map((n) => {
-    const urlHit = (c) => String(c.source_url || '').split(' ').includes(n.source_url);
+    const urlHit = (c) => { const urls = String(c.source_url || '').split(' '); return urls.includes(n.source_url) || (!!n.list_url && urls.includes(n.list_url)); };
     const overlap = (c) => !(n.end_date && c.start_date && c.start_date > n.end_date) && !(n.start_date && c.end_date && c.end_date < n.start_date);
     const sameWho = (c) => c.brand === n.brand || (n.programs || []).some((p) => (c.programs || []).includes(p) && PROGRAM_LABEL[p] === n.brand);
     const rel = coupons.filter((c) => c.status === 'published' && urlHit(c) && sameWho(c) && overlap(c)).slice(0, 6);
