@@ -12,6 +12,7 @@ import { checkPeriods, needsPeriod } from './period-check.js';
 import { officialReader } from './official-period.js';
 import { pressFromEnv } from './press-search.js';
 import { SheetClient } from './sheet.js';
+import { PageCache, pageKey } from './page-cache.js';
 import { withCouponEventNews } from './event-notices.js';
 import { repairEventSources } from './event-sources.js';
 import { resolveEventArtwork } from './event-artwork.js';
@@ -62,7 +63,7 @@ export async function runCollector(o = {}) {
   const report = {
     run_id, trigger, started_at: now.toISOString(), finished_at: null, duration_s: null,
     model: llm.provider === 'mock' ? 'mock' : `${llm.provider}:${llm.model}`,
-    sources: [], pages: 0, input_tokens: 0, output_tokens: 0, summary: null, ingest: null, errors: [], state: 'running',
+    sources: [], pages: 0, cached_pages: 0, input_tokens: 0, output_tokens: 0, summary: null, ingest: null, errors: [], state: 'running',
   };
 
   // 예약 실행 중복 방지: 00시 Apps Script 트리거가 이미 오늘 수집을 끝냈으면 GitHub 예약 실행(지연되어 새벽에 도착)은 건너뛴다
@@ -81,6 +82,7 @@ export async function runCollector(o = {}) {
   }
 
   let ctx;
+  let pageCache = null;
   try {
     if (sheet) await sheet.post('run_start', { run_id, trigger, started_at: report.started_at });
 
@@ -105,6 +107,7 @@ export async function runCollector(o = {}) {
     // 예산을 넘기거나 AI 한도가 끝나면 남은 출처는 '실패'로 두어 시트의 기존 쿠폰을 건드리지 않는다.
     const deadline = started + (+(env.RUN_BUDGET_S || 2100)) * 1000;
     let stopReason = '';
+    pageCache = o.pageCache || (env.PAGE_CACHE_FILE && llm.provider !== 'mock' ? new PageCache(env.PAGE_CACHE_FILE) : null);
     const one = async (source) => {
       const sr = { id: source.id, brand: source.brand, ok: false, pages: 0, found: 0, published: 0, error: '' };
       report.sources.push(sr);
@@ -119,10 +122,18 @@ export async function runCollector(o = {}) {
           if (Date.now() > deadline) { stopReason = '실행 시간 예산 초과'; throw new Error(stopReason); }
           sr.pages++; report.pages++;
           const program = normPrograms(source.program)[0] || '';
-          const ext = await extractCoupons(page, {
-            brand: source.brand, category: source.category, program, now,
-            provider: llm.provider, apiKey: llm.apiKey, model: llm.model,
-          });
+          // 글자·이미지가 지난번과 같은 페이지는 AI에게 다시 읽히지 않는다 (page-cache.js, 최대 3일)
+          const pUrl = page.finalUrl || page.url;
+          const pKey = pageCache ? pageKey(page, { model: `${llm.provider}:${llm.model}`, brand: source.brand, program }) : '';
+          let ext = pageCache ? pageCache.get(pUrl, pKey, now) : null;
+          if (ext) report.cached_pages++;
+          else {
+            ext = await extractCoupons(page, {
+              brand: source.brand, category: source.category, program, now,
+              provider: llm.provider, apiKey: llm.apiKey, model: llm.model,
+            });
+            if (pageCache) pageCache.set(pUrl, pKey, ext, now);
+          }
           report.input_tokens += ext.usage.input_tokens;
           report.output_tokens += ext.usage.output_tokens;
           if (ext.truncated) report.errors.push(`${source.id}: 응답이 max_tokens에서 잘림 (${page.finalUrl})`);
@@ -301,6 +312,7 @@ export async function runCollector(o = {}) {
     log(`✗ 실행 실패: ${e.stack || e.message}`);
   } finally {
     if (ctx && !o.browser) { let t; await Promise.race([ctx.close().catch(() => {}), new Promise((r) => { t = setTimeout(r, 15000); })]); clearTimeout(t); }
+    try { if (pageCache) pageCache.save(now); } catch (e) { report.errors.push(`페이지 기록 저장 실패: ${e.message}`); }
     report.finished_at = new Date().toISOString();
     report.duration_s = Math.round((Date.now() - started) / 1000);
     writeFileSync(join(outDir, 'run_log.json'), JSON.stringify(report, null, 2));
@@ -309,7 +321,7 @@ export async function runCollector(o = {}) {
       catch (e) { log(`✗ 실행 기록 저장 실패: ${e.message}`); }
     }
     const s = report.summary;
-    log(`[${run_id}] ${report.state} · ${report.duration_s}s · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens}`);
+    log(`[${run_id}] ${report.state} · ${report.duration_s}s · 게시 ${s?.published ?? 0} / 보류 ${s?.pending ?? 0} / 버림 ${s?.rejected ?? 0} · 토큰 in ${report.input_tokens} out ${report.output_tokens} · 다시 안 읽은 페이지 ${report.cached_pages}/${report.pages}`);
     if (report.ingest) log(`  시트: 신규 ${report.ingest.inserted} · 변경 ${report.ingest.updated} · 유지 ${report.ingest.unchanged} · 사라짐 ${report.ingest.gone} · 만료 ${report.ingest.expired}`);
     // GitHub Actions 주석: 로그를 열지 않고 API·요약 화면에서 결과 확인
     if (process.env.GITHUB_ACTIONS && !o.quiet) {

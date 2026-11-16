@@ -47,7 +47,7 @@ async function autoScroll(page, maxSteps = 25) {
 export const POST_RULES = {
   'starbucks.co.kr/whats_new/campaign_list.do': {
     selector: 'a.goPromotionView[prod]', attr: 'prod', pattern: '^\\d{1,8}$',
-    url: 'https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq={v}', follow: 10,
+    url: 'https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq={v}', follow: 5,
     followText: '할인|이벤트|적립|증정|쿠폰|딜리버스|충전|혜택|1\\+1',
   },
 };

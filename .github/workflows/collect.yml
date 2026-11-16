@@ -121,6 +121,15 @@ jobs:
           BOT_CONTACT_URL: ${{ vars.BOT_CONTACT_URL }}
         run: node src/image-audit.js
 
+      # 어제와 같은 페이지는 AI에게 다시 읽히지 않도록 지난 추출 결과를 이어 쓴다 (공개 행사 내용만 · 키·화면 사진 없음)
+      - name: 지난 추출 결과 불러오기
+        if: inputs.mode == 'collect' || inputs.mode == '' || github.event_name == 'schedule'
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: collector/.cache/pages.json
+          key: page-cache-${{ github.run_id }}
+          restore-keys: page-cache-
+
       - name: 수집
         if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition' && inputs.mode != 'site' && inputs.mode != 'images'
         env:
@@ -140,6 +149,7 @@ jobs:
           PERIOD_CHECK: ${{ vars.PERIOD_CHECK }}
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
           ONLY: ${{ inputs.only }}
+          PAGE_CACHE_FILE: ${{ inputs.mode != 'dry' && '.cache/pages.json' || '' }}
           DRY_RUN: ${{ (inputs.mode == 'dry' || (github.event_name == 'schedule' && env.PUBLISH_APPROVED != 'true')) && '1' || '' }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$GEMINI_API_KEY" ]; then
