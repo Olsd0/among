@@ -274,10 +274,22 @@ const DEMO_NUTRITION = [
 ];
 
 // ---------- 서버 통신 ----------
+// 새 백엔드(Cloudflare D1, 11/17 1단계): 조회 세 가지는 먼저 같은 사이트의 /api/public에서 받고, 안 되면 기존 Apps Script로 받는다.
+const DB_API = typeof CFG.dbApi === 'string' && /^\/[a-z/]+$/.test(CFG.dbApi) && location.protocol === 'https:' ? CFG.dbApi : '';
+const DB_ACTIONS = new Set(['coupons', 'nutrition', 'app_coupons']);
+let dbFreshAfter = '';  // '바로 확인'이 끝난 시각 — 그 뒤에 받아 온 응답을 달라고 한다
 async function api(action) {
+  if (DB_API && DB_ACTIONS.has(action)) {
+    const u = new URL(DB_API, location.origin); u.searchParams.set('action', action);
+    if (dbFreshAfter) u.searchParams.set('min', dbFreshAfter);
+    try { return await apiGet(u, 8000); } catch { /* 기존 서버로 */ }
+  }
   const u = new URL(API); u.searchParams.set('action', action);
+  return apiGet(u, 20000);
+}
+async function apiGet(u, ms) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), ms);
   try {
     const res = await fetch(u, { redirect: 'follow', signal: controller.signal });
     if (!res.ok) throw new Error('서버 연결 오류');
@@ -1079,6 +1091,7 @@ async function pollUntilDone(sinceIso) {
     try { st = await api('status'); } catch { continue; }
     if (st.state === 'running') setSync(true, '공식 페이지를 확인하고 있어요… 보통 3~5분 걸려요.');
     if (st.state === 'idle' && (!sinceIso || (st.last_finished_at && st.last_finished_at > sinceIso))) {
+      dbFreshAfter = st.last_finished_at || new Date().toISOString();
       const loaded = await loadCoupons();
       setSync(false);
       if (!loaded) { toast('갱신한 혜택을 가져오지 못했어요. 다시 시도해 주세요.'); return; }

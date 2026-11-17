@@ -4,6 +4,8 @@
 // contactEmail: 서비스 소개·개인정보처리방침·이용약관에 보이는 문의 메일 (비우면 '준비 중' 안내).
 window.AMONG_CONFIG = {
   apiUrl: 'https://script.google.com/macros/s/AKfycbyF_tCoI5S-k1zZOvTbH9YNB7gaW7poFks4meja13ggJX8T29RUEZbONotyzaoiUoXQ/exec',
+  // 새 백엔드(Cloudflare D1) 조회 주소 — 11/17 단계별 전환 1단계. 쿠폰·영양성분·앱 쿠폰 조회를 먼저 여기서 받고, 안 되면 apiUrl(Apps Script)로 받는다. 비우면 끔.
+  dbApi: '/api/public',
   contactEmail: 'hello@amongpick.com', // 11/09 대표가 Cloudflare 이메일 라우팅으로 만든 주소 (받은 메일은 대표 Gmail로 전달)
   // 직접 계약한 광고만 입력. 필드와 게재 절차는 docs/launch-readiness.md 참고.
   sponsorship: null,
