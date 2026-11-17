@@ -1,0 +1,42 @@
+# 시트 → Cloudflare D1 가져오기 + 공개 응답 비교 (docs/d1-migration.md 3단계). 수동 실행만.
+# 전환(D1 기준) 뒤에는 서버가 가져오기를 거절한다. 토큰은 Secrets에만 있고 로그에 적지 않는다.
+name: d1-import
+
+on:
+  workflow_dispatch:
+    inputs:
+      compare_only:
+        description: '가져오지 않고 비교만'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d1-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: 가져오기 · 비교
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+          D1_COLLECTOR_TOKEN: ${{ secrets.D1_COLLECTOR_TOKEN }}
+          D1_API_URL: ${{ vars.D1_API_URL }}
+          COMPARE_ONLY: ${{ inputs.compare_only && '1' || '' }}
+        run: node scripts/d1-import.js

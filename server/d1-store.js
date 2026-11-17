@@ -1,7 +1,7 @@
 // AMONG 새 백엔드 1단계 (11/17 대표 결정: Cloudflare D1로 단계별 전환).
 // 방문자용 조회(쿠폰·공지·앱 쿠폰·영양성분·온라인 특가)를 D1에서 내려 준다.
 // - 지금은 수집·관리가 아직 Apps Script(시트)에 쓰므로, D1은 시트 쪽 공개 응답을 몇 분마다 받아 와 저장한다(공개 자료만 · 토큰 없음).
-// - 응답은 시트 쪽과 글자 하나까지 같다(api_snapshots). 쿠폰·공지는 행 단위 테이블에도 넣어 둔다 → 다음 단계(찜·새 쿠폰 알림)의 바탕.
+// - 응답은 시트 쪽과 글자 하나까지 같다(api_snapshots). 운영 테이블(쿠폰·공지·출처…)은 server/core.js — 전환일부터 그쪽이 기준.
 // - D1이 없거나 실패하면 { ok:false }를 주고, 화면은 기존 Apps Script로 돌아간다(중단 없음).
 // 비밀값·개인정보는 저장하지 않는다.
 
@@ -17,18 +17,6 @@ export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS api_snapshots (
      action TEXT PRIMARY KEY, body TEXT NOT NULL DEFAULT '', hash TEXT NOT NULL DEFAULT '',
      fetched_at TEXT NOT NULL DEFAULT '', changed_at TEXT NOT NULL DEFAULT '', refresh_started_at TEXT NOT NULL DEFAULT '')`,
-  `CREATE TABLE IF NOT EXISTS coupons (
-     id TEXT PRIMARY KEY, brand TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '',
-     start_date TEXT, end_date TEXT, hash TEXT NOT NULL, data TEXT NOT NULL,
-     first_seen_at TEXT NOT NULL, updated_at TEXT NOT NULL, gone_at TEXT)`,
-  `CREATE TABLE IF NOT EXISTS news (
-     id TEXT PRIMARY KEY, brand TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '',
-     start_date TEXT, end_date TEXT, hash TEXT NOT NULL, data TEXT NOT NULL,
-     first_seen_at TEXT NOT NULL, updated_at TEXT NOT NULL, gone_at TEXT)`,
-  `CREATE INDEX IF NOT EXISTS coupons_brand ON coupons (brand, gone_at)`,
-  `CREATE INDEX IF NOT EXISTS coupons_seen ON coupons (first_seen_at)`,
-  `CREATE INDEX IF NOT EXISTS news_brand ON news (brand, gone_at)`,
-  `CREATE INDEX IF NOT EXISTS news_seen ON news (first_seen_at)`,
 ];
 
 let schemaReady = new WeakSet();
@@ -44,36 +32,6 @@ export async function sha256(text) {
 }
 
 const iso = (ms) => new Date(ms).toISOString();
-const str = (v) => (v === null || v === undefined ? '' : String(v)).slice(0, 300);
-const dateOrNull = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
-
-/** 행 단위 테이블 맞추기: 바뀐 행만 쓰고(무료 쓰기 한도 보호), 사라진 행은 지우지 않고 gone_at만 적는다 */
-export async function syncRows(db, table, rows, nowIso) {
-  if (table !== 'coupons' && table !== 'news') throw new Error('bad table');
-  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && typeof r === 'object' && typeof r.id === 'string' && r.id && r.id.length <= 120);
-  const known = new Map(((await db.prepare(`SELECT id, hash, gone_at FROM ${table}`).all()).results || []).map((r) => [r.id, r]));
-  const seen = new Set();
-  const stmts = [];
-  for (const r of list) {
-    if (seen.has(r.id)) continue;
-    seen.add(r.id);
-    const data = JSON.stringify(r);
-    const hash = await sha256(data);
-    const old = known.get(r.id);
-    if (old && old.hash === hash && !old.gone_at) continue;
-    stmts.push(db.prepare(
-      `INSERT INTO ${table} (id, brand, category, title, start_date, end_date, hash, data, first_seen_at, updated_at, gone_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, NULL)
-       ON CONFLICT(id) DO UPDATE SET brand = ?2, category = ?3, title = ?4, start_date = ?5, end_date = ?6, hash = ?7, data = ?8, updated_at = ?9, gone_at = NULL`,
-    ).bind(r.id, str(r.brand), str(r.category), str(r.title || r.menu), dateOrNull(r.start_date), dateOrNull(r.end_date), hash, data, nowIso));
-  }
-  for (const [id, old] of known) {
-    if (!seen.has(id) && !old.gone_at) stmts.push(db.prepare(`UPDATE ${table} SET gone_at = ?1 WHERE id = ?2`).bind(nowIso, id));
-  }
-  for (let i = 0; i < stmts.length; i += 40) await db.batch(stmts.slice(i, i + 40));
-  return { rows: seen.size, written: stmts.length };
-}
-
 /** 시트 쪽 공개 응답을 받아 와 저장. 같은 내용이면 확인 시각만 고친다 */
 export async function refresh(env, action, { fetchImpl = fetch, now = Date.now() } = {}) {
   const db = env.DB;
@@ -93,10 +51,6 @@ export async function refresh(env, action, { fetchImpl = fetch, now = Date.now()
   if (prev && prev.hash === hash) {
     await db.prepare('UPDATE api_snapshots SET fetched_at = ?1 WHERE action = ?2').bind(nowIso, action).run();
     return { body, changed: false };
-  }
-  if (action === 'coupons') {
-    await syncRows(db, 'coupons', data.coupons, nowIso);
-    await syncRows(db, 'news', data.news, nowIso);
   }
   await db.prepare(
     `INSERT INTO api_snapshots (action, body, hash, fetched_at, changed_at) VALUES (?1, ?2, ?3, ?4, ?4)

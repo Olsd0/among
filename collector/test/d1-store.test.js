@@ -1,21 +1,9 @@
 // 새 백엔드 1단계(D1): 저장·재사용·바뀐 행만 쓰기·실패 시 화면이 Apps Script로 돌아갈 수 있는 응답
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
-import { handlePublic, syncRows, SCHEMA, ACTIONS } from '../../server/d1-store.js';
+import { fakeD1 } from './d1-fake.js';
+import { handlePublic, ACTIONS } from '../../server/d1-store.js';
 
-// D1과 같은 모양의 시험용 DB (node:sqlite)
-function fakeD1() {
-  const sql = new DatabaseSync(':memory:');
-  const stats = { writes: 0 };
-  const prep = (text, args = []) => ({
-    bind: (...a) => prep(text, a),
-    all: async () => ({ results: sql.prepare(text).all(...args) }),
-    first: async () => sql.prepare(text).get(...args) ?? null,
-    run: async () => { const r = sql.prepare(text).run(...args); if (/^\s*(INSERT|UPDATE|DELETE)/i.test(text)) stats.writes += Number(r.changes); return { meta: { changes: Number(r.changes) } }; },
-  });
-  return { prepare: (t) => prep(t), batch: async (list) => { const out = []; for (const s of list) out.push(await s.run()); return out; }, sql, stats };
-}
 const T0 = Date.UTC(2026, 10, 17, 0, 0, 0);
 const body = (coupons, news = []) => JSON.stringify({ ok: true, last_checked_at: '2026-11-16T15:00:00.000Z', coupons, news });
 const upstream = (text) => { const calls = []; const f = async (u) => { calls.push(u); return new Response(typeof text === 'function' ? text() : text); }; f.calls = calls; return f; };
@@ -41,11 +29,9 @@ test('처음에는 받아 와 저장하고, 그 뒤 3분 동안은 저장된 응
   assert.equal(await b.text(), text);
   assert.equal(b.headers.get('x-among-cache'), 'hit');
   assert.equal(f.calls.length, 1);
-  assert.equal(env.DB.sql.prepare('SELECT COUNT(*) n FROM coupons').get().n, 2);
-  assert.equal(env.DB.sql.prepare('SELECT title FROM news').get().title, '와퍼 행사');
 });
 
-test('3분이 지나면 저장된 응답을 주면서 새로 받아 오고, 바뀐 행만 쓴다 (사라진 쿠폰은 gone_at)', async () => {
+test('3분이 지나면 저장된 응답을 주면서 새로 받아 오고, 같은 내용이면 거의 쓰지 않는다', async () => {
   const env = { DB: fakeD1() };
   let text = body([C('c1'), C('c2')]);
   const f = upstream(() => text);
@@ -56,10 +42,6 @@ test('3분이 지나면 저장된 응답을 주면서 새로 받아 오고, 바�
   assert.match(await stale.text(), /"c2"/);
   const next = await get(env, f, T0 + 210e3);
   assert.match(await next.text(), /"c3"/);
-  const rows = Object.fromEntries(env.DB.sql.prepare('SELECT id, gone_at, first_seen_at, updated_at FROM coupons').all().map((r) => [r.id, r]));
-  assert.equal(rows.c1.updated_at, new Date(T0).toISOString(), '그대로인 행은 다시 쓰지 않음');
-  assert.ok(rows.c2.gone_at);
-  assert.equal(rows.c3.gone_at, null);
   // 내용이 같으면 확인 시각 한 칸만 고친다
   const before = env.DB.stats.writes;
   await get(env, f, T0 + 600e3);
@@ -102,13 +84,4 @@ test('다른 주소로는 받아 오지 않는다 · 조회 종류는 공개 자
   assert.deepEqual(await (await get(env, f, T0)).json(), { ok: false, error: 'unavailable' });
   assert.equal(f.calls.length, 0);
   assert.deepEqual(Object.keys(ACTIONS).sort(), ['app_coupons', 'coupons', 'nutrition', 'online_deals']);
-});
-
-test('행 맞추기: id 없는 행·중복은 건너뛰고 표 이름은 정해진 것만', async () => {
-  const db = fakeD1();
-  await db.batch(SCHEMA.map((s) => db.prepare(s)));
-  const r = await syncRows(db, 'coupons', [C('a'), C('a'), { brand: 'x' }, null, C('b', { start_date: '어제' })], '2026-11-17T00:00:00.000Z');
-  assert.deepEqual(r, { rows: 2, written: 2 });
-  assert.equal(db.sql.prepare("SELECT start_date FROM coupons WHERE id = 'b'").get().start_date, null);
-  await assert.rejects(() => syncRows(db, 'users; DROP TABLE coupons', [], ''), /bad table/);
 });

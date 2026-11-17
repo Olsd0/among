@@ -154,6 +154,8 @@ function doPost(e) {
       case 'run_finish': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(runFinish_(body.report || {}));
       case 'nutrition_ingest': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, result: withLock_(() => ingestNutrition_(body)) });
       case 'news_periods': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_({ ok: true, periods: newsPeriods_() });
+      // 새 DB(Cloudflare D1)로 옮길 때 쓰는 내보내기 (11/17 대표 승인 · docs/d1-migration.md). 토큰·이용 기록은 싣지 않는다
+      case 'export': authed = auth_(body, 'COLLECTOR_TOKEN'); return json_(exportTables_());
       // 관리
       case 'app_coupon_list': authed = auth_(body, 'ADMIN_TOKEN'); return json_(adminAppCoupons_());
       case 'app_coupon_save':
@@ -570,6 +572,17 @@ function keepPeriod_(row, old) {
 }
 
 /** 수집기용: 기간 확인 기록 (확인한 적 있는 소식만) */
+/** 쿠폰·공지·출처·실행 기록 전체 행과 상태값(시각 세 개)만. 스크립트 속성의 토큰은 절대 넣지 않는다 */
+function exportTables_() {
+  const p = PropertiesService.getScriptProperties();
+  const props = {};
+  ['LAST_FINISHED_AT', 'LAST_STATE', 'LAST_SUCCESS_AT'].forEach((k) => { props[k] = p.getProperty(k) || ''; });
+  const tables = {};
+  ['coupons', 'news', 'sources', 'run_log'].forEach((name) => { tables[name] = readTable_(name).rows; });
+  tables.run_log = tables.run_log.slice(-400);
+  return { ok: true, exported_at: nowIso_(), schema: SCHEMA_VERSION, tables: tables, props: props };
+}
+
 function newsPeriods_() {
   return readTable_('news').rows.filter((r) => r.period_checked_at).map((r) => ({
     id: r.id, status: r.status, start_date: r.start_date, end_date: r.end_date,
