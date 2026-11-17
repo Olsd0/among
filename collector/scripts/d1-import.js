@@ -25,7 +25,7 @@ export function comparePublic(sheet, d1) {
 
 async function main(env) {
   const sheet = new SheetClient(env.APPS_SCRIPT_URL, env.COLLECTOR_TOKEN);
-  const d1 = new SheetClient(env.D1_API_URL || 'https://www.amongpick.com/api/collector', env.D1_COLLECTOR_TOKEN);
+  const d1 = new SheetClient(env.D1_API_URL || 'https://www.amongpick.com/api/collector', String(env.D1_COLLECTOR_TOKEN || '').trim());
   const dump = await sheet.post('export');
   const count = (k) => (dump.tables[k] || []).length;
   console.log(`시트 내보내기: 쿠폰 ${count('coupons')} · 공지 ${count('news')} · 출처 ${count('sources')} · 실행 기록 ${count('run_log')}`);

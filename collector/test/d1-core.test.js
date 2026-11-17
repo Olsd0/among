@@ -170,8 +170,9 @@ test('수집기·관리자 주소: 토큰이 없거나 틀리면 거절, 토큰�
   const TOKEN = 'collector-token-0123456789abcdef', ADMIN = 'admin-token-0123456789abcdefgh';
   const post = (handler, env, body) => handler(new Request('https://www.amongpick.com/api/x', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) }), env, { now: T0 }).then((r) => r.json());
   assert.deepEqual(await post(handleCollector, {}, { action: 'sources' }), { ok: false, error: 'no_db' });
-  assert.deepEqual(await post(handleCollector, { DB: db }, { action: 'sources', token: '' }), { ok: false, error: 'unauthorized' });
-  assert.deepEqual(await post(handleCollector, { DB: db, COLLECTOR_TOKEN: 'short' }, { action: 'sources', token: 'short' }), { ok: false, error: 'unauthorized' });
+  assert.deepEqual(await post(handleCollector, { DB: db }, { action: 'sources', token: '' }), { ok: false, error: 'unauthorized (server token not set)' });
+  assert.deepEqual(await post(handleCollector, { DB: db, COLLECTOR_TOKEN: 'short' }, { action: 'sources', token: 'short' }), { ok: false, error: 'unauthorized (server token not set)' });
+  assert.equal((await post(handleCollector, { DB: db, COLLECTOR_TOKEN: TOKEN + '\n' }, { action: 'sources', token: ' ' + TOKEN })).ok, true, '앞뒤 공백·줄바꿈은 무시');
   assert.deepEqual(await post(handleCollector, { DB: db, COLLECTOR_TOKEN: TOKEN }, { action: 'sources', token: TOKEN + 'x' }), { ok: false, error: 'unauthorized' });
   assert.deepEqual(await post(handleCollector, { DB: db, COLLECTOR_TOKEN: TOKEN }, { action: 'sources', token: ADMIN }), { ok: false, error: 'unauthorized' });
   assert.deepEqual(await post(handleCollector, { DB: db, COLLECTOR_TOKEN: TOKEN }, '[1]'), { ok: false, error: 'bad json' });

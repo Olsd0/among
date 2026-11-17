@@ -393,8 +393,12 @@ export async function importSheet(db, body, { now = Date.now() } = {}) {
 
 // ---------- HTTP ----------
 const json = (o) => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
+const tokenReady = (expected) => typeof expected === 'string' && expected.trim().length >= 24;
+// 거절 이유 중 '서버에 토큰이 아직 없음(또는 24자 미만)'만 구분해 알려 준다 — 값에 대한 정보는 주지 않는다
+const denied = (expected) => json({ ok: false, error: tokenReady(expected) ? 'unauthorized' : 'unauthorized (server token not set)' });
 async function sameToken(given, expected) {
-  if (typeof given !== 'string' || typeof expected !== 'string' || expected.length < 24 || given.length > 400) return false;
+  if (typeof given !== 'string' || !tokenReady(expected) || given.length > 400) return false;
+  given = given.trim(); expected = expected.trim();   // 붙여 넣을 때 딸려 온 앞뒤 공백·줄바꿈 무시
   const h = async (s) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
   const [a, b] = await Promise.all([h(given), h(expected)]);
   let diff = 0; for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
@@ -413,7 +417,7 @@ export async function handleCollector(request, env, { now = Date.now() } = {}) {
   if (!env || !env.DB) return json({ ok: false, error: 'no_db' });
   let body;
   try { body = await readBody(request, 4_000_000); } catch (e) { return json({ ok: false, error: e.message === 'too large' ? 'too large' : 'bad json' }); }
-  if (!(await sameToken(body.token, env.COLLECTOR_TOKEN))) return json({ ok: false, error: 'unauthorized' });
+  if (!(await sameToken(body.token, env.COLLECTOR_TOKEN))) return denied(env.COLLECTOR_TOKEN);
   const db = env.DB;
   try {
     switch (body.action) {
@@ -438,7 +442,7 @@ export async function handleAdmin(request, env, { now = Date.now() } = {}) {
   if (!env || !env.DB) return json({ ok: false, error: 'no_db' });
   let body;
   try { body = await readBody(request, 100_000); } catch (e) { return json({ ok: false, error: e.message === 'too large' ? 'too large' : 'bad json' }); }
-  if (!(await sameToken(body.token, env.ADMIN_TOKEN))) return json({ ok: false, error: 'unauthorized' });
+  if (!(await sameToken(body.token, env.ADMIN_TOKEN))) return denied(env.ADMIN_TOKEN);
   const db = env.DB;
   try {
     switch (body.action) {
