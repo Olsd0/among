@@ -554,7 +554,7 @@ function noticeVisual(n, detail = false) {
     return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, related, campaign, press, source: registryPoster ? '' : safeUrl(n.image_source_url), contain: capture || n.image_fit === 'contain', fallback: product };
   }
   // 공지 자체 이미지가 없으면 연결된 쿠폰의 행사 썸네일(같은 행사 글의 목록 칸) — 상품·대표 메뉴 사진보다 먼저 (11/19)
-  const event = relatedCoupons(n).map((c) => safeImg(c.event_image)).find(Boolean);
+  const event = relatedCoupons(n).filter((c) => noticeAbout(n, c)).map((c) => safeImg(c.event_image)).find(Boolean);
   if (event) return { src: event, label: '공식 행사 이미지', alt: `${n.brand} 공식 행사 이미지`, official: true, campaign: true, source: '', fallback: product };
   return product;
 }
@@ -568,9 +568,27 @@ function couponEventPhoto(c) {
   if (own) return { url: own, source: c.event_image_source || '', name: c.menu || '', kind: 'campaign', label: '공식 행사 이미지', detailUrl: own };
   if (!c.id) return null;
   const n = state.news.find((x) => x.brand === c.brand && (x.related_ids || []).includes(c.id) && safeImg(x.image_url)
-    && (!x.image_kind || /^official_(?:event|campaign|poster)$/.test(x.image_kind)));
+    && (!x.image_kind || /^official_(?:event|campaign|poster)$/.test(x.image_kind)) && noticeAbout(x, c));
   const url = n ? safeImg(n.image_url) : '';
   return url ? { url, source: n.source_url || '', name: n.title || '', kind: 'campaign', label: '공식 행사 이미지', detailUrl: url } : null;
+}
+/**
+ * 연결된 공지가 정말 이 쿠폰의 행사인지 (같은 목록에서 읽었다는 이유만으로 연결된 다른 행사의 포스터를 붙이지 않게 · 11/19 점검:
+ * '파리바게뜨 전 메뉴' 결제 할인에 홀리데이 케이크 포스터, '버거킹 전 메뉴'에 트머와 세트 이미지가 붙음)
+ * - 메뉴에 고유한 낱말이 있으면 그중 하나가 공지 제목·요약·라벨에 있어야 하고
+ * - '전 메뉴'처럼 고유 낱말이 없으면 쿠폰의 할인율·금액이 공지에 같은 숫자로 있어야 한다
+ */
+const MENU_GENERIC = /^(전|메뉴|전메뉴|모든|전체|품목|상품|제품|단품|세트|구성|사이즈|이상|외|및|또는|할인|증정|무료|\d+종|\d+개|[sml])$/i;
+const plainKey = (t) => String(t || '').normalize('NFKC').toLowerCase().replace(/[^0-9a-z가-힣%]/g, '');
+function noticeAbout(n, c) {
+  const text = plainKey(`${n.title || ''} ${n.summary || ''} ${n.discount_label || ''}`);
+  const words = String(c.menu || '').normalize('NFKC').split(/[\s·,+/()\[\]&]+/).map(plainKey).filter((t) => t.length >= 2 && !MENU_GENERIC.test(t));
+  if (words.length) return words.some((t) => text.includes(t));
+  const nums = [];
+  if (Number(c.discount_rate) > 0) nums.push(`${Number(c.discount_rate)}%`);
+  for (const v of [c.discount_value, c.coupon_price]) if (Number(v) >= 100) nums.push(`${Number(v)}원`);
+  const money = text.replace(/(\d+)만(?=원)/g, (_, x) => String(x * 10000)).replace(/(\d+)천(?=원)/g, (_, x) => String(x * 1000));
+  return nums.some((x) => money.includes(x));
 }
 function couponPhotoFor(c, today) {
   const p = couponPhoto(c, today);

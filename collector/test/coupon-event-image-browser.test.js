@@ -58,10 +58,12 @@ test('상품 사진 없는 쿠폰은 같은 행사의 공식 이미지로, 이�
       { ...base, id: 'c_thumb', menu: '겨울 한정 굿즈', source_url: 'https://example.test/event/7', image_url: thumbUrl },
       { ...base, id: 'c_rel', menu: '산타 피규어 증정', source_url: 'https://example.test/event/8', image_url: '' },
       { ...base, id: 'c_none', menu: '알 수 없는 증정', source_url: 'https://example.test/event/9', image_url: '' },
+      // 같은 목록에서 읽어 공지에 연결됐지만 다른 행사(전 메뉴 10% 결제 할인) → 공지 포스터를 붙이지 않는다
+      { ...base, id: 'c_broad', menu: '전 메뉴', discount_type: 'percent', discount_rate: 10, discount_value: 10, source_url: 'https://example.test/event/8', image_url: '' },
     ],
     news: [
       { id: 'n_poster', brand: '테스트버거', category: '햄버거', title: '산타 피규어 증정 이벤트', summary: '피규어 증정', discount_label: '증정', programs: [], start_date: '2026-11-10', end_date: END,
-        checked_at: NOW, first_seen: NOW, source_url: 'https://example.test/event/8', official_link: 'https://example.test/event', related_ids: ['c_rel'], image_url: POSTER },
+        checked_at: NOW, first_seen: NOW, source_url: 'https://example.test/event/8', official_link: 'https://example.test/event', related_ids: ['c_rel', 'c_broad'], image_url: POSTER },
       { id: 'n_noimg', brand: '테스트버거', category: '햄버거', title: '겨울 한정 굿즈 프로모션', summary: '굿즈 증정', discount_label: '증정', programs: [], start_date: '2026-11-10', end_date: END,
         checked_at: NOW, first_seen: NOW, source_url: 'https://example.test/event/7', official_link: 'https://example.test/event', related_ids: ['c_thumb'], image_url: '' },
     ] };
@@ -76,6 +78,7 @@ test('상품 사진 없는 쿠폰은 같은 행사의 공식 이미지로, 이�
   assert.equal(await card('c_rel').locator('img.ph').getAttribute('src'), POSTER, '연결된 공지의 공식 이미지');
   assert.equal((await card('c_rel').locator('.coupon-image-label').innerText()).trim(), '공식 행사');
   assert.equal(await card('c_none').locator('img.ph').count(), 0, '맞는 이미지가 없으면 다른 행사 이미지로 채우지 않는다');
+  assert.equal(await card('c_broad').locator('img.ph').count(), 0, '연결만 된 다른 행사(할인율 다름)의 포스터는 쓰지 않는다');
   const hot = page.locator('[data-hot="news:n_noimg"]');
   await hot.waitFor();
   assert.equal(await hot.locator('img.ph').getAttribute('src'), THUMB);
