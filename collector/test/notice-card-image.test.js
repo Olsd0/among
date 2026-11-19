@@ -126,3 +126,19 @@ test('수집 실행: 대체텍스트로 못 고른 공지 → 목록 칸 썸네�
   assert.deepEqual(opened.map((u) => new URL(u).pathname), ['/cards/ev-103.html'], '이미지를 못 찾은 글 하나만 열었다');
   assert.equal(report.image_reads, 1);
 });
+
+test('같은 글 칸의 썸네일을 함께 쓰는 공지(한 행사 안의 여러 혜택)는 공통 배너로 보지 않는다', async () => {
+  const { dropSharedNoticeImages } = await import('../src/engine.js');
+  const thumb = 'https://imgcdn4.pji.co.kr/pc/img/event/261110_hangyodon_list.jpg';
+  const post = pageUrlKey('https://www.pji.co.kr/event/ongoing/9645');
+  const kept = dropSharedNoticeImages([
+    { id: 'a', status: 'published', title: '산리오 한교동 한정판 굿즈 프로모션', image_url: thumb, image_post: post },
+    { id: 'b', status: 'published', title: '피자 1판 구매 시 랜덤 스티커 증정', image_url: thumb, image_post: post },
+  ]);
+  assert.deepEqual(kept.map((n) => n.image_url), [thumb, thumb]);
+  const banner = dropSharedNoticeImages([
+    { id: 'a', status: 'published', image_url: 'https://a.kr/banner.jpg' },
+    { id: 'b', status: 'published', image_url: 'https://a.kr/banner.jpg', image_post: post },
+  ]);
+  assert.deepEqual(banner.map((n) => n.image_url), ['', ''], '글 칸으로 확인되지 않은 공통 이미지는 여전히 뗀다');
+});

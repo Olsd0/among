@@ -123,13 +123,15 @@ export async function runCollector(o = {}) {
       cardsBySource.set(source.id, { cards, posts: lists.flatMap((p) => p.posts || []) });
       const rendered = new Set(pages.filter((p) => !p.error).flatMap((p) => [p.url, p.finalUrl]).map(pageUrlKey));
       let reads = 0;
+      const sameSite = (a, b) => pageUrlKey(a).split('/')[0] === pageUrlKey(b).split('/')[0];
       for (const [n, page] of srcNews) {
         if (n.status === 'rejected' || n.image_url || noticePhoto(n)) continue;
         const pageUrl = page.finalUrl || page.url;
         const hit = noticeCardFor(n, cards);
         if (hit && usableThumb(hit.card.img, n.brand) && (hit.exact || !isListedNoticeImage(hit.card.img.src))) n.image_url = hit.card.img.src;
+        if (!n.image_url) log(`  · ${source.id}: '${String(n.title).slice(0, 30)}' 목록 칸 ${cards.length}개 중 ${hit ? (hit.exact ? '같은 글 칸(썸네일 없음)' : '제목 맞는 칸(썸네일 없음)') : '맞는 칸 없음'}`);
         // 목록에서 읽은 공지는 그 글 주소로 ('공식 원문'이 게시판이 아니라 그 행사 글로 열리게). 같은 사이트 글만
-        if (hit && !hit.exact && n.source_url === pageUrl && pageUrlKey(hit.card.href).split('/')[0] === pageUrlKey(pageUrl).split('/')[0]) {
+        if (hit && !hit.exact && n.source_url === pageUrl && sameSite(hit.card.href, pageUrl)) {
           n.list_url = n.source_url;
           n.source_url = hit.card.href;
         }
@@ -148,10 +150,22 @@ export async function runCollector(o = {}) {
           const img = pickNoticeImage(n, [...pages, d], { own: d, single: true });
           if (img && !isListedNoticeImage(img)) {
             n.image_url = img;
+            n.image_post = pageUrlKey(detail);
             report.image_reads = (report.image_reads || 0) + 1;
             log(`  🖼 ${source.id}: '${String(n.title).slice(0, 30)}' 상세에서 공지 이미지`);
-          }
+          } else log(`  · ${source.id}: '${String(n.title).slice(0, 30)}' 상세에서도 포스터 못 찾음`);
         } catch (e) { report.errors.push(`${source.id} 이미지 확인: ${e.message}`); }
+      }
+      // 이미지가 어느 글 칸의 썸네일인지 적어 둔다: 같은 글(한 행사 안의 여러 혜택)의 공지끼리 같은 썸네일을 쓰는 것은 정상
+      // (11/19 파파존스 '한교동 굿즈'와 '랜덤 스티커'가 같은 9645 글 썸네일 → 공통 배너로 오해해 둘 다 지워졌음)
+      // 목록에서 읽은 공지의 이미지가 어느 칸 것인지 알면 원문도 그 글로
+      const bySrc = new Map(cards.filter((c) => c.img && c.img.src).map((c) => [c.img.src, c]));
+      for (const [n, page] of srcNews) {
+        const card = n.image_url && bySrc.get(n.image_url);
+        if (!card) continue;
+        n.image_post = pageUrlKey(card.href);
+        const pageUrl = page.finalUrl || page.url;
+        if (n.source_url === pageUrl && pageUrlKey(card.href) !== pageUrlKey(pageUrl) && sameSite(card.href, pageUrl)) { n.list_url = n.list_url || n.source_url; n.source_url = card.href; }
       }
     };
     const one = async (source) => {
@@ -354,7 +368,7 @@ export async function runCollector(o = {}) {
     if (sheet) {
       report.ingest = (await sheet.post('ingest', {
         run_id, checked_at: now.toISOString(), coupons: keep,
-        news: news.filter((n) => n.status !== 'rejected').map(({ list_url, ...n }) => n),
+        news: news.filter((n) => n.status !== 'rejected').map(({ list_url, image_post, ...n }) => n),
         sources_ok: report.sources.filter((s) => s.ok).map((s) => s.id),
       })).result;
     }

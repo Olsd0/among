@@ -1332,7 +1332,8 @@ export function dropSharedNoticeImages(list = [], verified = () => '') {
     if (!by.has(n.image_url)) by.set(n.image_url, []);
     by.get(n.image_url).push(n);
   }
-  for (const group of by.values()) if (group.length > 1) group.forEach((n) => { n.image_url = ''; });
+  // 모두 같은 글 칸의 썸네일로 확인된 공지(image_post 같음)끼리는 그대로 — 한 행사 글 안의 여러 혜택
+  for (const group of by.values()) if (group.length > 1 && !(group[0].image_post && group.every((n) => n.image_post === group[0].image_post))) group.forEach((n) => { n.image_url = ''; });
   return list;
 }
 
