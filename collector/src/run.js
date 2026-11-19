@@ -119,7 +119,10 @@ export async function runCollector(o = {}) {
      */
     const fillNoticeImages = async (source, pages, srcNews) => {
       const lists = pages.filter((p) => !p.error && !p.isDetail);
-      const cards = lists.flatMap((p) => [...(p.cards || []), ...(p.posts || []).map((x) => ({ href: x.href, title: x.text, img: x.img }))]);
+      // 목록 자기 자신을 가리키는 링크(메뉴의 '이벤트' 등)는 칸이 아니다 — 목록에서 읽은 공지가 그 링크와 '같은 글'로 잡혀 이미지를 못 찾았음 (11/19)
+      const self = new Set(lists.flatMap((p) => [p.url, p.finalUrl]).map(pageUrlKey).filter(Boolean));
+      const cards = lists.flatMap((p) => [...(p.cards || []), ...(p.posts || []).map((x) => ({ href: x.href, title: x.text, img: x.img }))])
+        .filter((c) => c && !self.has(pageUrlKey(c.href)));
       cardsBySource.set(source.id, { cards, posts: lists.flatMap((p) => p.posts || []) });
       const rendered = new Set(pages.filter((p) => !p.error).flatMap((p) => [p.url, p.finalUrl]).map(pageUrlKey));
       let reads = 0;
