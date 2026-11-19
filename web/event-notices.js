@@ -1,4 +1,5 @@
-import { benefitLabel, normPrograms, noticeImageFor, todayKST, verificationStatus } from './engine.js?v=20261116-1';
+import { benefitLabel, normPrograms, noticeImageFor, todayKST, verificationStatus } from './engine.js?v=20261119-1';
+import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 
 // 쿠폰으로만 추출된 기간 한정 결제·증정 행사도 같은 원문으로 공지를 만든다.
 // 가격·혜택·확인 시각은 쿠폰 그대로이고, 상품 이미지는 공지에 옮기지 않는다.
@@ -8,6 +9,13 @@ const DAY = 864e5;
 const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const validDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && Number.isFinite(Date.parse(value))
   && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+
+/** 쿠폰에 붙은 행사 썸네일 주소 (수집기가 '#among-artwork=' 표시로 남긴 official_event만. 화면은 event_image로 넘겨받음) */
+export function couponEventImage(c = {}) {
+  if (typeof c.event_image === 'string' && /^https:\/\//.test(c.event_image)) return c.event_image;
+  const art = decodeArtworkUrl(c.image_url);
+  return art.meta && art.meta.kind === 'official_event' ? art.url : '';
+}
 
 // 추적용 쿼리만 없앤다. 이벤트 id를 나타내는 나머지 쿼리는 보존한다.
 function urlKey(value) {
@@ -86,8 +94,9 @@ function fromCoupon(c, today, now) {
     status: 'published', checked_at: c.checked_at, first_seen: c.first_seen || c.checked_at,
     confidence: c.confidence, evidence: c.evidence || '', related_ids: [c.id], image_url: '', notice_only: true,
   };
-  // 확인 목록에서 이 행사로 대조된 이미지만. c.image_url은 상품 사진이므로 사용하지 않는다.
-  n.image_url = noticeImageFor(n, '', today);
+  // 확인 목록에서 이 행사로 대조된 이미지 → 없으면 수집기가 같은 행사 글의 목록 칸에서 찾은 썸네일(official_event).
+  // 상품 사진(종류 표시 없는 c.image_url)은 공지 이미지로 쓰지 않는다.
+  n.image_url = noticeImageFor(n, couponEventImage(c), today);
   return n;
 }
 

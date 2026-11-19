@@ -1262,6 +1262,68 @@ function detailPoster(n, pages, own, single) {
   return about && /^https:\/\//i.test(og) && !/\.(svg|gif)(\?|#|$)/i.test(og) && !elsewhere.has(og) && !NON_PHOTO.test(og) ? og : '';
 }
 
+// ---------- 목록 칸(글 링크 + 썸네일)으로 공지·쿠폰 이미지 찾기 ----------
+// 11/19 대표 요청 "핫딜 공지에는 어지간하면 이미지를 받아줘. 브랜드 로고로 대치말고. 쿠폰에도 이미지 없는 것들 보완해줘"
+// 대체텍스트·주변 글 대조(pickNoticeImage)로 못 고른 공지만. 목록의 한 칸 안에 글 주소와 썸네일이 함께 있으므로,
+// 공지의 원문 주소가 그 칸의 주소와 같으면 그 썸네일은 그 글의 이미지다. 이미지 파일은 받지 않고 주소만 쓴다.
+
+/** 주소 비교용: 호스트(www 무시) + 경로(끝 / 무시, 한글 인코딩 차이 무시) + 값 있는 쿼리 */
+export function pageUrlKey(u) {
+  try {
+    const x = new URL(String(u || '').trim());
+    if (!/^https?:$/.test(x.protocol)) return '';
+    let path = x.pathname;
+    try { path = decodeURIComponent(path); } catch { /* 그대로 */ }
+    const q = [...x.searchParams].filter(([, v]) => v !== '').sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => `${k}=${v}`).join('&');
+    return x.hostname.replace(/^www\./, '').toLowerCase() + path.replace(/\/+$/, '') + (q ? `?${q}` : '');
+  } catch { return ''; }
+}
+const urlKeys = (v) => String(v || '').split(/\s+/).map(pageUrlKey).filter(Boolean);
+
+/** 목록 칸 썸네일로 쓸 수 있나: https, 로고·아이콘·버튼 아님, 크기를 알면 너무 작거나 띠 배너가 아님 */
+export function usableThumb(img, brand = '') {
+  return !!(img && typeof img.src === 'string' && img.src && !isNonPhoto(img, brand));
+}
+
+/**
+ * 공지에 맞는 목록 칸 하나: { card, exact }
+ * 1) exact: 공지의 원문 주소 = 칸의 글 주소 (같은 글)
+ * 2) 원문이 목록이면: 공지 제목의 고유 낱말이 모두 칸 글(제목·대체텍스트)에 있고, 칸에 금액이 있으면 공지 금액과 겹치는 칸.
+ *    낱말이 숫자뿐이면 고르지 않고, 맞는 글 주소가 둘 이상이면 고르지 않는다 (다른 행사로 보내지 않음)
+ */
+export function noticeCardFor(n = {}, cards = []) {
+  if (!Array.isArray(cards) || !cards.length) return null;
+  const own = new Set(urlKeys(n.source_url));
+  const exact = cards.filter((c) => c && own.has(pageUrlKey(c.href)));
+  if (exact.length) return { card: exact.find((c) => usableThumb(c.img, n.brand)) || exact[0], exact: true };
+  const tokens = titleTokens(n);
+  if (!tokens.some((t) => !/^\d+(?:%|원)?$/.test(t))) return null;
+  const mine = amounts(`${n.title || ''} ${n.evidence || ''} ${n.discount_label || ''} ${n.summary || ''}`);
+  const hits = cards.filter((c) => {
+    if (!c || !c.href) return false;
+    const text = `${c.title || ''} ${(c.img && c.img.alt) || ''}`;
+    const key = moneyKey(text);
+    if (!tokens.every((t) => key.includes(t))) return false;
+    const theirs = amounts(text);
+    return !theirs.length || !mine.length || theirs.some((x) => mine.includes(x));
+  });
+  if (new Set(hits.map((c) => pageUrlKey(c.href))).size !== 1) return null;
+  return { card: hits.find((c) => usableThumb(c.img, n.brand)) || hits[0], exact: false };
+}
+
+/**
+ * 쿠폰의 행사 썸네일 (상품 사진이 없을 때 화면이 '공식 행사'로 표시): 원문 주소가 같은 칸,
+ * 클릭으로만 열리는 게시판(스타벅스)은 글 제목 낱말이 쿠폰 글(메뉴·근거·조건)에 모두 있는 글 하나.
+ */
+export function couponCardFor(c = {}, cards = [], posts = []) {
+  const own = new Set(urlKeys(c.source_url));
+  const hit = (cards || []).find((x) => x && own.has(pageUrlKey(x.href)) && usableThumb(x.img, c.brand));
+  if (hit) return hit;
+  const post = postFor({ title: c.menu, evidence: [c.evidence, c.conditions, c.program_note].filter(Boolean).join(' ') }, posts);
+  return post && usableThumb(post.img, c.brand) ? post : null;
+}
+
+
 /** 서로 다른 공지 여러 개에 붙은 같은 이미지는 공지 고유 이미지가 아니다(사이트 공통 배너 등) → 뗀다. 확인 목록 이미지는 그대로 */
 export function dropSharedNoticeImages(list = [], verified = () => '') {
   const by = new Map();
@@ -1423,7 +1485,12 @@ export function mergeNews(list) {
  */
 const POST_STOP = /^(이벤트|안내|프로모션|혜택|스타벅스|행사|event|\d{1,2}월)$/i;
 export function postLinkFor(n, posts) {
-  if (!posts || !posts.length) return '';
+  const p = postFor(n, posts);
+  return p ? p.href : '';
+}
+/** postLinkFor와 같은 규칙으로 고른 글 하나 (썸네일 img 포함) — 쿠폰은 { title: 메뉴, evidence: 근거·조건 }으로 부른다 */
+export function postFor(n, posts) {
+  if (!posts || !posts.length) return null;
   const sq = (t) => String(t || '').normalize('NFKC').toLowerCase().replace(/[^0-9a-z가-힣]+/g, '');
   const hay = sq(`${n.title} ${n.evidence}`);
   const scored = [];
@@ -1433,11 +1500,11 @@ export function postLinkFor(n, posts) {
     if (!toks.length || !toks.every((t) => hay.includes(sq(t)))) continue;
     const len = toks.join('').length;
     if (toks.length < 2 && len < 4) continue;
-    scored.push([len, p.href]);
+    scored.push([len, p.href, p]);
   }
   scored.sort((a, b) => b[0] - a[0]);
-  if (!scored.length || (scored[1] && scored[1][0] === scored[0][0] && scored[1][1] !== scored[0][1])) return '';
-  return /^https:\/\//.test(scored[0][1]) ? scored[0][1] : '';
+  if (!scored.length || (scored[1] && scored[1][0] === scored[0][0] && scored[1][1] !== scored[0][1])) return null;
+  return /^https:\/\//.test(scored[0][1]) ? scored[0][2] : null;
 }
 
 /** 소식과 같은 페이지·같은 브랜드(멀티 브랜드 출처면 같은 프로그램)의 게시 쿠폰을 연결 (최대 6개) */

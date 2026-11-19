@@ -92,13 +92,48 @@ export async function renderPage(ctx, url, opts = {}) {
         href: a.href,
         text: [a.innerText, a.getAttribute('title'), a.getAttribute('aria-label'), ...[...a.querySelectorAll('img[alt]')].map((i) => i.alt)].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
       })).filter((l) => l.href) : [];
+      // 이미지 주소: 늦게 불러오는 이미지(data-src 등)도. 크기는 불러온 것만 알 수 있다(모르면 0)
+      const absUrl = (u) => { try { return new URL(u, location.href).href; } catch (e) { return ''; } };
+      const thumbOf = (i) => {
+        const src = absUrl(i.currentSrc || i.getAttribute('src') || i.getAttribute('data-src') || i.getAttribute('data-original') || i.getAttribute('data-lazy') || '');
+        if (!/^https?:/.test(src) || /^data:/.test(src)) return null;
+        return { src, alt: (i.alt || i.title || '').trim().slice(0, 80), w: i.naturalWidth || +i.getAttribute('width') || 0, h: i.naturalHeight || +i.getAttribute('height') || 0 };
+      };
+      // 11/19 대표 요청 "핫딜 공지에는 어지간하면 이미지를 받아줘": 목록의 행사 칸(링크 + 썸네일 + 글)을 묶어 둔다.
+      // 칸 = 링크 안의 이미지, 없으면 링크를 감싼 작은 묶음(그 안의 링크가 모두 같은 주소)의 이미지 하나. 이미지 없는 글 링크도 둔다(상세에서 포스터를 찾을 때).
+      const cards = [];
+      const seenHref = new Set();
+      for (const a of el.querySelectorAll('a[href]')) {
+        const href = a.href;
+        if (!/^https?:/.test(href) || seenHref.has(href)) continue;
+        let im = a.querySelector('img');
+        let box = a;
+        if (!im) {
+          let p = a.parentElement;
+          for (let k = 0; p && k < 3 && p !== el; k++, p = p.parentElement) {
+            if (new Set([...p.querySelectorAll('a[href]')].map((x) => x.href)).size > 1) break;
+            const ims = p.querySelectorAll('img');
+            if (ims.length === 1) { im = ims[0]; box = p; break; }
+            if (ims.length > 1) break;
+          }
+        }
+        const title = [box.innerText || a.innerText || '', a.getAttribute('title') || '', im ? im.alt || '' : ''].join(' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        if (!title && !im) continue;
+        seenHref.add(href);
+        const img = im ? thumbOf(im) : null;
+        cards.push(img ? { href, title, img } : { href, title });
+        if (cards.length >= 150) break;
+      }
       // 클릭으로만 열리는 글의 주소 (POST_RULES) — 글 제목(주변 글)과 함께
       const posts = post ? [...document.querySelectorAll(post.selector)].map((a) => {
         const v = (a.getAttribute(post.attr) || '').trim();
         if (!new RegExp(post.pattern).test(v)) return null;
         const box = a.closest('li') || a.parentElement;
         const text = [...[...a.querySelectorAll('img[alt]')].map((i) => i.alt), box ? box.innerText : a.innerText].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 200);
-        return { href: post.url.replace('{v}', encodeURIComponent(v)), text };
+        // 11/19: 같은 목록 칸의 썸네일 = 그 글의 공식 이미지 (글 주소와 함께 묶여 있어 다른 행사 이미지가 붙지 않는다)
+        const ti = a.querySelector('img') || (box && box.querySelector('img'));
+        const img = ti ? thumbOf(ti) : null;
+        return { href: post.url.replace('{v}', encodeURIComponent(v)), text, ...(img ? { img } : {}) };
       }).filter(Boolean).slice(0, 120) : [];
       // 공지 이미지 후보 (주소·대체텍스트·크기·주변 글만 — 이미지 파일은 받지도 저장하지도 않음)
       // nearLen: 주변 글 전체 길이 — 카드 하나 분량인지(목록 전체가 아닌지) 판단용
@@ -117,7 +152,7 @@ export async function renderPage(ctx, url, opts = {}) {
       const og = document.querySelector('meta[property="og:image"], meta[name="og:image"], meta[property="og:image:url"]');
       let ogImage = '';
       try { ogImage = og && og.content ? new URL(og.content, location.href).href : ''; } catch (e) { ogImage = ''; }
-      return { title: document.title, text, alts: [...new Set(alts)], links, images, ogImage, posts };
+      return { title: document.title, text, alts: [...new Set(alts)], links, images, ogImage, posts, cards };
     }, { selector, exclude: opts.exclude || [], follow: opts.follow || '', post: opts.post || null });
 
     let text = data.text.replace(/\n{3,}/g, '\n\n').trim();
@@ -136,7 +171,7 @@ export async function renderPage(ctx, url, opts = {}) {
       .filter((l) => !textRe || textRe.test(l.text) || textRe.test(decodeURIComponent(l.href)))
       .map((l) => l.href))];
     return {
-      url, finalUrl: page.url(), status, title: data.title, text, links, images: data.images || [], ogImage: data.ogImage || '', posts: data.posts || [],
+      url, finalUrl: page.url(), status, title: data.title, text, links, images: data.images || [], ogImage: data.ogImage || '', posts: data.posts || [], cards: data.cards || [],
       screenshots: screenshots.map(({ base64 }) => ({ media_type: 'image/jpeg', data: base64 })),
     };
   } finally {

@@ -3,14 +3,14 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261116-1';
+} from './engine.js?v=20261119-1';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261114-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { withVerifiedEvents } from './verified-events.js?v=20261114-7';
-import { withCouponEventNews } from './event-notices.js?v=20261114-3';
+import { withCouponEventNews } from './event-notices.js?v=20261119-1';
 import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';
@@ -350,7 +350,12 @@ function applyData(data) {
   if (!DEMO) data = withVerifiedEvents(data);
   state.appCoupons = (data.app_coupons || []).filter(c => acPublic(c));
   state.appCouponRefs = data.app_coupon_refs || [];
-  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => ({ ...c, image_url: couponImage(c), programs: c.programs || [] }));
+  // 수집기가 찾은 행사 썸네일(주소 뒤 '#among-artwork=' 표시, official_event)은 event_image로 따로 둔다 — image_url은 상품 사진 자리
+  state.coupons = (data.coupons || []).filter((c) => !c.end_date || c.end_date >= todayKST()).map((c) => {
+    const art = decodeArtworkUrl(c.image_url);
+    const event = art.meta && art.meta.kind === 'official_event' ? safeImg(art.url) : '';
+    return { ...c, image_url: couponImage(c), event_image: event, event_image_source: event ? art.meta.source : '', programs: c.programs || [] };
+  });
   const notices = DEMO ? (data.news || []) : withCouponEventNews(withVerifiedNews(data.news || []), state.coupons.map(c => ({ status: 'published', ...c })));
   state.news = notices.map(n => {
     const art = decodeArtworkUrl(n.image_url);
@@ -548,10 +553,31 @@ function noticeVisual(n, detail = false) {
     const label = press ? '기사 관련 이미지' : capture ? '공식 페이지 캡처' : campaign ? '공식 캠페인 이미지' : related ? '공식 관련 이미지' : '공식 공지 이미지';
     return { src: official, label, alt: `${n.brand} ${label}`, official: true, capture, related, campaign, press, source: registryPoster ? '' : safeUrl(n.image_source_url), contain: capture || n.image_fit === 'contain', fallback: product };
   }
+  // 공지 자체 이미지가 없으면 연결된 쿠폰의 행사 썸네일(같은 행사 글의 목록 칸) — 상품·대표 메뉴 사진보다 먼저 (11/19)
+  const event = relatedCoupons(n).map((c) => safeImg(c.event_image)).find(Boolean);
+  if (event) return { src: event, label: '공식 행사 이미지', alt: `${n.brand} 공식 행사 이미지`, official: true, campaign: true, source: '', fallback: product };
   return product;
 }
+/**
+ * 11/19 대표 요청 "쿠폰에도 이미지 없는 것들 보완해줘": 상품 사진이 없거나 브랜드 대표 메뉴뿐이면 같은 행사의 공식 이미지.
+ * ① 수집기가 그 행사 글의 목록 칸에서 찾은 썸네일 → ② 이 쿠폰이 연결된 같은 브랜드 공지의 공식 이미지(기사·캡처·관련 이미지 제외)
+ */
+function couponEventPhoto(c) {
+  if (!c) return null;
+  const own = safeImg(c.event_image);
+  if (own) return { url: own, source: c.event_image_source || '', name: c.menu || '', kind: 'campaign', label: '공식 행사 이미지', detailUrl: own };
+  if (!c.id) return null;
+  const n = state.news.find((x) => x.brand === c.brand && (x.related_ids || []).includes(c.id) && safeImg(x.image_url)
+    && (!x.image_kind || /^official_(?:event|campaign|poster)$/.test(x.image_kind)));
+  const url = n ? safeImg(n.image_url) : '';
+  return url ? { url, source: n.source_url || '', name: n.title || '', kind: 'campaign', label: '공식 행사 이미지', detailUrl: url } : null;
+}
+function couponPhotoFor(c, today) {
+  const p = couponPhoto(c, today);
+  return p && p.kind !== 'representative' ? p : couponEventPhoto(c) || p;
+}
 function couponVisual(c, title = '') {
-  const p = c ? couponPhoto(c) : null;
+  const p = c ? couponPhotoFor(c) : null;
   if (p) { const v = asVisual(p); if (v) return { ...v, parts: p.kind === 'parts' ? p.parts : null, alt: `${c.brand} ${p.name}${p.label ? ` ${p.label}` : ''}`, label: p.label || '' }; }
   return asVisual(brandPhoto(c?.brand || '', c?.menu || title, []));
 }
@@ -767,7 +793,7 @@ function nutritionBlock(c) {
 }
 
 function detailHtml(c, today) {
-  const photo = couponPhoto(c, today);
+  const photo = couponPhotoFor(c, today);
   const progs = c.programs || [];
   const cap = c.max_discount ? (c.discount_type === 'point_back' ? `최대 ${moneyDigits(c.max_discount)}P 적립` : `최대 ${moneyDigits(c.max_discount)}원 할인`) : '';
   const cond = [c.min_order ? `${money(c.min_order)}원 이상 주문` : '', cap, !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
@@ -804,7 +830,7 @@ function card(c, today) {
   const link = safeUrl(c.official_link) || safeUrl(c.source_url);
   const conds = conditionLine(c);
   const st = stubParts(c);
-  const photo = couponPhoto(c, today);
+  const photo = couponPhotoFor(c, today);
   const img = photo?.url || '';
   // 표시할 글자와 단위를 분리해 HTML을 제거하는 정규식 없이 길이를 계산한다.
   const bigLen = st.big.length + (st.unit || '').length;

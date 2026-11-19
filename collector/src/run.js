@@ -1,10 +1,10 @@
-import { noticeImage } from './notice-images.js';
+import { noticeImage, noticePhoto, isListedNoticeImage } from './notice-images.js';
 // AMONG 수집 실행: 출처 목록 → 렌더링 → Claude 추출 → 엔진 검증 → 시트 반영 → 실행 기록
 // 사용: node src/run.js   (환경변수는 README 참고)
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, postLinkFor, pickImage, pickNoticeImage, dropSharedNoticeImages, noticeImageFor } from './engine.js';
+import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, postLinkFor, noticeCardFor, couponCardFor, usableThumb, pageUrlKey, pickImage, pickNoticeImage, dropSharedNoticeImages, noticeImageFor } from './engine.js';
 import { couponId, contentHash, newsId, newsHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
 import { openBrowser, collectSource, captureNoticeDetail, renderPage } from './fetch.js';
@@ -16,6 +16,7 @@ import { PageCache, pageKey } from './page-cache.js';
 import { withCouponEventNews } from './event-notices.js';
 import { repairEventSources } from './event-sources.js';
 import { resolveEventArtwork } from './event-artwork.js';
+import { encodeArtworkUrl } from './artwork-meta.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -101,6 +102,9 @@ export async function runCollector(o = {}) {
     const allNews = [];
     const artworkPages = [];
     let previousNews = [];
+    // 출처별 목록 칸(글 링크·썸네일)과 글 목록 — 쿠폰 행사 썸네일을 정할 때 다시 쓴다
+    const cardsBySource = new Map();
+    let imageReads = 0;  // 이미지만 찾으려고 연 상세 페이지 수 (실행 전체 최대 IMAGE_READS)
 
     // 출처 여러 개를 동시에 (기본 4) — 출처 수가 늘어도 작업 제한 시간(25분) 안에 끝나게. 같은 사이트 안에서는 여전히 1.5초 간격
     // 실행 시간 예산(기본 35분): 작업 제한 25분 전에 스스로 마무리해 결과·기록을 남긴다.
@@ -108,6 +112,48 @@ export async function runCollector(o = {}) {
     const deadline = started + (+(env.RUN_BUDGET_S || 2100)) * 1000;
     let stopReason = '';
     pageCache = o.pageCache || (env.PAGE_CACHE_FILE && llm.provider !== 'mock' ? new PageCache(env.PAGE_CACHE_FILE) : null);
+    /**
+     * 11/19 대표 요청 "핫딜 공지에는 어지간하면 이미지를 받아줘. 브랜드 로고로 대치말고":
+     * 대체텍스트 대조로 이미지를 못 고른 공지 → ① 목록에서 그 글 칸의 썸네일 → ② 그 글의 상세 페이지를 열어(AI 없이) 포스터.
+     * 확인 목록(notice-images.js)에 올라 있는 공지는 손대지 않는다. 상세는 출처당 3곳, 실행 전체 IMAGE_READS(기본 20)곳까지.
+     */
+    const fillNoticeImages = async (source, pages, srcNews) => {
+      const lists = pages.filter((p) => !p.error && !p.isDetail);
+      const cards = lists.flatMap((p) => [...(p.cards || []), ...(p.posts || []).map((x) => ({ href: x.href, title: x.text, img: x.img }))]);
+      cardsBySource.set(source.id, { cards, posts: lists.flatMap((p) => p.posts || []) });
+      const rendered = new Set(pages.filter((p) => !p.error).flatMap((p) => [p.url, p.finalUrl]).map(pageUrlKey));
+      let reads = 0;
+      for (const [n, page] of srcNews) {
+        if (n.status === 'rejected' || n.image_url || noticePhoto(n)) continue;
+        const pageUrl = page.finalUrl || page.url;
+        const hit = noticeCardFor(n, cards);
+        if (hit && usableThumb(hit.card.img, n.brand) && (hit.exact || !isListedNoticeImage(hit.card.img.src))) n.image_url = hit.card.img.src;
+        // 목록에서 읽은 공지는 그 글 주소로 ('공식 원문'이 게시판이 아니라 그 행사 글로 열리게). 같은 사이트 글만
+        if (hit && !hit.exact && n.source_url === pageUrl && pageUrlKey(hit.card.href).split('/')[0] === pageUrlKey(pageUrl).split('/')[0]) {
+          n.list_url = n.source_url;
+          n.source_url = hit.card.href;
+        }
+        if (n.image_url) continue;
+        // 그 글의 상세 페이지 (아직 열지 않은 곳 · 그 출처와 같은 사이트만)
+        const site = pageUrlKey(source.url).split('/')[0];
+        const detail = [hit && hit.card.href, n.source_url].find((u) => u && pageUrlKey(u).split('/')[0] === site && !rendered.has(pageUrlKey(u)));
+        const max = +(env.IMAGE_READS || 20);
+        if (!detail || reads >= 3 || imageReads >= max || Date.now() > deadline - 120000 || llm.provider === 'mock' && !o.imageReads) continue;
+        reads++; imageReads++;
+        rendered.add(pageUrlKey(detail));
+        try {
+          await new Promise((r) => setTimeout(r, 1200));
+          const d = await (o.renderDetail || ((url) => renderPage(ctx, url, { maxShots: 0, selector: source.detail_selector || undefined, waitMs: +source.wait_ms || 0 })))(detail);
+          d.isDetail = true;
+          const img = pickNoticeImage(n, [...pages, d], { own: d, single: true });
+          if (img && !isListedNoticeImage(img)) {
+            n.image_url = img;
+            report.image_reads = (report.image_reads || 0) + 1;
+            log(`  🖼 ${source.id}: '${String(n.title).slice(0, 30)}' 상세에서 공지 이미지`);
+          }
+        } catch (e) { report.errors.push(`${source.id} 이미지 확인: ${e.message}`); }
+      }
+    };
     const one = async (source) => {
       const sr = { id: source.id, brand: source.brand, ok: false, pages: 0, found: 0, published: 0, error: '' };
       report.sources.push(sr);
@@ -169,6 +215,7 @@ export async function runCollector(o = {}) {
         for (const [n, page, single] of srcNews) {
           n.image_url = n.status !== 'rejected' ? noticeImageFor(n, pickNoticeImage(n, pages, { own: page, single })) : '';
         }
+        await fillNoticeImages(source, pages, srcNews);
         sr.ok = true;
       } catch (e) {
         if (e.code === 'AI_QUOTA') stopReason = 'AI 하루 한도 소진';
@@ -215,8 +262,15 @@ export async function runCollector(o = {}) {
     for (const x of report.sources) x.ok = x.ok && !/시간 초과/.test(x.error || '');
 
     // 여러 상품을 하나로 묶은 뒤에도 최종 상품명으로 사진을 다시 확인한다.
+    // 상품 사진이 없으면 같은 행사 글의 목록 썸네일을 '공식 행사' 이미지로 (주소 뒤에 종류를 적어 상품 사진과 구분: artwork-meta.js)
+    const eventThumb = (c) => {
+      if (c.status === 'rejected') return '';
+      const got = cardsBySource.get(c.source_id);
+      const card = got && couponCardFor(c, got.cards, got.posts);
+      return card ? encodeArtworkUrl(card.img.src, { kind: 'official_event', source: String(c.source_url || '').split(/\s+/)[0] || card.href, checkedAt: now.toISOString() }) : '';
+    };
     let merged = groupFreeItems(mergeSimilar(dedupe(all, couponId)))
-      .map((c) => ({ ...c, image_url: c.status !== 'rejected' ? pickImage(c) : '' }))
+      .map((c) => ({ ...c, image_url: c.status !== 'rejected' ? pickImage(c) || eventThumb(c) : '' }))
       .map((c) => ({ ...c, id: couponId(c), hash: contentHash(c) }));
     // 같은 행사인데 AI 표기 차이로 id가 바뀌는 것을 막는다 (지금 게시 중인 쿠폰의 id를 이어 씀)
     if (statusReader && env.STABILIZE_IDS !== '0') {
