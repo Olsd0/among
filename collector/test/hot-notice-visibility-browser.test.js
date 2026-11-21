@@ -82,11 +82,18 @@ test('all notices exposes events beyond the eight recommendations, opens their r
   assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(await list.isVisible(), false);
 
+  // 2026-11-21 owner request: "핫딜 전체 보기" (not notices only) opens every hot deal of the rail as tiles, in the same order.
+  assert.equal(await toggle.innerText(), `핫딜 전체 보기 (${railIds.length})`);
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
-  assert.ok(await list.locator('[data-hot]').count() > 8);
-  const listIds = await list.locator('[data-hot]').evaluateAll(cards => cards.map(card => card.dataset.hot));
-  assert.deepEqual(railIds.filter(id => id.startsWith('news:')).sort(), [...listIds].sort(), 'the rail and the full list hold the same notices');
+  assert.equal(await toggle.innerText(), '핫딜 접기');
+  assert.deepEqual(await list.locator('[data-hot]').evaluateAll(cards => cards.map(card => card.dataset.hot)), railIds, 'tiles hold the whole rail in the same order');
+  assert.equal(await page.locator('#hotRail').isVisible(), false, 'the sliding rail steps aside while the tiles are open');
+  assert.equal(await page.locator('#hot .sec-h #showAllNotices').count(), 1, 'collapse button sits in the heading row');
+  const cols = await list.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  assert.equal(cols, 2, 'two tiles per row on a phone');
+  const tile = await list.locator('.hcard').first().boundingBox();
+  assert.ok(tile.width < 200, `tiles are compact (${tile.width}px)`);
   await card.waitFor();
   await card.scrollIntoViewIfNeeded();
   const poster = card.locator('img.ph');
@@ -110,6 +117,8 @@ test('all notices exposes events beyond the eight recommendations, opens their r
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(await list.isVisible(), false);
+  assert.equal(await page.locator('#hotRail').isVisible(), true);
+  assert.equal(await toggle.evaluate(el => document.activeElement === el), true, 'keyboard focus stays on the toggle');
   assert.deepEqual(errors, []);
 });
 

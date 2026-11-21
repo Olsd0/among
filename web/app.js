@@ -735,7 +735,8 @@ function renderHot() {
   const hot = hideHot || stack ? [] : orderHeadlines([...base, ...appHeads], { today: todayKST(), limit: 8 });
   const allNotices = hideHot || stack ? [] : liveNotices();
   // 11/16 대표 요청: "8개만 보이게 하지 말고 슬라이드하면 다 볼 수 있게" — 고른 8장 뒤에 나머지 공지를 같은 순서 기준으로 모두 잇는다.
-  // ('공지 전체 보기'는 그대로 아래에 한꺼번에 펼친다)
+  // 11/21 대표 요청: "공지 전체 보기 말고 핫딜 전체 보기로, 전체 보기할 때 타일식으로" — 넘기는 줄의 모든 핫딜을 같은 순서로 타일에 펼치고,
+  // 펼친 동안에는 넘기는 줄을 숨긴다(같은 카드가 두 번 보이지 않게).
   const shown = new Set(hot.filter(h => h.kind === 'news').map(h => h.id));
   const rail = stack ? [...brandEvents(), ...appHeads] : [...hot, ...allNotices.filter(n => !shown.has(n.id))];
   state.hot = rail;
@@ -746,11 +747,23 @@ function renderHot() {
   sec.querySelector('.sec-h small').textContent = stack ? '공식 행사 글에서 확인한 기간' : '놓치기 아쉬운 공식 소식';
   sec.hidden = !rail.length;
   const allButton = $('#showAllNotices');
-  allButton.hidden = stack || !allNotices.length;
-  allButton.textContent = state.hotExpanded ? '공지 접기' : '공지 전체 보기 (' + allNotices.length + ')';
-  allButton.setAttribute('aria-expanded', String(state.hotExpanded));
-  $('#allHotNotices').hidden = !state.hotExpanded;
-  if (state.hotExpanded) setHTML($('#allHotNotices'), allNotices.map(hotCard).join(''));
+  const canExpand = !stack && rail.length > 1;
+  const expanded = canExpand && state.hotExpanded;
+  allButton.hidden = !canExpand;
+  allButton.textContent = expanded ? '핫딜 접기' : `핫딜 전체 보기 (${rail.length})`;
+  allButton.setAttribute('aria-expanded', String(expanded));
+  sec.classList.toggle('tiles', expanded);
+  // 펼친 동안 '핫딜 접기'는 제목 줄 오른쪽에(타일 위에 빈 줄이 생기지 않게), 접으면 넘기는 줄 아래 제자리로. 초점은 유지한다.
+  const head = sec.querySelector('.sec-h');
+  const hadFocus = document.activeElement === allButton;
+  if (expanded && allButton.parentElement !== head) head.append(allButton);
+  else if (!expanded && allButton.parentElement === head) $('#hotDots').after(allButton);
+  if (hadFocus && document.activeElement !== allButton) allButton.focus({ preventScroll: true });
+  $('#allHotNotices').hidden = !expanded;
+  $('#hotRail').hidden = expanded;
+  $('#hotDots').hidden = expanded;
+  $('#hotCount').hidden = expanded;
+  setHTML($('#allHotNotices'), expanded ? rail.map(hotCard).join('') : '');
   if (!rail.length) {
     setHTML($('#hotRail'), '');
     $('#hotDots').innerHTML = '';
@@ -761,6 +774,7 @@ function renderHot() {
   if (!setHTML($('#hotRail'), rail.map(hotCard).join(''))) return;
   $('#hotRail').scrollLeft = 0;
   updateRailControls();
+  if (expanded) $('#railControls').hidden = true;
   if (stack) { $('#railControls').hidden = true; $('#hotDots').innerHTML = ''; $('#hotCount').textContent = ''; return; }
   // 점 표시는 12장까지만 (그보다 많으면 'n / N' 숫자만)
   $('#hotDots').innerHTML = rail.length > 1 && rail.length <= 12 ? rail.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
@@ -1324,7 +1338,13 @@ $('#grid').addEventListener('click', (e) => {
 });
 $('#clearGrid').addEventListener('click', () => { state.category = '전체'; state.kind = ''; savePrefs(); render(); });
 // 핫딜 카드: 소식이면 소식 상세, 쿠폰이면 그 쿠폰으로 이동
-$('#showAllNotices').addEventListener('click', () => { state.hotExpanded = !state.hotExpanded; renderHot(); });
+$('#showAllNotices').addEventListener('click', () => {
+  state.hotExpanded = !state.hotExpanded;
+  renderHot();
+  // 접으면 핫딜 머리로 돌아온다 (긴 타일 목록 아래에 남아 있지 않게)
+  if (!state.hotExpanded && $('#hot').getBoundingClientRect().top < 0) $('#hot').scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'instant' : 'smooth' });
+  track('filter', { value: state.hotExpanded ? 'hot:tiles' : 'hot:rail' });
+});
 $('#hot').addEventListener('click', (e) => {
   if (e.target.closest('a')) return;
   const b = e.target.closest('[data-hot]'); if (!b) return;
