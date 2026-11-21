@@ -19,6 +19,12 @@ if (typeof document !== 'undefined') {
       const result = compareDiscounts(values);
       if (!result) { output.textContent = '주문금액과 할인 조건을 확인해 주세요. 금액은 0 이상의 원 단위, 할인율은 0~100%로 입력해 주세요.'; return; }
       const won = n => `${n.toLocaleString('ko-KR')}원`;
+      // 막대 그림: 주문금액 대비 내는 금액 (CSSOM으로만 — 인라인 style 속성은 CSP로 막혀 있다)
+      for (const [bar, label, pay] of [['barFixed', 'payFixed', result.fixedPayment], ['barRate', 'payRate', result.ratePayment]]) {
+        const b = document.getElementById(bar), l = document.getElementById(label);
+        if (b) b.style.setProperty('--w', `${Math.max(0, Math.min(100, pay / values.amount * 100)).toFixed(1)}%`);
+        if (l) l.textContent = won(pay);
+      }
       output.textContent = `정액 쿠폰: ${won(result.fixedPayment)} 결제 · 정률 쿠폰: ${won(result.ratePayment)} 결제. ` + (result.difference === 0 ? '결제 금액이 같아요.' : `${result.fixedPayment < result.ratePayment ? '정액' : '정률'} 쿠폰이 ${won(result.difference)} 더 저렴해요.`);
     };
     form.addEventListener('submit', event => { event.preventDefault(); calculate(); });

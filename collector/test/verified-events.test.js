@@ -8,9 +8,10 @@ const seed = () => withVerifiedEvents({ coupons: [], news: [] }, today);
 const event = (id) => verifiedEvents.find((e) => e.id === id);
 
 test('verified events provide paired factual coupons and notices with original verification time', () => {
+  // 11/21 대표: 가평휴게소(프랜차이즈 아님)는 뺌 → 9 → 8
   const { coupons, news } = seed();
-  assert.equal(coupons.length, 9);
-  assert.equal(news.length, 9);
+  assert.equal(coupons.length, 8);
+  assert.equal(news.length, 8);
   for (const e of verifiedEvents) {
     const c = coupons.find((x) => x.event_id === e.id);
     const n = news.find((x) => x.event_id === e.id);

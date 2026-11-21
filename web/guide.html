@@ -14,9 +14,11 @@
 <link rel="stylesheet" href="fonts.css?v=20261107-3">
 <link rel="stylesheet" href="brand.css?v=20261107-4">
 <link rel="stylesheet" href="doc.css?v=20261108-1">
+<link rel="stylesheet" href="story.css?v=20261121-1">
 <script src="config.js"></script>
 <script src="doc.js" defer></script>
-<script type="module" src="guide-calculator.js"></script>
+<script src="story.js?v=20261121-1" defer></script>
+<script type="module" src="guide-calculator.js?v=20261121-1"></script>
 <!-- deploy-meta -->
 <link rel="canonical" href="https://olsd0.github.io/among/guide.html">
 <meta property="og:url" content="https://olsd0.github.io/among/guide.html">
@@ -31,16 +33,34 @@
   <nav aria-label="안내 페이지"><a href="guide.html" aria-current="page">가이드</a><a href="about.html">소개</a><a href="privacy.html">개인정보</a><a href="terms.html">약관</a></nav>
 </div></header>
 
-<main>
-  <p class="eyebrow">AMONG 이용 가이드</p>
-  <h1>할인 숫자보다,<br>내가 내는 금액부터</h1>
-  <p class="lead">같은 30%라도 할인 한도와 주문 방식에 따라 결제 금액이 달라져요. AMONG에서 혜택을 비교할 때 필요한 계산과 확인 순서를 정리했습니다.</p>
-  <p class="meta">AMONG 작성 · 2026년 11월 8일 업데이트 · 아래 금액은 계산을 설명하기 위한 예시이며 실제 행사가 아닙니다.</p>
-  <nav class="reading-nav" aria-label="가이드 목차"><a href="#price">가격과 할인</a><a href="#calculator">할인 계산기</a><a href="#order-total">포장·배달 비교</a><a href="#oneplus">1+1과 세트</a><a href="#points">포인트 적립</a><a href="#conditions">사용 조건</a><a href="#verify">출처 확인</a></nav>
+<main class="guide">
+  <div class="guide-hero">
+    <div>
+      <p class="eyebrow">AMONG 이용 가이드</p>
+      <h1>할인 숫자보다,<br>내가 내는 금액부터</h1>
+      <p class="lead">같은 30%라도 할인 한도와 주문 방식에 따라 결제 금액이 달라져요. AMONG에서 혜택을 비교할 때 필요한 계산과 확인 순서를 정리했습니다.</p>
+    </div>
+    <div class="stamp-card" aria-hidden="true">
+      <small>15000원 주문 · 최대 2000원</small>
+      <span class="big">30% 할인</span>
+      <span class="stamp">13000원 결제</span>
+    </div>
+  </div>
+  <p class="meta">AMONG 작성 · 2026년 11월 21일 업데이트 · 아래 금액은 계산을 설명하기 위한 예시이며 실제 행사가 아닙니다.</p>
+  <nav class="reading-nav pills" aria-label="가이드 목차"><a href="#price">가격과 할인</a><a href="#calculator">할인 계산기</a><a href="#order-total">포장·배달 비교</a><a href="#oneplus">1+1과 세트</a><a href="#points">포인트 적립</a><a href="#conditions">사용 조건</a><a href="#verify">출처 확인</a></nav>
 
   <h2 id="price">1. 쿠폰가·정액·정률은 같은 주문으로 비교해요</h2>
   <p><strong>쿠폰가</strong>는 특정 상품을 살 때 내는 가격입니다. <strong>정액 할인</strong>은 주문에서 일정 금액을 빼고, <strong>정률 할인</strong>은 할인 대상 금액의 일정 비율을 뺍니다. 상품이나 주문 구성이 다르면 할인율만 나란히 놓아도 실제 차이를 알기 어렵습니다.</p>
-  <div class="example"><p>같은 15000원 주문을 비교한다고 가정해 볼게요.</p><ul><li>3000원 할인: 15000 − 3000 = <strong>12000원 결제</strong></li><li>20% 할인: 15000 × 20% = 3000원 할인, <strong>12000원 결제</strong></li><li>30% 할인, 최대 2000원: 비율상 4500원이지만 한도를 적용하면 <strong>13000원 결제</strong></li></ul></div>
+  <figure class="paychart" data-reveal>
+    <figcaption>같은 15000원 주문을 비교한다고 가정해 볼게요. 막대가 짧을수록 적게 내요.</figcaption>
+    <ul>
+      <li><div class="lbl"><span>할인 없음</span><b>15000원 결제</b></div><div class="bar"><i class="w100"></i></div></li>
+      <li><div class="lbl"><span>3000원 할인 <em>15000 − 3000</em></span><b>12000원 결제</b></div><div class="bar"><i class="w80 ok rvb i1"></i></div></li>
+      <li><div class="lbl"><span>20% 할인 <em>15000 × 20% = 3000원 할인</em></span><b>12000원 결제</b></div><div class="bar"><i class="w80 ok rvb i2"></i></div></li>
+      <li><div class="lbl"><span>30% 할인, 최대 2000원 <em>비율상 4500원이지만 한도 적용</em></span><b>13000원 결제</b></div><div class="bar"><i class="w867 hi rvb i3"></i></div></li>
+    </ul>
+    <p class="foot-note">할인율은 30%로 가장 크지만, 한도 때문에 가장 많이 내요.</p>
+  </figure>
   <p>‘최대’라는 말이 있으면 할인 한도를 먼저 확인하세요. 최소 주문금액을 맞추려고 필요 없는 메뉴를 추가한다면, 할인 전보다 총지출이 커질 수 있습니다. AMONG에서 확정 가격이 없는 주문 할인은 상품의 최종 가격으로 단정하지 않습니다.</p>
 
   <section class="box soft" aria-labelledby="calculator">
@@ -54,6 +74,10 @@
       <button class="btn" type="submit">결제 금액 비교하기</button>
     </form>
     <p id="comparisonResult" class="calculation-result" role="status">위 예시에서는 정액 쿠폰으로 12000원, 정률 쿠폰으로 13000원을 결제합니다.</p>
+    <div class="calc-bars" aria-hidden="true">
+      <div><div class="lbl"><span>정액 쿠폰</span><b id="payFixed">12000원</b></div><div class="bar"><i id="barFixed" class="w80"></i></div></div>
+      <div><div class="lbl"><span>정률 쿠폰</span><b id="payRate">13000원</b></div><div class="bar"><i id="barRate" class="w867"></i></div></div>
+    </div>
     <p class="small">배송비·추가금·최소 주문 조건·중복 할인·포인트 적립은 포함하지 않습니다. 할인액의 원 미만은 버림으로 계산하며, 실제 결제처의 반올림 방식과 다를 수 있습니다. 입력값은 저장하거나 전송하지 않습니다.</p>
     <noscript><p>계산기를 사용하려면 자바스크립트를 켜 주세요. 위 계산 예시는 그대로 읽을 수 있습니다.</p></noscript>
   </section>
@@ -62,7 +86,7 @@
   <p>같은 메뉴를 두 주문 방식에서 각각 12000원에 판다고 가정해 볼게요. 배달 주문에만 2000원 쿠폰을 쓸 수 있고 배달비는 3000원입니다.</p>
   <table class="order-comparison">
     <caption>12000원 메뉴 하나를 주문하는 예시</caption>
-    <thead><tr><th scope="col">결제 항목</th><th scope="col">포장</th><th scope="col">배달</th></tr></thead>
+    <thead><tr><th scope="col">결제 항목</th><th scope="col"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>포장</th><th scope="col"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="6.5" cy="17" r="2.5"/><circle cx="17.5" cy="17" r="2.5"/><path d="M9 17h5.5l2.5-7h3"/><path d="M12.5 10H7.5l1.5 7"/></svg>배달</th></tr></thead>
     <tbody>
       <tr><th scope="row">메뉴 가격</th><td>12000원</td><td>12000원</td></tr>
       <tr><th scope="row">쿠폰 할인</th><td>0원</td><td>−2000원</td></tr>
@@ -74,22 +98,51 @@
   <p><strong>최소 주문금액을 채워야 한다면?</strong> 12000원 장바구니에 4000원짜리 메뉴를 더 담아 3000원 쿠폰을 쓰면 13000원을 냅니다. 원래 살 메뉴만 주문할 때보다 지출이 1000원 늘어요. 추가 메뉴도 필요했는지가 선택 기준입니다.</p>
 
   <h2 id="oneplus">2. 1+1은 두 개가 필요할 때 유리해요</h2>
+  <div class="duo-fig" aria-hidden="true">
+    <div><span class="who">두 개가 필요할 때</span><div class="cups"><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="i-a" d="M13.5 15h21l-2.4 25a3 3 0 0 1-3 2.7H19a3 3 0 0 1-3-2.7z"/><rect class="i-k" x="11" y="11" width="26" height="5" rx="2.5"/><path class="i-b" d="M15.5 8.5h17l1.3 2.5H14.2z"/><rect class="i-p" x="15" y="23" width="18" height="8" rx="1.5"/><path class="l-c" d="M21 27h6" stroke-width="1.8" stroke-linecap="round"/></svg><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="i-a" d="M13.5 15h21l-2.4 25a3 3 0 0 1-3 2.7H19a3 3 0 0 1-3-2.7z"/><rect class="i-k" x="11" y="11" width="26" height="5" rx="2.5"/><path class="i-b" d="M15.5 8.5h17l1.3 2.5H14.2z"/><rect class="i-p" x="15" y="23" width="18" height="8" rx="1.5"/><path class="l-c" d="M21 27h6" stroke-width="1.8" stroke-linecap="round"/></svg></div><span class="res">6000원에 2개 · <b>개당 3000원</b></span><span class="verdict good">1+1이 유리</span></div>
+    <div><span class="who">한 개만 필요할 때</span><div class="cups"><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="i-a" d="M13.5 15h21l-2.4 25a3 3 0 0 1-3 2.7H19a3 3 0 0 1-3-2.7z"/><rect class="i-k" x="11" y="11" width="26" height="5" rx="2.5"/><path class="i-b" d="M15.5 8.5h17l1.3 2.5H14.2z"/><rect class="i-p" x="15" y="23" width="18" height="8" rx="1.5"/><path class="l-c" d="M21 27h6" stroke-width="1.8" stroke-linecap="round"/></svg><svg class="ghost" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="i-a" d="M13.5 15h21l-2.4 25a3 3 0 0 1-3 2.7H19a3 3 0 0 1-3-2.7z"/><rect class="i-k" x="11" y="11" width="26" height="5" rx="2.5"/><path class="i-b" d="M15.5 8.5h17l1.3 2.5H14.2z"/><rect class="i-p" x="15" y="23" width="18" height="8" rx="1.5"/><path class="l-c" d="M21 27h6" stroke-width="1.8" stroke-linecap="round"/></svg></div><span class="res">그래도 <b>6000원</b> · 4500원 쿠폰이 더 저렴</span><span class="verdict meh">쿠폰이 유리</span></div>
+  </div>
   <p>동일한 6000원 상품 두 개를 6000원에 사면 두 개를 모두 정가로 살 때보다 50% 저렴합니다. 하지만 원래 한 개만 필요했다면 지출은 여전히 6000원입니다. 한 개를 4500원에 살 수 있는 쿠폰과는 필요한 수량을 기준으로 비교해야 합니다.</p>
   <p>세트나 증정도 마찬가지예요. 음료 크기, 사이드 종류, 추가금, 증정품 선택 제한을 확인하세요. 서로 다른 상품의 정가가 확인되지 않으면 임의로 ‘반값’이라고 계산하지 않는 편이 정확합니다.</p>
 
   <h2 id="points">3. 적립과 즉시 할인은 나눠서 봐요</h2>
+  <div class="lanes" aria-hidden="true">
+    <div class="lane"><span class="who">10% 즉시 할인</span><div class="track"><span class="pt"><small>지금</small>9000원 결제</span><span class="wait">여기서 끝</span></div></div>
+    <div class="lane"><span class="who">10% 포인트 적립</span><div class="track"><span class="pt"><small>지금</small>10000원 결제</span><span class="runner"></span><span class="wait">조건 충족 후</span><span class="pt later"><small>나중에</small>+1000P</span></div></div>
+  </div>
   <div class="example"><p>10000원 주문에서 10% 즉시 할인이면 <strong>9000원 결제</strong>입니다. 10% 포인트 적립이면 우선 <strong>10000원을 결제</strong>하고, 조건을 충족하면 1000포인트를 나중에 받습니다.</p></div>
   <p>포인트의 사용처·유효기간·적립 시점·적립 한도가 모두 같지는 않습니다. 지급받은 포인트를 실제로 쓸 계획이 있는지도 확인하세요. ‘할인율 높은 순’으로 볼 때도 카드의 적립 표시와 상세 조건을 함께 읽어야 합니다.</p>
 
   <h2 id="conditions">4. 결제 전에 이 네 가지를 확인해요</h2>
-  <ol><li><strong>대상:</strong> 전체 고객인지, 신규 회원·특정 멤버십 등급·특정 카드 고객만 가능한지 확인합니다. 내 할인 수단 설정은 목록을 고르는 데 도움을 주지만 개인별 자격을 인증하지는 않습니다.</li><li><strong>주문 방식:</strong> 매장·포장·배달·브랜드 앱 중 행사 채널을 확인합니다. 배달비나 앱별 메뉴 가격이 다르면 최종 결제 화면을 기준으로 비교합니다.</li><li><strong>사용 횟수와 중복:</strong> 하루·월별 횟수, 선착순 수량, 다른 쿠폰과 함께 쓸 수 있는지 확인합니다. 조건이 불명확하면 중복 할인이 된다고 가정하지 않습니다.</li><li><strong>기간과 매장:</strong> 발급 기간과 사용 기간을 구분하고, 제외 매장·공휴일·시간대 제한을 확인합니다.</li></ol>
+  <ol class="check-tiles">
+    <li><span class="badge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.8 3.6-6 7-6s6.2 2.2 7 6"/></svg></span><strong>대상</strong><p>전체 고객인지, 신규 회원·특정 멤버십 등급·특정 카드 고객만 가능한지 확인합니다. 내 할인 수단 설정은 목록을 고르는 데 도움을 주지만 개인별 자격을 인증하지는 않습니다.</p></li>
+    <li><span class="badge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-4h4v4"/></svg></span><strong>주문 방식</strong><p>매장·포장·배달·브랜드 앱 중 행사 채널을 확인합니다. 배달비나 앱별 메뉴 가격이 다르면 최종 결제 화면을 기준으로 비교합니다.</p></li>
+    <li><span class="badge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/></svg></span><strong>사용 횟수와 중복</strong><p>하루·월별 횟수, 선착순 수량, 다른 쿠폰과 함께 쓸 수 있는지 확인합니다. 조건이 불명확하면 중복 할인이 된다고 가정하지 않습니다.</p></li>
+    <li><span class="badge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><strong>기간과 매장</strong><p>발급 기간과 사용 기간을 구분하고, 제외 매장·공휴일·시간대 제한을 확인합니다.</p></li>
+  </ol>
   <p>AMONG에서 브랜드별 화면을 열어 <strong>+ 구독</strong>을 누르면 그 브랜드의 혜택을 구독 브랜드 탭에 모을 수 있습니다. 다시 누르면 취소됩니다. 목록은 현재 브라우저에만 저장되며 알림이나 다른 기기 동기화 기능은 아닙니다.</p>
 
   <h2 id="verify">5. 최근 확인 시각과 공식 원문을 함께 봐요</h2>
+  <div class="anno" aria-hidden="true">
+    <div class="detail">
+      <div class="head"><span class="tk-art"><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="l-b" d="M29 30.5l6.5 6.5" stroke-width="5" stroke-linecap="round"/><circle class="i-b" cx="37.8" cy="35.6" r="3.3"/><circle class="i-b" cx="34.6" cy="39.2" r="3.3"/><ellipse class="i-a" cx="21.5" cy="20.5" rx="13" ry="10.5" transform="rotate(-38 21.5 20.5)"/><path class="l-p" d="M14 17c2-3 5-5 8-5.5" stroke-width="2" stroke-linecap="round"/><path class="l-c" d="M22 27.5l2.4-1.2M17.5 24.5l2-1.4" stroke-width="1.8" stroke-linecap="round"/></svg></span><span><b>치킨 한 마리 3000원 할인</b><span>공식 이벤트 · 11월 30일까지</span></span></div>
+      <div class="src-line"><span class="ok"><span class="pin">1</span>오늘 00:12 확인</span><span class="open"><span class="pin">2</span>공식 원문 보기</span></div>
+    </div>
+    <ol><li>이 혜택의 출처를 마지막으로 확인한 시각이에요.</li><li>브랜드 공식 페이지로 바로 가서 조건을 다시 볼 수 있어요.</li></ol>
+  </div>
   <p>마지막 수집 시각은 서비스가 확인을 시도한 시각이고, 각 혜택의 확인 시각은 해당 출처를 확인한 기록입니다. 일부 사이트가 연결되지 않으면 둘이 다를 수 있습니다. 확인 시각이 오래됐거나 종료일이 없으면 원문에서 다시 확인하세요.</p>
-  <p>핫딜 공지의 이미지는 그 공지에서 확인한 이미지이고, 개별 상품 혜택의 사진은 메뉴·크기·구성이 맞는 상품만 연결합니다. 이미지에 나온 문구가 오래됐거나 공식 페이지와 목록이 다르면 <strong>공식 결제 화면의 조건</strong>을 먼저 확인하고 카드의 ‘정보가 달라요’로 알려 주세요. 메모에는 이름·연락처·주문번호를 넣지 마세요.</p>
-  <div class="box"><p><strong>비교 순서</strong><br>필요한 메뉴·수량 정하기 → 사용할 수 있는 혜택 고르기 → 배달비·추가금 포함 결제액 비교 → 공식 페이지에서 기간과 조건 확인</p></div>
-  <p><a href="./"><strong>혜택 비교하러 가기 →</strong></a> · <a href="about.html#how">정보 수집·정정 기준</a></p>
+  <p>핫딜 공지의 이미지는 그 공지에서 확인한 이미지이고, 개별 상품 혜택의 사진은 메뉴·크기·구성이 맞는 상품만 연결합니다. 상품 사진이 없으면 같은 행사의 공식 이미지를 ‘공식 행사’로 표시해요. 이미지에 나온 문구가 오래됐거나 공식 페이지와 목록이 다르면 <strong>공식 결제 화면의 조건</strong>을 먼저 확인하고 카드의 ‘정보가 달라요’로 알려 주세요. 메모에는 이름·연락처·주문번호를 넣지 마세요.</p>
+
+  <section class="compare-order" aria-labelledby="order-title">
+    <h2 id="order-title">비교 순서</h2>
+    <ol class="flow">
+      <li><span class="dot"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 7h11M9 12h11M9 17h11"/><path d="M4.5 7h.01M4.5 12h.01M4.5 17h.01"/></svg></span><div><h3>메뉴·수량 정하기</h3><p>필요한 메뉴와 개수를 먼저 정해요.</p></div></li>
+      <li><span class="dot"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="6.5" width="17" height="13" rx="2.5"/><path d="M15.5 13h5"/><path d="M6 6.5l9.5-3 1.2 3"/></svg></span><div><h3>쓸 수 있는 혜택 고르기</h3><p>내 통신사·결제 수단으로 되는 것만 봐요.</p></div></li>
+      <li><span class="dot"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3.5h12v17l-2.5-1.6L13 20.5l-2.5-1.6L8 20.5l-2-1.3z"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></svg></span><div><h3>결제액 비교</h3><p>배달비·추가금까지 넣어 내는 금액으로 비교해요.</p></div></li>
+      <li><span class="dot"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 9h17M7 6.8h.01M9.5 6.8h.01"/><path d="M8.5 14.2l2.3 2.3 4.7-4.7"/></svg></span><div><h3>공식 페이지 확인</h3><p>결제 직전에 기간과 조건을 다시 봐요.</p></div></li>
+    </ol>
+  </section>
+  <p class="next-links"><a class="cta" href="./">혜택 비교하러 가기</a> <a href="about.html#how">정보 수집·정정 기준</a></p>
 </main>
 <footer class="foot">
   <nav aria-label="서비스 정보"><a href="./">쿠폰 비교</a><a href="guide.html">할인 비교 가이드</a><a href="about.html">서비스 소개</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="terms.html">이용약관</a><a href="about.html#contact">문의</a><a href="partners.html">광고·제휴</a></nav>
