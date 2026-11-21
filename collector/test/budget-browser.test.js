@@ -208,13 +208,17 @@ test('핫딜 공지는 예산과 상관없이 그대로이고, 카드에는 가�
   const card = page.locator('#card-p4900');
   assert.equal(await card.locator('.price b').innerText(), '4900원', '금액은 쉼표·축약 없이');
   assert.equal(await card.locator('.price s').innerText(), '7000원');
-  assert.match(await card.locator('.cta').innerText(), /^공식 페이지에서 확인/);
+  assert.match(await card.locator('.cta').innerText(), /^공식 페이지/);
   assert.equal(await card.locator('.cta').getAttribute('target'), '_blank');
   // 앱 신규가입·픽업 전용 같은 조건은 접힌 카드에서도 보인다
   assert.match(await page.locator('#card-p9800 .conds').innerText(), /앱 신규가입 혜택\s+앱 전용\s+픽업 전용/);
-  assert.match(await page.locator('#card-amount .conds').innerText(), /15000원 이상 주문/);
+  // 최소 주문이 있는 금액 할인: 할인 줄에서 '그만큼 주문하면 내는 돈'으로, 조건 줄 첫 마디는 누가 쓸 수 있는지
+  assert.match(await page.locator('#card-amount .price').innerText(), /^15000원 주문하면\s+12000원$/);
+  assert.equal(await page.locator('#card-amount .price b').innerText(), '12000원');
+  assert.doesNotMatch(await page.locator('#card-amount .conds').innerText(), /15000원 이상/, '같은 말을 두 번 쓰지 않음');
+  assert.match(await page.locator('#card-amount .conds').innerText(), /^누구나/);
+  assert.match(await page.locator('#card-points .conds').innerText(), /^네이버페이 결제\s+.*10000원 이상 주문/);
   // 가격이 없는 혜택은 혜택 종류를 분명하게: 할인과 적립을 섞지 않는다
-  assert.equal(await page.locator('#card-amount .price').innerText(), '3000원 할인');
   assert.equal(await page.locator('#card-percent .price').innerText(), '주문 금액 30% 할인');
   assert.equal(await page.locator('#card-points .price').innerText(), '결제 후 50% 적립');
   assert.match(await page.locator('#card-bogo .price').innerText(), /^4500원\s*결제 시 하나 더 \(1\+1\)$/, '1+1은 구성 가격 그대로(개당 환산 없음)');

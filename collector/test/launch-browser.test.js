@@ -38,6 +38,7 @@ test('홈 안내·계산기·제휴 화면은 모바일과 데스크톱에서 �
   await page.getByRole('link', { name: '할인 계산기', exact: true }).click();
   assert.equal(new URL(page.url()).hash, '#calculator');
   const example = page.getByRole('table', { name: '12000원 메뉴 하나를 주문하는 예시' });
+  await example.locator('tfoot td').last().waitFor(); // 주소가 바뀐 직후엔 아직 표를 읽는 중일 수 있다
   assert.deepEqual(await example.locator('tfoot td').allTextContents(), ['12000원', '13000원']);
   await page.locator('[name="cap"]').fill('0');
   await page.getByRole('button', { name: '결제 금액 비교하기' }).click();

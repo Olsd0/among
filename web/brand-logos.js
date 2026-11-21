@@ -14,6 +14,7 @@ const logos = new Map([
   ["미스터피자", {"source": "https://www.mrpizza.co.kr/", "image": "https://www.mrpizza.co.kr/sh_img/hd/top_menu/favicon.ico"}],
   ["반올림피자", {"source": "https://order.banolimpizza.com/event/list?eventStatus=all", "image": "https://order.banolimpizza.com/icon.svg?icon.0dg2qmliekn-t.svg"}],
   ["배스킨라빈스", {"source": "https://www.baskinrobbins.co.kr/", "image": "https://www.baskinrobbins.co.kr/assets/images/common/h_logo.png"}],
+  ["버거킹", {"source": "https://www.burgerking.co.kr/", "image": "https://www.burgerking.co.kr/favicon.png"}],
   ["빽다방", {"source": "https://paikdabang.com/", "image": "https://paikdabang.com/wp-content/uploads/2026/08/cropped-favicon-192x192.png"}],
   ["스타벅스", {"source": "https://www.starbucks.co.kr/index.do", "image": "https://image.istarbucks.co.kr/common/img/common/favicon.ico?v=200828"}],
   ["파리바게뜨", {"source": "https://www.paris.co.kr/", "image": "https://d2afncas1tel3t.cloudfront.net/wp-content/uploads/2019/09/cropped-PB_favicon-192x192.png"}],

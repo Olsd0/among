@@ -403,10 +403,16 @@ test('명일방주 제휴 메뉴와 쉐이크쉑 전 메뉴 쿠폰에 공식 포
     assert.equal(await card.locator('.coupon-image-label').innerText(), label);
     await card.locator('.body').click();
     const art = card.locator('.coupon-artwork');
-    await art.scrollIntoViewIfNeeded();
-    assert.ok((await art.locator('img').getAttribute('src')).includes(imageName));
-    assert.match(await art.innerText(), /공식 출처/);
-    assert.equal(await art.locator('img').evaluate(el => getComputedStyle(el).objectFit), 'contain');
+    if (id === 'shack') {
+      // 11/21: 펼친 상세에는 행사 포스터·구성 상품만 크게 (브랜드 대표 메뉴 사진은 '전 메뉴' 할인과 상관없어 뺀다)
+      await card.locator('.detail dl').waitFor();
+      assert.equal(await art.count(), 0);
+    } else {
+      await art.scrollIntoViewIfNeeded();
+      assert.ok((await art.locator('img').getAttribute('src')).includes(imageName));
+      assert.match(await art.innerText(), /공식 출처/);
+      assert.equal(await art.locator('img').evaluate(el => getComputedStyle(el).objectFit), 'contain');
+    }
     await card.locator('.body').click();
     await card.screenshot({ path: `/tmp/among-coupon-${id}.png` });
     const hot = page.locator(`[data-hot="coupon:${id}"]`);

@@ -1,7 +1,7 @@
 // AMONG 화면 스크립트 (index.html에서 분리 — CSP로 인라인 스크립트를 막기 위해)
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
-  PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
+  PROGRAM_LABEL, PAY_PROGRAMS, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
 } from './engine.js?v=20261121-1';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
@@ -11,7 +11,7 @@ import { noticePhoto } from './notice-images.js?v=20261114-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { withVerifiedEvents } from './verified-events.js?v=20261121-1';
 import { withCouponEventNews } from './event-notices.js?v=20261121-1';
-import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
+import { officialBrandLogo } from './brand-logos.js?v=20261121-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';
 
@@ -703,13 +703,17 @@ function renderHot() {
   $('#hotCount').textContent = rail.length > 1 ? `1 / ${rail.length}` : '';
 }
 
+/**
+ * 카드 셋째 줄 '언제까지' (11/21 외부 피드백: 얼마나 → 쓸 수 있는지 → 언제까지가 모든 카드에서 같은 자리에).
+ * 날짜는 늘 보이고, 일주일 안이면 D-n을 붙인다. 끝나는 날을 모르면 비워 두지 않고 모른다고 쓴다.
+ */
 function dueChip(c, today) {
-  if (c.start_date && c.start_date > today) return `<span class="chip soon">${ICON.cal}${md(c.start_date)} 시작</span>`;
+  if (c.start_date && c.start_date > today) return `<span class="chip soon">${ICON.cal}${md(c.start_date)}부터${c.end_date ? ` ${md(c.end_date)}까지` : ''}</span>`;
   const d = daysLeft(c.end_date, today);
-  if (d === null) return '';
+  if (d === null) return `<span class="chip none">${ICON.cal}종료일 미정</span>`;
   if (d === 0) return `<span class="chip due today">${ICON.cal}오늘 종료</span>`;
-  if (d > 7) return `<span class="chip">${ICON.cal}${md(c.end_date)}까지</span>`;   // 여유가 있으면 날짜로
-  return `<span class="chip${d <= 3 ? ' due' : ''}">${ICON.cal}D-${d}</span>`;
+  if (d > 7) return `<span class="chip">${ICON.cal}${md(c.end_date)}까지</span>`;
+  return `<span class="chip${d <= 3 ? ' due' : ''}">${ICON.cal}${md(c.end_date)}까지<span class="dday">D-${d}</span></span>`;
 }
 
 const upTo = (c) => /^최대/.test(c.program_note || '');
@@ -744,7 +748,12 @@ function priceLine(c) {
   // 1+1·증정: 확인된 구성 가격이 있으면 그 가격을 내고 받는 혜택으로 (개당 가격으로 나누지 않음)
   if (c.discount_type === 'free_item') return `${price !== null ? `<b>${money(price)}원</b>` : ''}<span class="what">${price !== null ? '결제 시 ' : ''}${isOnePlusOne(c) ? '하나 더 (1+1)' : '함께 증정'}</span>`;
   if (c.discount_type === 'percent' && c.discount_rate) return `<span class="what">주문 금액 ${up}${esc(c.discount_rate)}% 할인</span>`;
-  if (c.discount_type === 'amount' && c.discount_value) return `<span class="what">${up}${money(c.discount_value)}원 할인</span>`;
+  if (c.discount_type === 'amount' && c.discount_value) {
+    const min = Number(c.min_order), v = Number(c.discount_value);
+    // '21000원 이상 주문 시 4000원 할인' → '21000원 주문하면 17000원' (최소 주문 금액은 이 줄에 있으니 조건 줄에서는 뺀다)
+    if (!up && min > v) return `<span class="what">${money(min)}원 주문하면</span><b>${money(min - v)}원</b>`;
+    return `<span class="what">${up}${money(v)}원 할인</span>`;
+  }
   if (c.discount_type === 'point_back' && c.discount_value) return `<span class="what">결제 후 ${up}${has(c.discount_rate) ? `${esc(c.discount_rate)}%` : `${money(c.discount_value)}원`} 적립</span>`;
   return '<span class="what">공식 페이지에서 혜택 확인</span>';
 }
@@ -756,24 +765,44 @@ const progLabel = (p) => PROGRAM_LABEL[p] || p;
  * 접힌 카드에서도 보이는 핵심 조건 한 줄: 내 혜택/필요한 멤버십·결제수단 → 대상(신규가입·회원) → 앱 전용 → 주문 방법 → 최소 주문.
  * 긴 유의사항·제외 매장은 펼친 상세에 둔다. 확인 시각·'새로 생긴' 같은 상태 문구는 붙이지 않는다.
  */
+const minInPrice = (c) => c.discount_type === 'amount' && !upTo(c) && budgetPrice(c) === null && Number(c.min_order) > Number(c.discount_value) && Number(c.discount_value) > 0;
+/** 필요한 프로그램 이름: 통신사 멤버십은 '…회원', 페이·포인트는 '…결제'처럼 무엇을 해야 하는지로 */
+function needLabel(progs) {
+  if (progs.length > 2) return progs.every((p) => TELECOMS.includes(p)) ? '통신사 멤버십 회원' : progs.map(progLabel).slice(0, 2).join(' · ') + ' 외';
+  const pay = progs.every((p) => PAY_PROGRAMS.includes(p));
+  return progs.map(progLabel).join(' · ') + (pay ? ' 결제' : ' 회원');
+}
 function conditionLine(c) {
   const mine = profileObj() ? myPrograms(c, profileObj()) : [];
   const progs = c.programs || [];
   const out = [];
+  // 첫 마디 = 쓸 수 있는지: 내 혜택 / 필요한 멤버십·결제 / 신규가입·받은 사람만 / 누구나
   if (mine.length) out.push(`<span class="c-mine">내 ${esc(mine.map((p) => (TELECOMS.includes(p) ? p : progLabel(p))).join('·'))} 혜택</span>`);
-  else if (progs.length) out.push(`<span class="c-prog">${esc(progs.length > 2 ? '통신사 멤버십' : progs.map(progLabel).join(' · '))}</span>`);
+  else if (progs.length) out.push(`<span class="c-prog">${esc(needLabel(progs))}</span>`);
   if (c.audience === '신규회원' || c.audience === '개인' || (c.audience === '멤버십' && !progs.length)) out.push(`<span class="c-aud">${esc(AUD[c.audience])}</span>`);
+  if (!out.length) out.push('<span class="c-all">누구나</span>');
   if (c.app_only) out.push('<span>앱 전용</span>');
   // 주문 방법이 하나뿐일 때만 제한 조건으로 (여러 개면 브랜드 옆에 작게)
   const ch = c.channels || [];
   if (ch.length === 1) out.push(`<span>${esc(ch[0])} 전용</span>`);
-  if (Number(c.min_order) > 0) out.push(`<span>${money(c.min_order)}원 이상 주문</span>`);
+  if (Number(c.min_order) > 0 && !minInPrice(c)) out.push(`<span>${money(c.min_order)}원 이상 주문</span>`);
   return out.join('');
 }
 
+/**
+ * 혜택을 읽은 공식 행사 글 (11/21 버거킹 /event/detail/1793): 출처 첫 주소가 공식 링크와 같은 사이트의 다른 글이면 그 글.
+ * 행사 목록·게시판 첫 화면이 아니라 그 행사 글로 바로 보낸다. 제휴(통신사·페이) 페이지는 그대로 둔다.
+ */
+function postUrl(c) {
+  const first = safeUrl(c.source_url), off = safeUrl(c.official_link);
+  if (!first || !off || first === off || host(first) !== host(off)) return '';
+  return LINK_LABELS.some(([re]) => re.test(first)) ? '' : first;
+}
 function ctaLabel(c) {
   const hit = LINK_LABELS.find(([re]) => re.test(safeUrl(c.official_link)));
-  return hit ? `${hit[1]}에서 확인` : '공식 페이지에서 확인';
+  // 짧게: '11/26까지 D-5' 옆에 한 줄로 들어가도록 (줄바꿈되면 카드마다 높이·순서가 달라 보인다)
+  if (hit) return hit[1];
+  return postUrl(c) ? '공식 행사 보기' : '공식 페이지';
 }
 
 /** 쓰는 법: 페이지에 적힌 방법이 있으면 그것, 없으면 조건으로 안내 문장을 만든다 */
@@ -789,8 +818,7 @@ function howTo(c) {
     if (c.audience === '신규회원') steps.push(`${c.brand} 앱에서 신규 회원 혜택과 적용 조건을 확인해요`);
     else if (c.app_only && !progs.length) steps.push(`${c.brand} 앱의 행사 안내에서 적용 방법을 확인해요`);
   }
-  const ch = c.channels || [];
-  if (ch.length) steps.push(`${ch.join(' · ')} 주문에 쓸 수 있어요`);
+  // 주문 방법(배달·포장…)은 위 '주문' 칸에 있으니 되풀이하지 않는다
   return steps;
 }
 
@@ -810,32 +838,78 @@ function nutritionBlock(c) {
     <p class="nut-basis">${basis} · ${esc(it.source || '식약처 공공데이터')}</p></section>`;
 }
 
+/** 펼친 상세 '혜택' 칸: 혜택 + 최소 주문 + 한도 (목록 카드의 첫 줄을 말로 풀어 쓴 것) */
+function benefitText(c) {
+  const price = budgetPrice(c);
+  const reg = Number(c.regular_price);
+  const up = upTo(c) ? '최대 ' : '';
+  let what;
+  if (c.discount_type === 'free_item') what = `${price !== null ? `${money(price)}원 결제 시 ` : ''}${isOnePlusOne(c) ? '하나 더 (1+1)' : '함께 증정'}`;
+  else if (price !== null) what = `${money(price)}원${Number.isFinite(reg) && reg > price && c.discount_type !== 'point_back' ? ` (정상가 ${money(reg)}원)` : ''}`;
+  else if (c.discount_type === 'percent' && c.discount_rate) what = `주문 금액 ${up}${c.discount_rate}% 할인`;
+  else if (c.discount_type === 'amount' && c.discount_value) what = `${up}${money(c.discount_value)}원 할인`;
+  else if (c.discount_type === 'point_back' && c.discount_value) what = `결제 후 ${up}${has(c.discount_rate) ? `${c.discount_rate}%` : `${money(c.discount_value)}원`} 적립`;
+  else what = '공식 페이지에서 혜택 확인';
+  const cap = c.max_discount ? (c.discount_type === 'point_back' ? `최대 ${moneyDigits(c.max_discount)}P 적립` : `최대 ${moneyDigits(c.max_discount)}원 할인`) : '';
+  const min = Number(c.min_order) > 0 ? `${money(c.min_order)}원 이상 주문 시` : '';
+  const note = !(c.programs || []).length && c.program_note && !/^최대/.test(c.program_note) ? c.program_note : (upTo(c) && !cap ? c.program_note : '');
+  return { line: [min, what].filter(Boolean).join(' '), extra: [cap, note].filter(Boolean).join(' · '),
+    pay: minInPrice(c) ? `${money(c.min_order)}원 주문하면 ${money(Number(c.min_order) - Number(c.discount_value))}원을 내요` : '' };
+}
+/**
+ * 원문 조건 글에서 이미 위 칸(혜택·대상·주문·기간)에 나온 말은 뺀다
+ * (11/21: '21000원 이상 주문 · 21,000원 이상 주문 시'처럼 같은 말이 두 번 보이던 것)
+ */
+function extraConditions(c) {
+  const digits = (t) => String(t).replace(/(\d),(?=\d{3})/g, '$1');
+  const min = Number(c.min_order) > 0 ? String(Number(c.min_order)) : '';
+  const seen = new Set();
+  return String(c.conditions || '').split(/\s*(?:·|\n|;|,\s+)\s*/).map((t) => t.trim()).filter((t) => {
+    if (!t) return false;
+    const d = digits(t);
+    if (min && d.includes(min) && /이상|주문/.test(t) && d.replace(new RegExp(`${min}\\s*원?\\s*이상\\s*(주문|결제|구매)?\\s*(시|때)?\\s*(적용|가능)?`), '').replace(/[\s,.()]/g, '').length < 4) return false;
+    if (/^(앱|APP)\s*전용$|^(배달|포장|매장|픽업|딜리버리)\s*전용$/i.test(t)) return false;
+    if (c.stackable === 'no' && /중복[\s가-힣/]{0,12}(불가|안\s*돼|안\s*됨|할\s*수\s*없)/.test(t) && t.length < 32) return false;
+    const k = t.replace(/\s+/g, '');
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).join(' · ');
+}
+
 function detailHtml(c, today) {
   const photo = couponPhotoFor(c, today);
   const progs = c.programs || [];
-  const cap = c.max_discount ? (c.discount_type === 'point_back' ? `최대 ${moneyDigits(c.max_discount)}P 적립` : `최대 ${moneyDigits(c.max_discount)}원 할인`) : '';
-  const cond = [c.min_order ? `${money(c.min_order)}원 이상 주문` : '', cap, !progs.length ? c.program_note : '', c.conditions].filter(Boolean).join(' · ');
+  const d = daysLeft(c.end_date, today);
   const period = c.end_date
-    ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${daysLeft(c.end_date, today) === 0 ? '오늘 끝나요' : daysLeft(c.end_date, today) + '일 남음'})`
-    : '종료일 정보 없음 · 공식 페이지에서 확인해요';
-  const need = progs.length ? `${progs.map(progLabel).join(' 또는 ')}${c.program_note ? ` (${c.program_note})` : ''}`
-    : c.audience === '전체' ? (c.app_only ? `${c.brand} 앱 회원 누구나` : '누구나') : AUD[c.audience];
+    ? `${c.start_date ? md(c.start_date) + ' ~ ' : ''}${md(c.end_date)}까지 (${d === 0 ? '오늘 끝나요' : d + '일 남음'})`
+    : `${c.start_date ? md(c.start_date) + '부터 · ' : ''}종료일 정보 없음 · 공식 페이지에서 확인해요`;
+  const need = progs.length ? `${needLabel(progs)}${c.program_note && !/^최대/.test(c.program_note) ? ` (${c.program_note})` : ''}`
+    : c.audience === '전체' ? (c.app_only ? `누구나 (${c.brand} 앱 회원)` : '누구나') : AUD[c.audience];
+  const ch = c.channels || [];
+  const how = [c.app_only ? `${c.brand} 앱 주문` : '', ch.length ? `${ch.join(' · ')}${ch.length === 1 ? '만' : ''}` : ''].filter(Boolean).join(' · ');
+  const b = benefitText(c);
+  const extra = extraConditions(c);
   const src = safeUrl(c.source_url);
+  const post = postUrl(c);
   const steps = howTo(c);
   const saved = state.saved.has(c.id);
+  // 사진은 행사 포스터·구성 상품만 크게 (브랜드 대표 메뉴 사진은 '전 메뉴' 할인과 상관없어 펼친 상세에서는 뺀다)
   return `
     ${photo?.kind === 'parts' ? `<figure class="coupon-artwork parts">${photo.parts.map((p) => `<span><img src="${esc(safeImg(p.url))}" alt="${esc(`${c.brand} ${p.name}`)}" loading="lazy" referrerpolicy="no-referrer"><small>${esc(p.name)}</small></span>`).join('')}<figcaption>구성 상품 이미지 (각 상품의 공식 메뉴 사진) · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 메뉴 ↗</a></figcaption></figure>` : ''}
-    ${photo && photo.kind !== 'product' && photo.kind !== 'parts' ? `<figure class="coupon-artwork"><img src="${esc(photo.url)}" alt="${esc(`${c.brand} ${photo.name} ${photo.label}`)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${esc(photo.label)} · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>${photo.kind === 'campaign' ? ` · <a href="${esc(photo.detailUrl)}" target="_blank" rel="noopener noreferrer">포스터 원본 ↗</a>` : ''}</figcaption></figure>` : ''}
-    ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
+    ${photo && (photo.kind === 'campaign' || photo.kind === 'related') ? `<figure class="coupon-artwork"><img src="${esc(photo.url)}" alt="${esc(`${c.brand} ${photo.name} ${photo.label}`)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${esc(photo.label)} · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>${photo.kind === 'campaign' ? ` · <a href="${esc(photo.detailUrl)}" target="_blank" rel="noopener noreferrer">포스터 원본 ↗</a>` : ''}</figcaption></figure>` : ''}
     <section><h4>꼭 확인할 조건</h4><dl>
       ${String(c.menu || '').length > 16 ? `<dt>메뉴</dt><dd>${esc(c.menu)}</dd>` : ''}
-      <dt>필요</dt><dd>${esc(need)}</dd>
+      <dt>혜택</dt><dd>${esc(b.line)}${b.extra ? ` <span class="dd-sub">${esc(b.extra)}</span>` : ''}${b.pay ? `<span class="dd-pay">${esc(b.pay)}</span>` : ''}</dd>
+      <dt>대상</dt><dd>${esc(need)}</dd>
+      ${how ? `<dt>주문</dt><dd>${esc(how)}</dd>` : ''}
       <dt>기간</dt><dd>${esc(period)}</dd>
-      ${cond ? `<dt>조건</dt><dd>${esc(cond)}</dd>` : ''}
       ${c.stackable === 'no' ? '<dt>중복</dt><dd class="warn-line">다른 쿠폰·할인과 같이 못 써요</dd>' : c.stackable === 'yes' ? '<dt>중복</dt><dd>다른 할인과 같이 쓸 수 있어요</dd>' : ''}
+      ${extra ? `<dt>유의</dt><dd>${esc(extra)}</dd>` : ''}
     </dl></section>
+    ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
     <div data-nut="${esc(c.id)}">${nutritionBlock(c)}</div>
-    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} 공식 페이지</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${photo ? ` · <a href="${esc(photo.source)}" target="_blank" rel="noopener">${photo.kind === 'product' ? '공식 상품 사진' : photo.label} 출처</a>` : ''}</p></section>` : ''}
+    ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} ${post ? '공식 행사 글' : '공식 페이지'}</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${photo && photo.kind !== 'representative' ? ` · <a href="${esc(photo.source)}" target="_blank" rel="noopener">${photo.kind === 'product' ? '공식 상품 사진' : photo.label} 출처</a>` : ''}</p></section>` : ''}
     <div class="acts">
       <button class="act-btn" data-save="${esc(c.id)}" aria-pressed="${saved}">${ICON.heart}${saved ? '찜함' : '찜'}</button>
       <button class="act-btn" data-share="${esc(c.id)}">${ICON.share}공유</button>
@@ -845,7 +919,7 @@ function detailHtml(c, today) {
 
 function card(c, today) {
   const open = state.open.has(c.id);
-  const link = safeUrl(c.official_link) || safeUrl(c.source_url);
+  const link = postUrl(c) || safeUrl(c.official_link) || safeUrl(c.source_url);
   const conds = conditionLine(c);
   const st = stubParts(c);
   const photo = couponPhotoFor(c, today);
@@ -855,7 +929,8 @@ function card(c, today) {
   // 적용가가 있는 상품은 오른쪽 가격이 중심 → 왼쪽 할인율은 한 단계 작게 (같은 강도로 겹쳐 강조하지 않음)
   const quiet = st.unit === '%' && budgetPrice(c) !== null && c.discount_type !== 'free_item';
   const bigClass = st.unit === '원' || quiet ? '' : bigLen > 6 ? ' long-label' : bigLen > 4 ? ' medium-label' : '';
-  // 정보 순서: 브랜드·메뉴 → 가격(혜택) → 쓸 수 있는 조건 → 기간 → 공식 페이지. 펼치기는 '상세 보기' 버튼(카드 빈 곳을 눌러도 열림)
+  // 정보 순서(모든 카드 같은 자리): 브랜드·메뉴 → 얼마나(가격·혜택) → 쓸 수 있는지(누가·앱·주문 방법·최소 주문) → 언제까지 → 공식 행사.
+  // 펼치기는 '상세 보기' 버튼(카드 빈 곳을 눌러도 열림)
   return `
   <article class="card" data-id="${esc(c.id)}" id="card-${esc(c.id)}">
     <div class="tk"><div class="ticket">
@@ -869,7 +944,7 @@ function card(c, today) {
         <div class="who"><span class="bn"><button class="brand-link" data-brand-open="${esc(c.brand)}" aria-label="${esc(c.brand)} 브랜드 보기">${esc(c.brand)}</button>${(c.channels || []).length > 1 ? `<span class="chn"> · ${esc(c.channels.join(' · '))}</span>` : ''}</span>${logoUrl(c) ? `<img class="logo" src="${esc(logoUrl(c))}" alt="" width="22" height="22" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}<button type="button" class="more" data-toggle="${esc(c.id)}" aria-expanded="${open}" aria-controls="dt-${esc(c.id)}">${open ? '상세 닫기' : '상세 보기'}${ICON.down}</button></div>
         <h3 class="menu"><span class="sr">${esc(c.brand)} </span>${esc(c.menu)}</h3>
         <div class="price">${priceLine(c)}</div>
-        ${conds ? `<p class="conds">${conds}</p>` : ''}
+        <p class="conds">${conds}</p>
         <div class="foot">
           ${dueChip(c, today)}
           ${link ? `<a class="cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">${esc(ctaLabel(c))}<span class="sr"> (새 탭)</span>${ICON.ext}</a>` : ''}

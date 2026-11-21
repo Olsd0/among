@@ -38,7 +38,7 @@ test('사진·로고는 파일로 저장하지 않고 공식 https 주소를 그
   const { officialBrandLogo } = await import('../../web/brand-logos.js');
   const src = readFileSync(new URL('../../web/brand-logos.js', import.meta.url), 'utf8');
   const brands = [...src.matchAll(/^  \["([^"]+)", \{/gm)].map((m) => m[1]);
-  assert.equal(brands.length, 22);
+  assert.equal(brands.length, 23);
   for (const brand of brands) {
     const logo = officialBrandLogo(brand);
     assert.match(logo.image, /^https:\/\//, brand);
