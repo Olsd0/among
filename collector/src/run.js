@@ -210,6 +210,8 @@ export async function runCollector(o = {}) {
             c.checked_at = now.toISOString();
             // 공식 메뉴에서 확인한 동일 상품 사진만. 행사 페이지의 배너·대표 이미지는 사용하지 않는다.
             c.image_url = c.status !== 'rejected' ? pickImage(c, page, source.brand) : '';
+            // 행사 상세 글에서 읽은 혜택: 같은 혜택을 목록 제목에서도 읽었으면 상세 글의 기간·조건이 이긴다 (mergeSimilar)
+            if (page.isDetail) c.from_detail = true;
             all.push(c);
             sr.found++;
           }
@@ -357,7 +359,7 @@ export async function runCollector(o = {}) {
         log('  공지 이미지 확인: ' + JSON.stringify(artwork.summary));
       } catch (e) { report.errors.push('공지 이미지 보완: ' + e.message); }
     }
-    merged = merged.map(c => ({ ...c, hash: contentHash(c) }));
+    merged = merged.map(({ from_detail, ...c }) => ({ ...c, hash: contentHash(c) }));
     report.summary = summarize(merged);
     news = news.map((n) => ({ ...n, hash: newsHash(n) }));
     report.news = { published: news.filter((n) => n.status === 'published').length, pending: news.filter((n) => n.status === 'pending').length, rejected: news.filter((n) => n.status === 'rejected').length };

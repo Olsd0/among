@@ -719,12 +719,14 @@ export function similarMenu(a, b, minContain = 2) {
   return inter / (A.size + B.size - inter) >= 0.5;
 }
 export function mergeSimilar(list) {
-  const rank = (c) => (c.status === 'published' ? 4 : c.status === 'pending' ? 2 : 0) + (c.end_date ? 1 : 0) + (c.regular_price ? 0.5 : 0) + (c.confidence || 0) / 10;
+  // 행사 상세 글에서 읽은 혜택이 먼저(+5): 목록 제목만 보고 읽은 같은 혜택은 기간이 달라도 상세 글 쪽으로 합친다
+  // (11/21 버거킹: 목록 '26년 11월 딜리버리 …' → 11/1~11/30, 상세 글 → 11/16~11/22·앱 전용)
+  const rank = (c) => (c.from_detail && c.status !== 'rejected' ? 5 : 0) + (c.status === 'published' ? 4 : c.status === 'pending' ? 2 : 0) + (c.end_date ? 1 : 0) + (c.regular_price ? 0.5 : 0) + (c.confidence || 0) / 10;
   const out = [];
   for (const c of [...list].sort((p, q) => rank(q) - rank(p))) {
     const sig = (z) => [z.brand, z.discount_type, z.discount_type === 'price' ? (z.coupon_price ?? '') : '', z.discount_type === 'price' ? '' : (z.discount_value ?? ''), z.audience].join('|');
     const dup = c.status !== 'rejected' && out.find((o) => o.status !== 'rejected' && sig(o) === sig(c)
-      && (!o.end_date || !c.end_date || o.end_date === c.end_date)
+      && (!o.end_date || !c.end_date || o.end_date === c.end_date || (o.from_detail && !c.from_detail))
       && similarMenu(o.menu, c.menu, c.discount_type === 'free_item' ? 3 : 2));
     if (dup) {
       const urls = new Set(String(dup.source_url).split(' ').concat(String(c.source_url).split(' ')).filter(Boolean));

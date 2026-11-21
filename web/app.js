@@ -3,14 +3,14 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261119-2';
+} from './engine.js?v=20261121-1';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261114-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { withVerifiedEvents } from './verified-events.js?v=20261121-1';
-import { withCouponEventNews } from './event-notices.js?v=20261119-1';
+import { withCouponEventNews } from './event-notices.js?v=20261121-1';
 import { officialBrandLogo } from './brand-logos.js?v=20261103-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';

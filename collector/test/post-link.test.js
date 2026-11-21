@@ -48,3 +48,37 @@ test('목록·상세에서 따로 읽은 같은 공지: 원문은 행사 글, �
   assert.match(m.summary, /평일 오후/);
   assert.equal(m.discount_label, '3천원');
 });
+
+test('같은 혜택을 목록 제목과 행사 상세 글에서 따로 읽으면 상세 글의 기간·조건으로 하나만 남긴다 (11/21 버거킹)', async () => {
+  const { mergeSimilar } = await import('../src/engine.js');
+  const base = { brand: '버거킹', category: '햄버거', menu: '전 메뉴', discount_type: 'amount', discount_value: 4000, audience: '전체', status: 'published', confidence: 0.9 };
+  const list = { ...base, start_date: '2026-11-01', end_date: '2026-11-30', app_only: false, channels: ['배달'], min_order: 21000, source_url: 'https://www.burgerking.co.kr/event/ongoing' };
+  const detail = { ...base, start_date: '2026-11-16', end_date: '2026-11-22', app_only: true, stackable: 'no', channels: ['배달'], min_order: 21000, source_url: 'https://www.burgerking.co.kr/event/detail/1793', from_detail: true };
+  for (const order of [[list, detail], [detail, list]]) {
+    const out = mergeSimilar(order.map((x) => ({ ...x })));
+    assert.equal(out.length, 1);
+    assert.equal(out[0].end_date, '2026-11-22');
+    assert.equal(out[0].app_only, true);
+    assert.equal(out[0].source_url.split(' ')[0], 'https://www.burgerking.co.kr/event/detail/1793', '원문 첫 주소 = 상세 글');
+  }
+  // 둘 다 목록에서 읽었는데 기간이 다르면 다른 행사로 둔다 (예전 규칙 그대로)
+  assert.equal(mergeSimilar([{ ...list }, { ...list, start_date: '2026-12-01', end_date: '2026-12-31' }]).length, 2);
+});
+
+test('버튼으로만 열리는 이벤트 목록: 버튼을 차례로 눌러 상세 글 주소·제목·썸네일을 모은다', { timeout: 90000 }, async () => {
+  const { fileURLToPath } = await import('node:url');
+  const { serveDir } = await import('./helpers.js');
+  const { openBrowser, clickPosts, postRuleFor: rule } = await import('../src/fetch.js');
+  assert.equal(rule('https://www.burgerking.co.kr/event/ongoing').click, 'li button.btn_detail');
+  const site = await serveDir(fileURLToPath(new URL('./fixtures/site', import.meta.url)));
+  const ctx = await openBrowser();
+  try {
+    const posts = await clickPosts(ctx, `${site.base}/bk/ongoing.html`, { ...rule('https://www.burgerking.co.kr/event/ongoing'), urlPattern: '/bk/detail/\\d+\\.html$' });
+    assert.deepEqual(posts.map((p) => new URL(p.href).pathname), ['/bk/detail/1793.html', '/bk/detail/1801.html', '/bk/detail/1700.html']);
+    assert.equal(posts[0].text, '26년 11월 딜리버리 21,000원 이상 주문 시 4,000원 할인', '제목 칸만 (분류 꼬리표·detail 글자 제외)');
+    assert.equal(posts[0].img.src, 'https://img.bk.test/list/1793.jpg');
+    assert.equal(posts[2].img, undefined);
+    // 목록 제목으로 그 글을 찾는다 (공지·쿠폰 원문 연결에 쓰임)
+    assert.equal(new URL(postLinkFor({ title: '26년 11월 딜리버리 21,000원 이상 주문 시 4,000원 할인', evidence: '' }, posts.map((p) => ({ ...p, href: p.href.replace('http:', 'https:') })))).pathname, '/bk/detail/1793.html');
+  } finally { await ctx.close(); await site.close(); }
+});

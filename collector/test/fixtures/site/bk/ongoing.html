@@ -1,0 +1,12 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>이벤트</title></head>
+<body><main><ul class="list">
+  <li><div class="cont"><div class="image"><img src="https://img.bk.test/list/1793.jpg" alt="이벤트 배너"></div><p class="tit_event"><span>일반</span><span>26년 11월 딜리버리 21,000원 이상 주문 시 4,000원 할인</span></p></div><button type="button" class="btn_detail"><span>detail</span></button></li>
+  <li><div class="cont"><div class="image"><img src="https://img.bk.test/list/1801.jpg" alt="이벤트 배너"></div><p class="tit_event"><span>일반</span><span>트머와 세트 4종 1,500원 할인</span></p></div><button type="button" class="btn_detail"><span>detail</span></button></li>
+  <li><div class="cont"><p class="tit_event"><span>스탬프</span><span>모닝 스탬프 이벤트</span></p></div><button type="button" class="btn_detail"><span>detail</span></button></li>
+</ul></main>
+<script>
+  // 버거킹처럼 주소 없이 버튼으로만 상세가 열린다 (사이트 안 이동)
+  var ids = [1793, 1801, 1700];
+  document.querySelectorAll('.btn_detail').forEach(function (b, i) { b.addEventListener('click', function () { location.href = '/bk/detail/' + ids[i] + '.html'; }); });
+</script>
+</body></html>

@@ -50,6 +50,12 @@ export const POST_RULES = {
     url: 'https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq={v}', follow: 5,
     followText: '할인|이벤트|적립|증정|쿠폰|딜리버스|충전|혜택|1\\+1',
   },
+  // 11/21 대표 지적: 버거킹 '전 메뉴 4,000원 할인'이 목록 제목('26년 11월')만 보고 11/1~11/30으로 잡힘. 공식 상세는 11/16~11/22·앱 전용·중복 불가.
+  // 버거킹 목록은 주소 없이 카드의 'detail' 버튼으로만 열린다(Vue). 버튼을 차례로 눌러 /event/detail/번호 주소를 모으고 상세 글을 읽는다.
+  'burgerking.co.kr/event/ongoing': {
+    click: 'li button.btn_detail', item: 'li', title: '.tit_event span:last-child', urlPattern: '/event/detail/\\d+$', max: 12, follow: 8,
+    followText: '할인|쿠폰|원|1\\+1|증정|딜리버리|적립|세트|프로모션',
+  },
 };
 export function postRuleFor(url) {
   try { const u = new URL(url); return POST_RULES[u.hostname.replace(/^www\./, '') + u.pathname] || null; } catch { return null; }
@@ -210,7 +216,10 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
     outDir, name: source.id,
   };
   const rule = postRuleFor(source.url);
-  const first = await renderPage(ctx, source.url, { ...opts, post: rule });
+  const first = await renderPage(ctx, source.url, { ...opts, post: rule && !rule.click ? rule : null });
+  if (rule && rule.click) {
+    try { first.posts = await clickPosts(ctx, first.finalUrl || source.url, rule, opts); } catch (e) { first.posts = []; first.postError = e.message; }
+  }
   const pages = [first];
   let limit = source.max_follow === '' || source.max_follow === undefined ? 6 : +source.max_follow;
   if (rule && first.posts.length) {
@@ -238,6 +247,53 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
     }
   }
   return dropCommonOg(pages);
+}
+
+/**
+ * 카드의 버튼을 눌러야만 열리는 목록(버거킹): 버튼을 하나씩 눌러 바뀐 주소를 적고 목록으로 돌아온다.
+ * 돌려주는 모양은 POST_RULES의 posts와 같다: [{ href, text, img }]. 같은 사이트·규칙에 맞는 주소만.
+ */
+export async function clickPosts(ctx, listUrl, rule, { waitMs = 0 } = {}) {
+  const page = await ctx.context.newPage();
+  const re = new RegExp(rule.urlPattern);
+  const host = new URL(listUrl).host;
+  const posts = [];
+  try {
+    const open = async () => {
+      await page.goto(listUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+      if (waitMs) await sleep(waitMs);
+      await page.locator(rule.click).first().waitFor({ timeout: 15000 });
+    };
+    await open();
+    const n = Math.min(await page.locator(rule.click).count(), rule.max || 12);
+    for (let i = 0; i < n; i++) {
+      const btn = page.locator(rule.click).nth(i);
+      // 글 제목: 제목 칸이 있으면 그것만 (분류 꼬리표·'detail'·'n일 남았어요' 같은 글자는 빼야 제목 낱말 대조가 맞는다)
+      const meta = await btn.evaluate((b, { item, title }) => {
+        const box = b.closest(item) || b.parentElement;
+        const t = title && box ? box.querySelector(title) : null;
+        const im = box && box.querySelector('img');
+        const src = im ? new URL(im.currentSrc || im.getAttribute('src') || im.getAttribute('data-src') || '', location.href).href : '';
+        return { text: ((t || box || b).innerText || '').replace(/\s+/g, ' ').trim().slice(0, 200), img: src ? { src, alt: (im.alt || '').slice(0, 80), w: im.naturalWidth || 0, h: im.naturalHeight || 0 } : null };
+      }, { item: rule.item || 'li', title: rule.title || '' }).catch(() => null);
+      if (!meta) continue;
+      await btn.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+      await btn.click({ timeout: 8000 }).catch(() => {});
+      const moved = await page.waitForURL((u) => re.test(u.pathname) && u.host === host, { timeout: 8000 }).then(() => true).catch(() => false);
+      if (moved) posts.push({ href: page.url().split('#')[0], text: meta.text, ...(meta.img && /^https:/.test(meta.img.src) ? { img: meta.img } : {}) });
+      // 목록으로 (뒤로 가기가 안 되면 다시 열기)
+      if (page.url() !== listUrl) {
+        await page.goBack({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+        const back = await page.locator(rule.click).nth(i).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
+        if (!back) await open();
+      }
+      await sleep(400);
+    }
+  } finally {
+    await page.close().catch(() => {});
+  }
+  return [...new Map(posts.map((p) => [p.href, p])).values()];
 }
 
 /**
