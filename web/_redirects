@@ -1,0 +1,4 @@
+# Cloudflare Pages 주소 이동 (GitHub Pages는 이 파일을 무시한다)
+# 11/21 대표 결정: 할인 비교 가이드는 없애고 서비스 소개만 둔다. 예전 가이드 주소(공유·검색)는 소개로 보낸다.
+/guide /about 301
+/guide.html /about 301

@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const readWeb = (name) => readFileSync(new URL(`../../web/${name}`, import.meta.url), 'utf8');
 
 test('모든 배포 HTML에서 외부 글꼴·인라인 코드·프레임 허용이 다시 열리지 않는다', () => {
-  for (const name of ['index', 'admin', 'about', 'terms', 'guide', 'privacy', 'partners']) {
+  for (const name of ['index', 'admin', 'about', 'terms', 'privacy', 'partners']) {
     const html = readWeb(name + '.html');
     const policy = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
     for (const rule of ["script-src 'self'", "style-src 'self'", "style-src-attr 'none'", "font-src 'self'", name === 'index' ? "frame-src 'self'" : "frame-src 'none'", "base-uri 'none'"]) {
@@ -169,7 +169,7 @@ test('버전 모듈은 재요청하지 않고 HTML·설정은 최신본을 확�
   assert.equal(calls, 1);
   await w.request('app.js?v=release-2');
   assert.equal(calls, 2, '새 배포 버전은 네트워크에서 받는다');
-  for (const path of ['index.html', 'config.js', 'config.js?v=current', 'guide.html']) {
+  for (const path of ['index.html', 'config.js', 'config.js?v=current', 'about.html']) {
     const first = await (await w.request(path)).text();
     assert.notEqual(await (await w.request(path)).text(), first);
   }

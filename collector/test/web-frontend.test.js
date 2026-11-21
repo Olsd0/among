@@ -445,25 +445,18 @@ test('정렬·구독 때 그대로인 핫딜과 검색 입력을 보존하고 �
   assert.equal(await page.getByRole('button', { name: '테스트버거 구독 취소' }).evaluate((el) => document.activeElement === el), true);
 });
 
-test('가이드는 자바스크립트 없이 읽히고 작은 화면에서도 안내 페이지가 넘치지 않는다', { timeout: 30000 }, async (t) => {
+test('안내 페이지는 자바스크립트 없이 읽히고 작은 화면에서도 넘치지 않는다 (가이드는 11/21에 없앰)', { timeout: 30000 }, async (t) => {
   const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 360, height: 800 } });
   t.after(() => context.close());
   await context.route('**/*', (route) => new URL(route.request().url()).origin === site.base ? route.continue() : route.abort());
   const page = await context.newPage();
-  for (const path of ['guide.html', 'about.html', 'partners.html', 'privacy.html', 'terms.html']) {
+  for (const path of ['index.html', 'about.html', 'partners.html', 'privacy.html', 'terms.html']) {
     await page.goto(`${site.base}/${path}`);
-    assert.equal(await page.locator('h1').count(), 1);
+    if (path !== 'index.html') assert.equal(await page.locator('h1').count(), 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, path);
-    assert.ok(await page.locator('a[href="guide.html"]').count());
+    assert.equal(await page.locator('a[href^="guide.html"]').count(), 0, path + ': 없앤 가이드로 가는 링크 없음');
+    assert.ok(await page.locator('a[href="about.html"]').count(), path);
   }
-  await page.goto(`${site.base}/guide.html`);
-  const sections = ['price', 'calculator', 'order-total', 'oneplus', 'points', 'conditions', 'verify'];
-  for (const id of sections) {
-    assert.equal(await page.locator(`main h2[id="${id}"]`).count(), 1);
-    assert.equal(await page.locator(`.reading-nav a[href="#${id}"]`).count(), 1);
-  }
-  assert.match(await page.locator('.order-comparison tfoot').innerText(), /13000원/);
-  assert.ok((await page.locator('main').innerText()).includes('실제 행사가 아닙니다'));
 });
 
 test('펼친 카드는 같은 전체 목록으로 돌아와도 닫히고 키보드로 다시 열 수 있다', { timeout: 30000 }, async (t) => {

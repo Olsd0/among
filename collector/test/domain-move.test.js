@@ -17,19 +17,19 @@ function copyRepo(dir) {
   for (const name of COPIES) copyFileSync(new URL(`collector/src/${name}`, ROOT), join(dir, 'collector/src', name));
 }
 
-test('Cloudflare 대표 주소는 확장자 없는 주소 (guide.html → /guide 이동과 같게), 관리 화면은 검색에서 뺀다', (t) => {
+test('Cloudflare 대표 주소는 확장자 없는 주소 (about.html → /about 이동과 같게), 관리 화면은 검색에서 뺀다', (t) => {
   const base = new URL('https://www.amongpick.com/');
   assert.equal(pageUrl('index.html', base, true), 'https://www.amongpick.com/');
-  assert.equal(pageUrl('guide.html', base, true), 'https://www.amongpick.com/guide');
-  assert.equal(pageUrl('guide.html', new URL('https://olsd0.github.io/among/'), false), 'https://olsd0.github.io/among/guide.html', 'GitHub Pages는 그대로');
+  assert.equal(pageUrl('about.html', base, true), 'https://www.amongpick.com/about');
+  assert.equal(pageUrl('about.html', new URL('https://olsd0.github.io/among/'), false), 'https://olsd0.github.io/among/about.html', 'GitHub Pages는 그대로');
   const dir = temp(t);
   for (const page of PUBLIC_PAGES) copyFileSync(new URL(`web/${page}`, ROOT), join(dir, page));
   preparePages(dir, base.href, { pretty: true });
-  assert.match(readFileSync(join(dir, 'guide.html'), 'utf8'), /<link rel="canonical" href="https:\/\/www\.amongpick\.com\/guide">/);
+  assert.match(readFileSync(join(dir, 'about.html'), 'utf8'), /<link rel="canonical" href="https:\/\/www\.amongpick\.com\/about">/);
   assert.match(readFileSync(join(dir, 'index.html'), 'utf8'), /<meta property="og:url" content="https:\/\/www\.amongpick\.com\/">/);
   const sitemap = readFileSync(join(dir, 'sitemap.xml'), 'utf8');
   assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]),
-    ['https://www.amongpick.com/', 'https://www.amongpick.com/guide', 'https://www.amongpick.com/about', 'https://www.amongpick.com/partners', 'https://www.amongpick.com/privacy', 'https://www.amongpick.com/terms']);
+    ['https://www.amongpick.com/', 'https://www.amongpick.com/about', 'https://www.amongpick.com/partners', 'https://www.amongpick.com/privacy', 'https://www.amongpick.com/terms']);
   assert.equal(readFileSync(join(dir, 'robots.txt'), 'utf8'), 'User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: https://www.amongpick.com/sitemap.xml\n');
 });
 
@@ -128,4 +128,11 @@ test('없는 주소는 404 페이지 (Cloudflare Pages가 홈 화면을 200으�
   assert.match(yml, /build-moved-site\.js https:\/\/www\.amongpick\.com\/ moved/);
   assert.match(yml, /path: moved/);
   assert.doesNotMatch(yml, /path: web/, '옛 주소에 사이트 사본을 다시 배포하지 않음');
+});
+
+test('가이드 페이지는 없앴다(11/21): 예전 가이드 주소는 서비스 소개로 영구 이동', () => {
+  const rules = readFileSync(new URL('web/_redirects', ROOT), 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#')).map((l) => l.trim().split(/\s+/));
+  assert.deepEqual(rules, [['/guide', '/about', '301'], ['/guide.html', '/about', '301']]);
+  assert.equal(existsSync(new URL('web/guide.html', ROOT)), false);
+  assert.equal(PUBLIC_PAGES.includes('guide.html'), false);
 });

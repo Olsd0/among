@@ -1,11 +1,11 @@
 // 배포 주소를 검색 메타데이터(canonical·og:url·사이트맵·robots)의 단일 기준으로 사용한다.
 // GitHub Pages: Pages가 알려 주는 주소. Cloudflare Pages(www.amongpick.com, 11/08): build-cloudflare.js가 SITE_URL로 부른다.
-// pretty: Cloudflare Pages는 guide.html을 /guide로 308 이동시키므로 대표 주소도 확장자 없는 주소로 쓴다.
+// pretty: Cloudflare Pages는 about.html을 /about으로 308 이동시키므로 대표 주소도 확장자 없는 주소로 쓴다.
 import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PUBLIC_PAGES = ['index.html', 'guide.html', 'about.html', 'partners.html', 'privacy.html', 'terms.html'];
+export const PUBLIC_PAGES = ['index.html', 'about.html', 'partners.html', 'privacy.html', 'terms.html'];
 
 export function pageUrl(page, base, pretty = false) {
   if (page === 'index.html') return new URL('./', base).href;

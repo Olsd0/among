@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serveDir } from './helpers.js';
 
-test('홈 안내·계산기·제휴 화면은 모바일과 데스크톱에서 동작하고 광고는 명확하게 구분한다', { timeout: 60000 }, async t => {
+test('홈 안내·제휴 화면은 모바일과 데스크톱에서 동작하고 광고는 명확하게 구분한다', { timeout: 60000 }, async t => {
   const site = await serveDir(fileURLToPath(new URL('../../web/', import.meta.url)));
   const browser = await chromium.launch();
   t.after(async () => { await browser.close(); await site.close(); });
@@ -29,23 +29,14 @@ test('홈 안내·계산기·제휴 화면은 모바일과 데스크톱에서 �
     await page.getByText('50% 적립은 반값 할인과 같은가요?', { exact: true }).click();
     assert.equal(await page.locator('.service-guide details[open]').count(), 1);
     if (width === 390) { await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({ path: '/tmp/among-launch-home.png' }); }
-    for (const path of ['guide.html', 'partners.html']) {
+    for (const path of ['about.html', 'partners.html']) {
       await page.goto(`${site.base}/${path}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} ${width}`);
     }
   }
+  // 할인 계산기(가이드)는 11/21에 없앴다: 홈에 계산기 링크가 남아 있지 않다
   await page.goto(`${site.base}/index.html?demo=1`);
-  await page.getByRole('link', { name: '할인 계산기', exact: true }).click();
-  assert.equal(new URL(page.url()).hash, '#calculator');
-  const example = page.getByRole('table', { name: '12000원 메뉴 하나를 주문하는 예시' });
-  await example.locator('tfoot td').last().waitFor(); // 주소가 바뀐 직후엔 아직 표를 읽는 중일 수 있다
-  assert.deepEqual(await example.locator('tfoot td').allTextContents(), ['12000원', '13000원']);
-  await page.locator('[name="cap"]').fill('0');
-  await page.getByRole('button', { name: '결제 금액 비교하기' }).click();
-  assert.match(await page.locator('#comparisonResult').innerText(), /정률 쿠폰이 1,500원 더 저렴/);
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: '/tmp/among-launch-calculator.png' });
+  assert.equal(await page.getByRole('link', { name: '할인 계산기' }).count(), 0);
   await page.goto(`${site.base}/partners.html`);
   assert.equal(await page.locator('[data-contact] a').getAttribute('href'), 'mailto:hello@example.com');
   await page.screenshot({ path: '/tmp/among-launch-partners.png', fullPage: true });

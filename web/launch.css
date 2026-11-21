@@ -22,7 +22,6 @@
 .service-guide details[open] summary::after { transform: translateY(2px) rotate(-135deg); }
 .service-guide details p { margin: 0 0 16px; color: var(--text-2); }
 .service-guide a { color: var(--primary-label); font-weight: 600; text-underline-offset: 3px; }
-.service-guide .guide-link { margin: 0; padding: 14px 0 6px; border-top: 1px solid var(--line); font-size: 14px; }
 
 /* 직접 계약 광고: 목록 밖, '광고' 표시로 분리 */
 .sponsor { margin: 16px 16px 0; padding: 18px; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--bg); overflow-wrap: anywhere; }
@@ -107,7 +106,6 @@ header.top :focus-visible { outline-color: var(--hd-ink); }
 
 .hero-links { display: flex; align-items: center; gap: 16px; margin-top: 17px; }
 .hero-links .budget-jump { display: inline-flex; gap: 10px; align-items: center; min-height: 42px; padding: 0 16px; border-radius: 12px; background: var(--hero-btn); color: var(--hero-btn-ink); font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 2px 5px rgb(35 22 57 / .12); }
-.hero-links .guide-shortcut { color: var(--hero-link); font-size: 13px; text-underline-offset: 3px; text-decoration: underline; }
 #budget { scroll-margin-block-start: calc(var(--hh) + 12px); }
 .hot, .grid, .brand-panel, .service-guide { box-shadow: var(--panel-shadow); }
 .hot, .grid { margin-top: 14px; }

@@ -9,7 +9,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PUBLIC_PAGES, pageUrl } from './prepare-pages.js';
 
-export const MOVED_PAGES = [...PUBLIC_PAGES, 'admin.html'];
+// guide.html: 11/21에 없앤 가이드. 옛 주소로 들어오면 새 도메인 /guide → (Cloudflare _redirects) /about 으로 이어진다
+export const MOVED_PAGES = [...PUBLIC_PAGES, 'guide.html', 'admin.html'];
 export const OLD_BASE = '/among/';
 
 export const MOVED_JS = `// 옛 주소 → 새 주소 (같은 경로·검색어·#)

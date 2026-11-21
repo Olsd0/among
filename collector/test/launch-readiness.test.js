@@ -4,7 +4,6 @@ import { mkdtempSync, copyFileSync, readFileSync, existsSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { preparePages, PUBLIC_PAGES } from '../scripts/prepare-pages.js';
-import { compareDiscounts } from '../../web/guide-calculator.js';
 import { activeSponsor } from '../../web/sponsor.js';
 
 test('AdSense 소유권 확인은 실제 형식의 ID로만 생성하고 루트 도메인에서 ads.txt를 만든다', t => {
@@ -33,12 +32,6 @@ test('AdSense 소유권 확인은 실제 형식의 ID로만 생성하고 루트 
   assert.equal(readFileSync(join(dir, 'ads.txt'), 'utf8'), 'google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n');
   for (const publisherId of ['pub-123', 'ca-pub-123', 'ca-pub-1234567890123456"><script>']) assert.throws(() => preparePages(dir, 'https://among.example/', { publisherId }));
   assert.throws(() => preparePages(dir, 'https://among.example/', { contactEmail: 'a@example.com\nBcc:attacker@example.com' }));
-});
-
-test('할인 비교는 한도·초과 할인·원 미만 버림을 적용하고 잘못된 입력을 거부한다', () => {
-  assert.deepEqual(compareDiscounts({ amount: 15000, fixed: 3000, rate: 30, cap: 2000 }), { fixedPayment: 12000, ratePayment: 13000, difference: 1000 });
-  assert.deepEqual(compareDiscounts({ amount: 101, fixed: 200, rate: 50, cap: 0 }), { fixedPayment: 0, ratePayment: 51, difference: 51 });
-  for (const bad of [{amount:0}, {amount:1.5}, {fixed:-1}, {rate:101}, {rate:NaN}, {cap:Infinity}]) assert.equal(compareDiscounts({ amount: 10000, fixed: 0, rate: 10, cap: 0, ...bad }), null);
 });
 
 test('직접 광고는 계약 기간·명시적 활성화·HTTPS 목적지가 모두 유효할 때만 게시된다', () => {
