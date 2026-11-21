@@ -72,6 +72,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
   --hd-on: var(--primary); --hd-on-ink: var(--primary-ink); --hd-line: var(--line); --hd-symbol: none; --hd-tile: url("banana-bricks-dark.svg");
 }
 header.top { background: var(--hd-bricks) repeat center top / 204px 80px; }
+header.top .brand-symbol { filter: var(--hd-symbol); }
 header.top .icon-btn { color: var(--hd-ink); }
 header.top .icon-btn:hover, header.top .icon-btn[aria-expanded="true"] { background: var(--hd-glass); }
 header.top .me-pill { background: var(--hd-pill); border-color: var(--hd-pill-line); color: var(--hd-pill-ink); }
