@@ -155,8 +155,8 @@ test('브랜드 검색·구독·상세·새로고침·구독 취소가 이어지
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${site.base}/index.html`);
   await page.locator('#card-burger').waitFor();
-  assert.equal(await page.locator('.bar .wordmark').getAttribute('alt'), 'AMONG');
-  assert.equal(await page.locator('.bar .wordmark').evaluate((img) => img.complete && img.naturalWidth > 0), true);
+  assert.equal(await page.locator('.bar .wm-light').getAttribute('alt'), 'AMONG');
+  assert.equal(await page.locator('.bar .wm-light').evaluate((img) => img.complete && img.naturalWidth > 0), true);
   await page.locator('[data-view="following"]').click();
   await page.getByRole('button', { name: '브랜드 둘러보기' }).click();
   assert.equal(await page.locator('#list').isHidden(), true);
