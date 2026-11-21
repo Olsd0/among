@@ -82,3 +82,51 @@ test('펼친 상세도 같은 순서이고, 같은 조건을 두 번 쓰지 않�
   assert.match(await page.locator('#dt-bk .src').innerText(), /burgerking\.co\.kr 공식 행사 글/);
   assert.equal(await page.locator('#dt-bk .coupon-artwork').count(), 0, '전 메뉴 할인에 브랜드 대표 메뉴 사진을 크게 걸지 않음');
 });
+
+test('브랜드 화면(버거킹 앱 흐름): 공식 행사 페이지 → 진행 중인 행사 배너(공지 + 공지 없는 쿠폰 행사) → 혜택', { timeout: 30000 }, async (t) => {
+  const { context, page } = await open();
+  t.after(() => context.close());
+  // 공지 하나(1815)와, 공지는 없지만 공식 행사 배너가 있는 쿠폰(1793)
+  await context.unroute('**/*');
+  const banner = 'https://mob-prd.burgerking.co.kr/images/event/app/list/2026/11/06/bk1793.jpg';
+  const art = `${banner}#among-artwork=${encodeURIComponent(JSON.stringify({ kind: 'official_event', source: 'https://www.burgerking.co.kr/event/detail/1793', checkedAt: now, credit: '' }))}`;
+  const coupons = [{ ...COUPONS[0], image_url: art }, { ...COUPONS[0], id: 'bk2', menu: '트머와 세트 4종', discount_value: 1500, min_order: null, channels: [], app_only: false, stackable: '',
+    source_url: 'https://www.burgerking.co.kr/event/detail/1815 https://www.burgerking.co.kr/event/ongoing' }];
+  const news = [{ id: 'n1815', brand: '버거킹', category: '햄버거', title: '트머와 세트 4종 할인', summary: '', discount_label: '1,500원 할인', start_date: kst(-3), end_date: kst(1), programs: [],
+    image_url: '', related_ids: ['bk2'], source_url: 'https://www.burgerking.co.kr/event/detail/1815', official_link: 'https://www.burgerking.co.kr/event/ongoing', first_seen: now, checked_at: now, status: 'published' }];
+  await context.route('**/*', (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === site.base) return route.continue();
+    if (url.hostname === 'script.google.com') {
+      const json = url.searchParams.get('action') === 'coupons' ? { ok: true, coupons, news, last_checked_at: now } : { ok: true, state: 'idle', last_checked_at: now };
+      return route.fulfill({ status: 200, json, headers: { 'access-control-allow-origin': '*' } });
+    }
+    return route.abort();
+  });
+  await page.reload();
+  await page.waitForSelector('#card-bk');
+  await page.click('[data-view="brands"]');
+  await page.click('[data-brand-open="버거킹"]');
+  await page.locator('#hot.stack').waitFor();
+  assert.match(await page.locator('.brand-heading p').innerText(), /진행 중인 행사 2개 · 혜택 2개/);
+  assert.equal(await page.locator('.brand-events').getAttribute('href'), 'https://www.burgerking.co.kr/event/ongoing');
+  assert.equal(await page.locator('#hot h2').innerText(), '진행 중인 행사');
+  const cards = page.locator('#hotRail > .hcard');
+  assert.equal(await cards.count(), 2);
+  const titles = await page.locator('#hotRail .tt').allInnerTexts();
+  assert.deepEqual(titles.sort(), ['전 메뉴 4000원 할인', '트머와 세트 4종 할인']);
+  const ev = page.locator('[data-hot="coupon:bk"]');
+  assert.equal(await ev.locator('.hot-source').getAttribute('href'), 'https://www.burgerking.co.kr/event/detail/1793');
+  assert.match(await ev.locator('.period').innerText(), /D-1/);
+  // 세로 목록: 두 배너가 위아래로, 넘김 버튼·점 없음, 카테고리 칸 없음
+  // (화면이 스크롤되는 중일 수 있어 boundingBox 대신 문서 안 위치로 비교)
+  const [a, b] = await cards.evaluateAll((els) => els.map((el) => ({ x: el.offsetLeft, y: el.offsetTop, h: el.offsetHeight })));
+  assert.ok(b.y >= a.y + a.h && a.x === b.x, JSON.stringify([a, b]));
+  assert.equal(await page.locator('#railControls').isHidden(), true);
+  assert.equal(await page.locator('#grid').isHidden(), true);
+  assert.equal(await page.locator('#showAllNotices').isHidden(), true);
+  // 배너의 '상세 보기'는 아래 혜택 카드를 펼친다
+  await ev.locator('.hot-open').click();
+  await page.locator('#dt-bk dl').waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});

@@ -335,6 +335,14 @@ body.searching .list-h { padding-top: 16px; }
 .brand-heading p { margin-bottom: 0; }
 .brand-heading .brand-avatar { width: 48px; height: 48px; border-radius: 14px; }
 .brand-heading .brand-avatar img.logo { width: 48px; height: 48px; padding: 7px; }
+/* 브랜드 화면 (11/21 버거킹 앱 참고): 공식 행사 페이지 바로 가기 + 진행 중인 행사 배너 목록 */
+.brand-events { display: flex; align-items: center; justify-content: center; gap: 2px; min-height: 44px; margin: 0 0 8px; border-radius: 12px; background: var(--surface-2); color: var(--text); font-size: 14px; font-weight: 700; text-decoration: none; }
+.brand-events:hover { background: color-mix(in srgb, var(--surface-2) 80%, var(--text) 6%); }
+.brand-events svg { width: 14px; height: 14px; color: var(--muted); }
+@media (min-width: 720px) { .brand-events { display: inline-flex; padding: 0 20px; } }
+.hot.stack .rail { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); overflow: visible; scroll-snap-type: none; padding-bottom: 6px; }
+.hot.stack .hcard { --hot-ratio: 2 / 1; max-width: none; width: 100%; }
+.hot.stack .dots { display: none; }
 .brand-back { min-height: 40px; font-size: 13.5px; font-weight: 600; color: var(--text-2); }
 .follow-empty { text-align: center; padding: 32px 16px; margin-bottom: 12px; border-radius: 16px; background: var(--surface-2); }
 .follow-empty > span { font-size: 32px; color: var(--primary-label); }

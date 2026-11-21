@@ -3,14 +3,14 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, PAY_PROGRAMS, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261121-1';
+} from './engine.js?v=20261121-2';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
 
 import { noticePhoto } from './notice-images.js?v=20261114-3';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { withVerifiedEvents } from './verified-events.js?v=20261121-1';
-import { withCouponEventNews } from './event-notices.js?v=20261121-1';
+import { withCouponEventNews } from './event-notices.js?v=20261121-2';
 import { officialBrandLogo } from './brand-logos.js?v=20261121-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';
@@ -395,6 +395,51 @@ function brandAvatar(brand) {
   const url = logoUrl(c);
   return `<span class="brand-avatar"><span aria-hidden="true">${esc(brand.slice(0, 1))}</span>${url ? `<img class="logo" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-alt="${esc(logoAlt(c))}">` : ''}</span>`;
 }
+/** 브랜드 공식 행사 목록 주소: 그 브랜드 혜택·소식의 공식 링크 중 가장 많이 쓰인 것 (통신사·페이 제휴 페이지 제외) */
+function brandEventsUrl(brand) {
+  const count = new Map();
+  for (const x of [...state.coupons, ...state.news]) {
+    if (x.brand !== brand) continue;
+    const u = safeUrl(x.official_link);
+    if (!u || LINK_LABELS.some(([re]) => re.test(u))) continue;
+    count.set(u, (count.get(u) || 0) + 1);
+  }
+  return [...count].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+}
+const freshItem = (x) => verificationStatus(x.checked_at) === 'fresh';
+/** 지금 보는 범위(전체·브랜드·구독)의 진행 중 공지 — 핫딜 줄과 브랜드 머리의 개수가 같은 기준 */
+function liveNotices() {
+  const today = todayKST();
+  const managedLinks = new Set(state.appCoupons.map(c => c.official_link));
+  return state.news.filter(n => freshItem(n) && brandMatch(n) && (!n.end_date || n.end_date >= today)
+    && !state.appCouponRefs.includes('news:' + n.id) && !managedLinks.has(n.official_link))
+    .map(n => ({ ...n, kind: 'news' })).sort((a, b) => compareHeadlines(a, b, today));
+}
+/**
+ * 브랜드 화면의 '진행 중인 행사' (버거킹 앱 이벤트 목록처럼 배너로): 공지 전부 +
+ * 공지는 없지만 공식 행사 배너를 가진 쿠폰(행사 글마다 하나). 공지가 그 행사 글을 이미 다루면 넣지 않는다.
+ */
+function brandEvents() {
+  if (!state.brand) return [];
+  const today = todayKST();
+  const notices = liveNotices();
+  const posts = new Set(notices.map((n) => safeUrl(n.source_url)).filter(Boolean));
+  const related = new Set(notices.flatMap((n) => n.related_ids || []));
+  const seen = new Set();
+  const fromCoupons = [];
+  for (const c of state.coupons) {
+    if (c.brand !== state.brand || !c.event_image || !freshItem(c) || c.audience === '개인') continue;
+    if (c.start_date && c.start_date > today) continue;
+    const post = postUrl(c);
+    if (post ? posts.has(post) : related.has(c.id)) continue;
+    const key = post || c.event_image_source || c.event_image;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    fromCoupons.push({ kind: 'coupon', asEvent: true, id: c.id, brand: c.brand, category: c.category, title: `${c.menu} ${benefitLabel(c)}`, label: '',
+      reason: '', post: post || safeUrl(c.source_url), start_date: c.start_date || null, end_date: c.end_date || null, first_seen: c.first_seen || '', usable: true });
+  }
+  return [...notices, ...fromCoupons].sort((a, b) => compareHeadlines(a, b, today));
+}
 function renderBrandDirectory() {
   const names = brandNames().filter((b) => (state.view !== 'following' || state.following.has(b)) && b.toLowerCase().includes(state.brandQuery.toLowerCase()));
   setHTML($('#brandDirectory'), names.map((brand) => `<div class="brand-tile"><button class="brand-open" data-brand-open="${esc(brand)}">${brandAvatar(brand)}<span><b>${esc(brand)}</b><small>혜택 ${state.coupons.filter((c) => c.brand === brand).length}개</small></span></button>${followButton(brand)}</div>`).join('') || '<p class="brand-empty">검색한 브랜드가 없어요.</p>');
@@ -405,7 +450,11 @@ function renderBrands() {
   panel.hidden = state.view === 'all' || state.view === 'appCoupons';
   if (panel.hidden) return;
   if (state.brand) {
-    setHTML(panel, `<button class="brand-back" data-brand-back>← ${state.view === 'following' ? '구독 브랜드' : '브랜드 목록'}</button><div class="brand-heading">${brandAvatar(state.brand)}<div><h2 tabindex="-1" id="brandTitle">${esc(state.brand)}</h2><p>공식 혜택과 소식을 한곳에</p></div>${followButton(state.brand)}</div>`);
+    // 11/21 버거킹 앱 흐름: 브랜드 → 진행 중인 행사(배너) → 혜택 → 공식 행사 글. 머리에는 개수와 공식 행사 페이지만.
+    const events = brandEvents().length;
+    const coupons = state.coupons.filter((c) => c.brand === state.brand).length;
+    const site = brandEventsUrl(state.brand);
+    setHTML(panel, `<button class="brand-back" data-brand-back>← ${state.view === 'following' ? '구독 브랜드' : '브랜드 목록'}</button><div class="brand-heading">${brandAvatar(state.brand)}<div><h2 tabindex="-1" id="brandTitle">${esc(state.brand)}</h2><p>${events ? `진행 중인 행사 ${events}개 · ` : ''}혜택 ${coupons}개</p></div>${followButton(state.brand)}</div>${site ? `<a class="brand-events" href="${esc(site)}" target="_blank" rel="noopener">${esc(state.brand)} 공식 행사 페이지<span class="sr"> (새 탭)</span>${ICON.ext}</a>` : ''}`);
     return;
   }
   const following = state.view === 'following';
@@ -632,7 +681,7 @@ function hotCard(h, i) {
     const badge = /^(오늘 마감|D-\d+|\d+\/\d+까지|\d+\/\d+ 시작)$/.test(h.reason || '') ? '' : why;
     const p = noticePeriod(n);
     return `<article class="hcard hot-notice${v ? ' has-ph' : ' noph'}" data-hot="news:${esc(h.id)}">
-      <button class="hot-open" type="button" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title}${p.text ? ` · ${p.text}` : ''} · 공지 상세 보기`)}">
+      <button class="hot-open" type="button" aria-label="${esc(`${i + 1}번째 ${state.brand ? '행사' : '핫딜'}: ${h.brand} ${title}${p.text ? ` · ${p.text}` : ''} · 공지 상세 보기`)}">
         <span class="hot-visual">${noticePreview(n)}${visualImg(v, i)}</span>
         <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${badge ? `<span class="why${whyCls}">${esc(badge)}</span>` : ''}</span><span class="tt">${esc(title)}</span><span class="hot-meta">${p.text ? `<span class="period${p.due ? ' due' : ''}">${ICON.cal}${esc(p.text)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
       </button>
@@ -640,7 +689,17 @@ function hotCard(h, i) {
     </article>`;
   }
   const v = h.kind === 'coupon' ? couponVisual(hc || { brand: h.brand, menu: title }) : couponVisual({ brand: h.brand, menu: h.title });
-  return `<button class="hcard${v ? ' has-ph' : ' noph'}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 핫딜: ${h.brand} ${title} ${lbl}`)}">
+  if (h.asEvent) {
+    const p = noticePeriod(h);
+    return `<article class="hcard hot-notice${v ? ' has-ph' : ' noph'}" data-hot="coupon:${esc(h.id)}">
+      <button class="hot-open" type="button" aria-label="${esc(`${i + 1}번째 행사: ${h.brand} ${title}${p.text ? ` · ${p.text}` : ''} · 혜택 상세 보기`)}">
+        <span class="hot-visual">${visualImg(v ? { ...v, alt: v.alt || title } : null, i)}</span>
+        <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span></span><span class="tt">${esc(title)}</span><span class="hot-meta">${p.text ? `<span class="period${p.due ? ' due' : ''}">${ICON.cal}${esc(p.text)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
+      </button>
+      ${h.post ? `<a class="hot-source" href="${esc(h.post)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(`${h.brand} 공식 행사 글 보기 (새 탭)`)}" data-link-kind="detail"><span class="source-host">${esc(host(h.post))}</span><span>공식 행사 글 ↗</span></a>` : ''}
+    </article>`;
+  }
+  return `<button class="hcard${v ? ' has-ph' : ' noph'}" data-hot="${esc(h.kind)}:${esc(h.id)}" aria-label="${esc(`${i + 1}번째 ${state.brand ? '행사' : '핫딜'}: ${h.brand} ${title} ${lbl}`)}">
     <span class="hot-visual">${noticePreview(h)}${visualImg(v ? { ...v, alt: v.alt || title } : null, i)}</span>
     <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${why ? `<span class="why${whyCls}">${esc(why)}</span>` : ''}</span>
     <span class="tt">${esc(title)}</span><span class="hot-meta">${lbl ? `<span class="lbl tone-${tone}${size}">${esc(lbl)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
@@ -671,19 +730,23 @@ function renderHot() {
     start_date: kstDate(c.issue_start), end_date: kstDate(c.issue_end), first_seen: c.issue_start || c.updated_at || c.checked_at || '', weekly: !!c.recurring,
   }));
   const hideHot = state.q || state.view === 'appCoupons' || (state.view === 'brands' && !state.brand);
-  const hot = hideHot ? [] : orderHeadlines([...base, ...appHeads], { today: todayKST(), limit: 8 });
-  const today = todayKST();
-  const allNotices = hideHot ? [] : state.news.filter(n => fresh(n) && brandMatch(n) && (!n.end_date || n.end_date >= today)
-    && !state.appCouponRefs.includes('news:' + n.id) && !managedLinks.has(n.official_link))
-    .map(n => ({ ...n, kind: 'news' })).sort((a, b) => compareHeadlines(a, b, today));
+  // 브랜드 화면 (11/21 버거킹 앱 참고): 넘기는 핫딜 대신 '진행 중인 행사'를 배너로 세로로 모두. 쿠폰 추천은 아래 목록에 이미 있다.
+  const stack = !hideHot && !!state.brand;
+  const hot = hideHot || stack ? [] : orderHeadlines([...base, ...appHeads], { today: todayKST(), limit: 8 });
+  const allNotices = hideHot || stack ? [] : liveNotices();
   // 11/16 대표 요청: "8개만 보이게 하지 말고 슬라이드하면 다 볼 수 있게" — 고른 8장 뒤에 나머지 공지를 같은 순서 기준으로 모두 잇는다.
   // ('공지 전체 보기'는 그대로 아래에 한꺼번에 펼친다)
   const shown = new Set(hot.filter(h => h.kind === 'news').map(h => h.id));
-  const rail = [...hot, ...allNotices.filter(n => !shown.has(n.id))];
+  const rail = stack ? [...brandEvents(), ...appHeads] : [...hot, ...allNotices.filter(n => !shown.has(n.id))];
   state.hot = rail;
-  $('#hot').hidden = !hot.length && !allNotices.length;
+  const sec = $('#hot');
+  sec.classList.toggle('stack', stack);
+  sec.setAttribute('aria-label', stack ? `${state.brand} 진행 중인 행사` : '오늘의 핫딜');
+  sec.querySelector('.sec-h h2').textContent = stack ? '진행 중인 행사' : '오늘의 핫딜';
+  sec.querySelector('.sec-h small').textContent = stack ? '공식 행사 글에서 확인한 기간' : '놓치기 아쉬운 공식 소식';
+  sec.hidden = !rail.length;
   const allButton = $('#showAllNotices');
-  allButton.hidden = !allNotices.length;
+  allButton.hidden = stack || !allNotices.length;
   allButton.textContent = state.hotExpanded ? '공지 접기' : '공지 전체 보기 (' + allNotices.length + ')';
   allButton.setAttribute('aria-expanded', String(state.hotExpanded));
   $('#allHotNotices').hidden = !state.hotExpanded;
@@ -698,6 +761,7 @@ function renderHot() {
   if (!setHTML($('#hotRail'), rail.map(hotCard).join(''))) return;
   $('#hotRail').scrollLeft = 0;
   updateRailControls();
+  if (stack) { $('#railControls').hidden = true; $('#hotDots').innerHTML = ''; $('#hotCount').textContent = ''; return; }
   // 점 표시는 12장까지만 (그보다 많으면 'n / N' 숫자만)
   $('#hotDots').innerHTML = rail.length > 1 && rail.length <= 12 ? rail.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
   $('#hotCount').textContent = rail.length > 1 ? `1 / ${rail.length}` : '';
@@ -1124,6 +1188,7 @@ function render() {
   const directory = state.view === 'brands' && !state.brand;
   for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
   if ($('#budget').hidden) { $('#budgetNote').hidden = true; $('#menuType').hidden = true; }
+  if (state.brand && !state.q) $('#grid').hidden = true;
   const shown = sortCoupons(visible(), state.sort, today, profileObj());
   const brands = new Set(shown.map((c) => c.brand)).size;
   const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;

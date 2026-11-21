@@ -1513,7 +1513,9 @@ export function postFor(n, posts) {
 /** 소식과 같은 페이지·같은 브랜드(멀티 브랜드 출처면 같은 프로그램)의 게시 쿠폰을 연결 (최대 6개) */
 export function linkNews(newsList, coupons) {
   return newsList.map((n) => {
-    const urlHit = (c) => { const urls = String(c.source_url || '').split(' '); return urls.includes(n.source_url) || (!!n.list_url && urls.includes(n.list_url)); };
+    // 목록 주소로 잇는 것은 쿠폰도 그 목록에서 읽었을 때만: 다른 행사 글에서 읽은 쿠폰(첫 주소가 다른 글)은
+    // 같은 목록을 둘째 주소로 갖고 있어도 이 소식의 혜택이 아니다 (11/21 버거킹 1815 소식 ↔ 1793 쿠폰)
+    const urlHit = (c) => { const urls = String(c.source_url || '').split(' '); return urls.includes(n.source_url) || (!!n.list_url && urls[0] === n.list_url); };
     const overlap = (c) => !(n.end_date && c.start_date && c.start_date > n.end_date) && !(n.start_date && c.end_date && c.end_date < n.start_date);
     const sameWho = (c) => c.brand === n.brand || (n.programs || []).some((p) => (c.programs || []).includes(p) && PROGRAM_LABEL[p] === n.brand);
     const rel = coupons.filter((c) => c.status === 'published' && urlHit(c) && sameWho(c) && overlap(c)).slice(0, 6);

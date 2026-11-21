@@ -82,3 +82,16 @@ test('버튼으로만 열리는 이벤트 목록: 버튼을 차례로 눌러 상
     assert.equal(new URL(postLinkFor({ title: '26년 11월 딜리버리 21,000원 이상 주문 시 4,000원 할인', evidence: '' }, posts.map((p) => ({ ...p, href: p.href.replace('http:', 'https:') })))).pathname, '/bk/detail/1793.html');
   } finally { await ctx.close(); await site.close(); }
 });
+
+test('목록 주소로 소식과 쿠폰을 잇는 것은 쿠폰도 그 목록에서 읽었을 때만 (다른 행사 글의 쿠폰은 잇지 않음)', async () => {
+  const { linkNews } = await import('../src/engine.js');
+  const L = 'https://www.burgerking.co.kr/event/ongoing';
+  const n = { id: 'n1', brand: '버거킹', source_url: 'https://www.burgerking.co.kr/event/detail/1815', list_url: L, start_date: '2026-11-14', end_date: '2026-11-22', programs: [] };
+  const base = { brand: '버거킹', status: 'published', start_date: '2026-11-14', end_date: '2026-11-22', programs: [] };
+  const coupons = [
+    { ...base, id: 'c1815', source_url: `https://www.burgerking.co.kr/event/detail/1815 ${L}` },
+    { ...base, id: 'c1793', source_url: `https://www.burgerking.co.kr/event/detail/1793 ${L}` },
+    { ...base, id: 'clist', source_url: L },
+  ];
+  assert.deepEqual(linkNews([n], coupons)[0].related_ids, ['c1815', 'clist']);
+});
