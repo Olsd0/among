@@ -1,4 +1,4 @@
-import { noticeImage, noticePhoto, isListedNoticeImage } from './notice-images.js?v=20261114-3';
+import { noticeImage, noticePhoto, isListedNoticeImage } from './notice-images.js?v=20261121-1';
 
 /** 확인 목록에 있는 공지는 그 목록의 이미지만(비어 있으면 일부러 뺀 것: 예 9MB 원본), 없으면 수집 때 고른 공지 이미지 */
 export function noticeImageFor(n = {}, picked = '', today) {
@@ -7,7 +7,7 @@ export function noticeImageFor(n = {}, picked = '', today) {
   // 확인 목록에서 다른 공지의 이미지로 올라 있는 주소는 이 공지 것이 아니다
   return picked && !isListedNoticeImage(picked) ? picked : '';
 }
-import { productImage, couponImage } from './product-images.js?v=20261104-3';
+import { productImage, couponImage } from './product-images.js?v=20261121-1';
 
 // AMONG 할인 판단 엔진
 // ------------------------------------------------------------
@@ -496,6 +496,31 @@ export function titleDay(title, now = new Date()) {
   if (!/데이|day|당일|하루/i.test(s) || /[~∼〜]|부터|까지/.test(s)) return null;
   const all = [...s.matchAll(/(?:^|[^\d./])(\d{1,2})\s*월\s*(\d{1,2})\s*일(?!\s*(?:부터|까지|[~∼〜-]|\d))/g)];
   return all.length === 1 ? parseDate(`${all[0][1]}/${all[0][2]}`, now) : null;
+}
+/**
+ * 요약·근거에 시작과 끝이 함께 적힌 기간 → { start, end } ('10월 23일부터 11월 8일까지', '11/20(금) ~ 11/30(월)').
+ * 11/21: 파파이스 '루이 치킨휠레 버거+치킨샌드위치 특가'가 요약에 '10월 23일부터 11월 8일까지'라고 쓰여 있는데
+ * 기간 칸이 비어 끝난 행사(11/8)가 핫딜에 계속 남았다. 둘 다 적혀 있을 때만 읽는다(하나만 있으면 추측하지 않음).
+ */
+export function textPeriod(text, now = new Date()) {
+  const s = String(text || '').normalize('NFKC');
+  const W = '\\s*(?:\\([^)]{1,4}\\))?';
+  // 해까지 적힌 기간 ('행사기간 2026/11/20~2026/11/30')
+  const Y = `(20\\d{2})\\s*[./년-]\\s*(\\d{1,2})\\s*[./월-]\\s*(\\d{1,2})\\s*일?${W}`;
+  const y = s.match(new RegExp(`${Y}\\s*(?:부터|[~∼〜]|-)\\s*${Y}`));
+  if (y) {
+    const a = parseDate(`${y[1]}-${y[2]}-${y[3]}`, now), b = parseDate(`${y[4]}-${y[5]}-${y[6]}`, now);
+    return a && b && a <= b && diffDays(b, a) <= 400 ? { start: a, end: b } : null;
+  }
+  const D = `(\\d{1,2})\\s*(?:월\\s*|[./])\\s*(\\d{1,2})\\s*일?${W}`;
+  const m = s.match(new RegExp(`(?:^|[^\\d.])${D}\\s*(?:부터|[~∼〜]|-(?!\\d{2,}))\\s*${D}\\s*(?:까지)?`));
+  if (!m) return null;
+  const start = parseDate(`${m[1]}/${m[2]}`, now);
+  let end = parseDate(`${m[3]}/${m[4]}`, now);
+  if (!start || !end) return null;
+  // 해를 넘기는 기간('12월 20일부터 1월 5일까지')
+  if (end < start) end = parseDate(`${+start.slice(0, 4) + 1}-${m[3]}-${m[4]}`, now);
+  return end && start <= end && diffDays(end, start) <= 400 ? { start, end } : null;
 }
 function squash(s) { return String(s || '').replace(/[\s,·•\-–—~()\[\]"'“”‘’]/g, '').toLowerCase(); }
 
@@ -1402,6 +1427,11 @@ export function normalizeNews(raw = {}, ctx = {}) {
   if (!n.start_date && !n.end_date) {
     const day = titleDay(n.title, now);
     if (day) { n.start_date = day; n.end_date = day; n.issues.push('기간은 제목의 날짜로 읽음'); }
+  }
+  // 요약·근거에 시작과 끝이 함께 적혀 있으면 그 기간으로 (끝난 행사가 기간 없이 남지 않게)
+  if (!n.start_date && !n.end_date) {
+    const p = textPeriod(`${n.summary} ${n.evidence}`, now);
+    if (p) { n.start_date = p.start; n.end_date = p.end; n.issues.push('기간은 요약의 날짜로 읽음'); }
   }
   // 끝나는 날 없이 달만 적힌 행사('26년 10월 와주 2900원 프로모션')는 그 달이 지나면 끝난 것으로 본다
   const tag = n.end_date ? null : monthTag(`${n.title} ${n.evidence}`, now);

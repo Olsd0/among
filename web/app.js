@@ -2,15 +2,15 @@
 import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, PAY_PROGRAMS, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
-  isSideMenu, noticeLinkTarget,
-} from './engine.js?v=20261121-2';
+  isSideMenu, noticeLinkTarget, textPeriod,
+} from './engine.js?v=20261121-3';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
-import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261104-3';
+import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261121-1';
 
-import { noticePhoto } from './notice-images.js?v=20261114-3';
+import { noticePhoto } from './notice-images.js?v=20261121-1';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { withVerifiedEvents } from './verified-events.js?v=20261121-1';
-import { withCouponEventNews } from './event-notices.js?v=20261121-2';
+import { withCouponEventNews } from './event-notices.js?v=20261121-3';
 import { officialBrandLogo } from './brand-logos.js?v=20261121-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';
@@ -358,6 +358,11 @@ function applyData(data) {
   });
   const notices = DEMO ? (data.news || []) : withCouponEventNews(withVerifiedNews(data.news || []), state.coupons.map(c => ({ status: 'published', ...c })));
   state.news = notices.map(n => {
+    // 기간 칸이 비었는데 요약에 시작·끝이 함께 적혀 있으면 그 기간으로 (끝난 행사가 계속 남지 않게 — 수집기 normalizeNews와 같은 규칙)
+    if (!n.start_date && !n.end_date) {
+      const p = textPeriod(n.summary, Number.isFinite(Date.parse(n.checked_at || '')) ? new Date(n.checked_at) : new Date());
+      if (p) n = { ...n, start_date: p.start, end_date: p.end };
+    }
     const art = decodeArtworkUrl(n.image_url);
     return art.meta ? { ...n, image_url: art.url, image_kind: art.meta.kind, image_source_url: art.meta.source, image_checked_at: art.meta.checkedAt, image_credit: art.meta.credit, image_fit: 'contain' } : n;
   }).filter((n) => (!n.status || n.status === 'published') && (!n.end_date || n.end_date >= todayKST())).map((n) => ({ ...n, image_url: noticeImageFor(n, safeImg(n.image_url)), discount_label: formatMoneyLabel(n.discount_label), programs: n.programs || [], related_ids: n.related_ids || [] }));
@@ -1083,20 +1088,29 @@ function renderMeBar() {
   $('#meBtn').classList.toggle('set', !!p);
 }
 
+/**
+ * 맨 위 안내 줄은 실제로 연결에 문제가 있을 때만 (11/21 대표: 빨간 안내 없애기).
+ * '일부 혜택의 출처를 최근에 확인하지 못했어요'처럼 늘 떠 있던 안내는 없앴다 — 혜택마다 확인 시각은 펼친 상세의 출처 줄에 있다.
+ * 색: 실패만 빨강(err), 저장본을 먼저 보여 주는 중·오래된 전체 확인 시각은 차분한 안내(sync).
+ */
 function renderFreshness() {
-  let message = '';
-  if (state.loadFailed) message = state.coupons.length || state.news.length
-    ? '연결이 불안정해 마지막으로 받은 혜택을 보여드려요. 결제 전 공식 페이지에서 확인해 주세요.'
-    : state.view === 'all' ? '' : '혜택을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
-  else if (state.checkingNetwork) message = '저장된 혜택을 먼저 보여드려요. 최신 정보를 확인하고 있어요.';
-  else if (state.view === 'appCoupons') {
-    if (!state.loading && state.appCoupons.some(x => verificationStatus(x.checked_at) !== 'fresh')) message = '일부 앱 쿠폰은 확인한 지 시간이 지났어요. 받기 전에 공식 안내를 살펴봐 주세요.';
+  let message = '', tone = 'sync';
+  if (state.loadFailed) {
+    message = state.coupons.length || state.news.length
+      ? '연결이 불안정해 마지막으로 받은 혜택을 보여드려요. 결제 전 공식 페이지에서 확인해 주세요.'
+      : state.view === 'all' ? '' : '혜택을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
+    tone = 'err';
+  } else if (state.checkingNetwork) message = '저장된 혜택을 먼저 보여드려요. 최신 정보를 확인하고 있어요.';
+  else if (!state.loading && state.view !== 'appCoupons' && state.meta.last_checked_at && verificationStatus(state.meta.last_checked_at) === 'stale') {
+    // 수집이 이틀 넘게 멈춘 경우만 (일부 출처가 늦은 것은 알리지 않는다)
+    message = '혜택을 확인한 지 이틀이 지났어요. 결제 전 공식 페이지를 확인해 주세요.';
   }
-  else if (!state.loading && verificationStatus(state.meta.last_checked_at) !== 'fresh') message = '최근 확인 시각이 오래됐거나 확인되지 않아요. 결제 전 공식 페이지를 확인해 주세요.';
-  else if (!state.loading && [...state.coupons, ...state.news].some((x) => verificationStatus(x.checked_at) !== 'fresh')) message = '일부 혜택의 출처를 최근에 확인하지 못했어요. 결제 전 공식 페이지를 살펴봐 주세요.';
   const retry = state.loadFailed && (state.coupons.length || state.news.length) && !state.loading;
-  setHTML($('#errNote'), message ? `${esc(message)}${retry ? ' <button type="button" class="note-retry" data-retry>다시 시도</button>' : ''}` : '');
-  $('#errNote').hidden = !message;
+  const note = $('#errNote');
+  note.classList.toggle('err', tone === 'err');
+  note.classList.toggle('sync', tone !== 'err');
+  setHTML(note, message ? `${esc(message)}${retry ? ' <button type="button" class="note-retry" data-retry>다시 시도</button>' : ''}` : '');
+  note.hidden = !message;
 }
 
 /** 예산 버튼: 실제 필터(state.filters.maxPrice)를 그대로 보여 준다. 고른 버튼이 줄 밖에 있으면 줄 안에서만 넘겨 보이게 */

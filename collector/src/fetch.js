@@ -56,6 +56,12 @@ export const POST_RULES = {
     click: 'li button.btn_detail', item: 'li', title: '.tit_event span:last-child', urlPattern: '/event/detail/\\d+$', max: 12, follow: 8,
     followText: '할인|쿠폰|원|1\\+1|증정|딜리버리|적립|세트|프로모션',
   },
+  // 11/21 대표 지적: 파파이스 '두배로데이 블프위크' 핫딜이 이벤트 목록(/event)으로만 열림. 목록 칸은 <a class="box" href="/event/72"> + 제목 <dt>.
+  // 주소가 있는 링크라 href를 그대로 쓰고(url 틀 없음), 글 제목은 <dt>만(부제·'더보기'를 빼야 제목 낱말 대조가 맞는다).
+  'popeyes.co.kr/event': {
+    selector: 'a.box[href]', attr: 'href', pattern: '^/event/\\d{1,6}$', title: 'dt', follow: 4,
+    followText: '1\\+1|할인|원|두배|쿠폰|데이|특가|증정|위크',
+  },
 };
 export function postRuleFor(url) {
   try { const u = new URL(url); return POST_RULES[u.hostname.replace(/^www\./, '') + u.pathname] || null; } catch { return null; }
@@ -135,11 +141,16 @@ export async function renderPage(ctx, url, opts = {}) {
         const v = (a.getAttribute(post.attr) || '').trim();
         if (!new RegExp(post.pattern).test(v)) return null;
         const box = a.closest('li') || a.parentElement;
-        const text = [...[...a.querySelectorAll('img[alt]')].map((i) => i.alt), box ? box.innerText : a.innerText].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        // 제목 칸이 정해져 있으면 그것만 (파파이스 <dt>), 아니면 칸 전체 글자
+        const t = post.title ? (a.querySelector(post.title) || (box && box.querySelector(post.title))) : null;
+        const text = (t ? t.innerText : [...[...a.querySelectorAll('img[alt]')].map((i) => i.alt), box ? box.innerText : a.innerText].filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
         // 11/19: 같은 목록 칸의 썸네일 = 그 글의 공식 이미지 (글 주소와 함께 묶여 있어 다른 행사 이미지가 붙지 않는다)
         const ti = a.querySelector('img') || (box && box.querySelector('img'));
         const img = ti ? thumbOf(ti) : null;
-        return { href: post.url.replace('{v}', encodeURIComponent(v)), text, ...(img ? { img } : {}) };
+        // url 틀이 없으면 링크 주소(href)를 그 페이지 기준으로 그대로
+        let href = '';
+        try { href = post.url ? post.url.replace('{v}', encodeURIComponent(v)) : new URL(v, location.href).href; } catch (e) { return null; }
+        return { href, text, ...(img ? { img } : {}) };
       }).filter(Boolean).slice(0, 120) : [];
       // 공지 이미지 후보 (주소·대체텍스트·크기·주변 글만 — 이미지 파일은 받지도 저장하지도 않음)
       // nearLen: 주변 글 전체 길이 — 카드 하나 분량인지(목록 전체가 아닌지) 판단용

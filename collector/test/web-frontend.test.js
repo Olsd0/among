@@ -252,14 +252,14 @@ test('핫딜은 해당 공식 공지 이미지를 보여주고 상세에서 원�
   assert.equal(await page.locator('#newsBody img.ph').evaluate((el) => getComputedStyle(el).objectFit), 'contain');
 });
 
-test('일부 출처가 오래됐으면 위쪽 경고만 보이고(카드 문구 없음) 최신 핫딜만 추천한다', { timeout: 30000 }, async (t) => {
+test('일부 출처가 오래돼도 위쪽 빨간 경고는 없고(11/21 대표 결정) 카드 문구도 없이 최신 핫딜만 추천한다', { timeout: 30000 }, async (t) => {
   const data = { ok: true, last_checked_at: ago(1), coupons: [coupon('fresh'), coupon('old', ago(72))],
     news: [news('fresh', ago(1)), news('old', ago(72))] };
   const { context, page } = await setup(data);
   t.after(() => context.close());
   await page.goto(`${site.base}/index.html`, { waitUntil: 'domcontentloaded' });
   await page.locator('#list .card').first().waitFor();
-  assert.match(await page.locator('#errNote').innerText(), /일부 혜택/);
+  assert.equal(await page.locator('#errNote').isVisible(), false, '늘 떠 있던 출처 경고는 없앰');
   // 카드에는 상태 문구를 붙이지 않는다 (확인 시각은 펼친 상세의 출처 줄)
   for (const id of ['#card-old', '#card-fresh']) assert.doesNotMatch(await page.locator(id).innerText(), /재확인 필요|지난 방문 후 새로|새로 생김/);
   assert.match(await page.locator('#hotRail').innerText(), /테스트 행사 fresh/);

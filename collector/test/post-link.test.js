@@ -95,3 +95,43 @@ test('목록 주소로 소식과 쿠폰을 잇는 것은 쿠폰도 그 목록에
   ];
   assert.deepEqual(linkNews([n], coupons)[0].related_ids, ['c1815', 'clist']);
 });
+
+test('주소가 있는 목록 링크(파파이스 a.box): 링크 주소 그대로 + 제목 칸(dt)만 글 제목으로 → 공지가 그 행사 글로 이어진다 (11/21)', { timeout: 90000 }, async () => {
+  const { fileURLToPath } = await import('node:url');
+  const { serveDir } = await import('./helpers.js');
+  const { openBrowser, renderPage, postRuleFor: rule } = await import('../src/fetch.js');
+  const r = rule('https://www.popeyes.co.kr/event');
+  assert.equal(r.selector, 'a.box[href]');
+  assert.equal(rule('https://popeyes.co.kr/event'), r);
+  const site = await serveDir(fileURLToPath(new URL('./fixtures/site', import.meta.url)));
+  const ctx = await openBrowser();
+  try {
+    const page = await renderPage(ctx, `${site.base}/popeyes/event.html`, { selector: 'main', maxShots: 0, post: { ...r, pattern: '^/popeyes/event/\\d{1,6}$' } });
+    assert.deepEqual(page.posts.map((p) => [new URL(p.href).pathname, p.text]), [['/popeyes/event/72', '두배로데이 블프위크🎉'], ['/popeyes/event/70', '파파이스 앱 전용 쿠폰 릴레이 위크, 혜택이 팡팡잇스!']]);
+    assert.equal(page.posts[0].img.src, 'https://img.popeyes.test/72.jpg');
+    const https = page.posts.map((p) => ({ ...p, href: p.href.replace('http:', 'https:') }));
+    assert.equal(new URL(postLinkFor({ title: '두배로데이 블프위크 1+1', evidence: '' }, https)).pathname, '/popeyes/event/72');
+  } finally { await ctx.close(); await site.close(); }
+});
+
+test('요약에 시작·끝이 함께 적힌 기간은 기간 칸이 비어도 읽는다 — 끝난 행사는 버린다 (11/21 파파이스 루이 치킨휠레)', async () => {
+  const { textPeriod, normalizeNews } = await import('../src/engine.js');
+  const now = new Date('2026-11-21T05:00:00Z');
+  assert.deepEqual(textPeriod('10월 23일부터 11월 8일까지 루이 치킨휠레 버거 1개와 치킨샌드위치 1개를 7,900원에', now), { start: '2026-10-23', end: '2026-11-08' });
+  assert.deepEqual(textPeriod('행사기간 2026/11/20~2026/11/30', now), { start: '2026-11-20', end: '2026-11-30' });
+  assert.deepEqual(textPeriod('12월 20일부터 1월 5일까지', now), { start: '2026-12-20', end: '2027-01-05' });
+  for (const t of ['11월 11일 하루', '1+1 행사 10-20개 한정', '오전 11시 ~ 오후 2시', '3,000원 추가 시 세트 업그레이드']) assert.equal(textPeriod(t, now), null, t);
+  const n = normalizeNews({ brand: '파파이스', title: '루이 치킨휠레 버거+치킨샌드위치 특가', summary: '10월 23일부터 11월 8일까지 루이 치킨휠레 버거 1개와 치킨샌드위치 1개를 7,900원에 판매합니다.', discount_label: '7,900원' },
+    { sourceUrl: 'https://popeyes.co.kr/event', brand: '파파이스', now });
+  assert.equal(n.end_date, '2026-11-08');
+  assert.equal(n.status, 'rejected');
+});
+
+test('파파이스 두배로데이 핫딜: 확인 목록이 공식 행사 글(/event/72)과 그 행사 포스터를 준다', async () => {
+  const { noticePhoto, noticeImage } = await import('../src/notice-images.js');
+  const n = { brand: '파파이스', title: '두배로데이 블프위크 1+1', source_url: 'https://popeyes.co.kr/event', start_date: '2026-11-20', end_date: '2026-11-30' };
+  assert.equal(noticePhoto(n, '2026-11-21').source, 'https://popeyes.co.kr/event/72');
+  assert.equal(noticeImage(n, '2026-11-21'), './event-images/popeyes-double-day-bfweek-20261130.webp');
+  assert.equal(noticePhoto({ ...n, source_url: 'https://popeyes.co.kr/event/72' }, '2026-11-21').source, 'https://popeyes.co.kr/event/72', '다음 수집부터 상세 글에서 읽어도 같은 공지');
+  assert.equal(noticePhoto(n, '2026-12-01'), null, '행사가 끝나면 쓰지 않는다');
+});
