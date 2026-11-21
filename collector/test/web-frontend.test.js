@@ -100,26 +100,29 @@ test('바나나 옐로우 로고와 머리글 바둑판이 화면 크기와 테�
   await page.goto(site.base + '/');
   const logo = page.getByRole('img', { name: 'AMONG', exact: true }).first();
   await logo.evaluate((img) => img.decode());
-  const symbol = page.locator('.bar .brand-symbol');
-  await symbol.evaluate((img) => img.decode());
+  // 11/21 대표 요청: 새 글자 로고 (O 위 산호색 점). 예전 A 심볼은 머리글에서 뺐다. 어두운 화면은 밝은 글자 파일로 바꿔 보인다(필터 없음)
+  assert.equal(await page.locator('.bar .brand-symbol').count(), 0);
   const cornerAlpha = await logo.evaluate((img) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, 100, 28);
+    ctx.drawImage(img, 0, 0, 180, 26);
     return ctx.getImageData(0, 0, 1, 1).data[3];
   });
   assert.equal(cornerAlpha, 0, '글자 로고 모서리가 투명하다');
   for (const [width, colorScheme] of [[360, 'light'], [390, 'dark'], [1280, 'light'], [1280, 'dark']]) {
     await page.setViewportSize({ width, height: 844 });
     await page.emulateMedia({ colorScheme });
-    const [left, right] = await Promise.all([symbol.boundingBox(), logo.boundingBox()]);
-    assert.ok(left && right && left.x + left.width <= right.x);
-    assert.ok(Math.abs((left.y + left.height / 2) - (right.y + right.height / 2)) < 1);
-    assert.equal(await logo.evaluate((img) => getComputedStyle(img).filter), colorScheme === 'dark' ? 'invert(1)' : 'none');
+    const dark = colorScheme === 'dark';
+    const shown = page.locator(dark ? '.bar .wm-dark' : '.bar .wm-light');
+    assert.equal(await shown.isVisible(), true, `${width} ${colorScheme} 로고`);
+    assert.equal(await page.locator(dark ? '.bar .wm-light' : '.bar .wm-dark').isVisible(), false);
+    const box = await shown.boundingBox();
+    assert.ok(box.height >= 21 && box.height <= 27 && box.width / box.height > 6.5, `로고 비율 ${box.width}x${box.height}`);
+    assert.equal(await shown.evaluate((img) => getComputedStyle(img).filter), 'none');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `머리글 넘침 ${width}`);
     // 11/07 대표 요청: 바둑판 배너 = 머리글(로고·탭). 칸은 가로 1.7 : 세로 1 직사각형. 소개 상자는 바둑판 없이 옅은 바나나색
     await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
     const header = page.locator('header.top');
-    const dark = colorScheme === 'dark';
     const tile = dark ? 'banana-bricks-dark.svg' : 'banana-bricks.svg';
     const head = await header.evaluate((el) => {
       const css = getComputedStyle(el); const r = el.getBoundingClientRect();

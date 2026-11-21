@@ -11,17 +11,15 @@
 }
 :root[data-theme="dark"] { --primary-label: var(--primary); --primary-soft: #383018; }
 
-/* Keep both halves legible on the page surface, including an explicitly selected theme. */
-.brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  vertical-align: middle;
-  flex: none;
-}
-.brand-lockup .brand-symbol { display: block; width: 36px; height: 34px; }
-.brand-lockup .wordmark { display: block; width: 100px; height: auto; }
+/* 11/21 대표 요청: 새 글자 로고(첨부 글씨체, O 위 산호색 점). 밝은 화면·어두운 화면용 파일을 따로 두고 테마에 맞는 것만 보인다
+ * (예전처럼 invert 필터를 쓰면 산호색 점이 청록색이 됨). 예전 A 심볼은 머리글에서 뺐다 — 아이콘·파비콘은 그대로 */
+.brand-lockup { display: inline-flex; align-items: center; vertical-align: middle; flex: none; }
+.brand-lockup .wordmark { display: block; height: 26px; width: auto; }
+.brand-lockup .wm-dark { display: none; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .brand-lockup .wordmark { filter: invert(1); }
+  :root:not([data-theme="light"]) .brand-lockup .wm-light { display: none; }
+  :root:not([data-theme="light"]) .brand-lockup .wm-dark { display: block; }
 }
-:root[data-theme="dark"] .brand-lockup .wordmark { filter: invert(1); }
+:root[data-theme="dark"] .brand-lockup .wm-light { display: none; }
+:root[data-theme="dark"] .brand-lockup .wm-dark { display: block; }
+@media (max-width: 380px) { .brand-lockup .wordmark { height: 22px; } }
