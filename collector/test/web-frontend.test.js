@@ -122,7 +122,7 @@ test('로고와 머리글(흰 로고 줄 · 바나나 탭 줄)이 화면 크기�
     const band = (sel) => page.locator(sel).evaluate((el) => { const css = getComputedStyle(el); return { bg: css.backgroundColor, image: css.borderImageSource, outset: css.borderImageOutset }; });
     const top = await band('header.top .bar'), strip = await band('header.top .view-nav');
     assert.equal(top.bg, dark ? 'rgb(22, 21, 27)' : 'rgb(255, 255, 255)', '로고 줄 = 흰색(어두운 화면은 바탕색)');
-    assert.equal(strip.bg, dark ? 'rgb(46, 39, 19)' : 'rgb(255, 231, 101)', '탭 줄 = 바나나 옐로우(어두운 화면은 어두운 바나나)');
+    assert.equal(strip.bg, dark ? 'rgb(46, 39, 19)' : 'rgb(255, 243, 173)', '탭 줄 = 바나나 옐로우(어두운 화면은 어두운 바나나)');
     for (const b of [top, strip]) { assert.match(b.image, /linear-gradient/); assert.match(b.outset, /100vmax|\d{3,}px/); }
     assert.doesNotMatch(await page.locator('header.top').evaluate((el) => getComputedStyle(el).backgroundImage), /banana-bricks/, '바둑판 없음');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

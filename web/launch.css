@@ -58,7 +58,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
   --hd-symbol: drop-shadow(1.2px 0 0 #fff) drop-shadow(-1.2px 0 0 #fff) drop-shadow(0 1.2px 0 #fff) drop-shadow(0 -1.2px 0 #fff);
   --hd-tile: url("banana-bricks.svg");
   /* 11/22 대표 요청 "로고 뒤는 흰색, 전체 혜택 줄은 바나나 옐로우로 한번 적용해줘봐" — 바둑판 대신 두 띠 */
-  --hd-top: #ffffff; --hd-strip: var(--primary); --hd-top-pill: var(--surface-2); --hd-top-line: var(--line-strong);
+  --hd-top: #ffffff; --hd-strip: #fff3ad; --hd-top-pill: var(--surface-2); --hd-top-line: var(--line-strong);  /* 11/22 14:16 "좀 더 연하게" */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
