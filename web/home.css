@@ -165,7 +165,8 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .budget-btn[aria-pressed="true"]::before, #filterSheet .chip-btn[aria-pressed="true"]::before { content: "✓"; font-weight: 800; }
 .budget-note { margin: 6px 16px 0; font-size: 12.5px; color: var(--muted); }
 .tools { position: sticky; top: var(--hh); z-index: 15; display: flex; align-items: center; gap: 6px; padding: 10px 16px; background: var(--canvas); }
-.chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); padding-right: 16px; }
+.chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); padding-right: 28px; }
+/* 11/22 점검표 5: 빠른 필터 줄 끝이 필터 버튼 밑에서 '새로 …'처럼 잘려 보이던 것 → 흐림 폭 20px → 40px (옆으로 더 있다는 표시) */
 .chips::-webkit-scrollbar { display: none; }
 .chip-btn { flex: none; display: inline-flex; align-items: center; gap: 4px; height: var(--h-chip); padding: 0 13px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); font-size: var(--fs-small); font-weight: 550; color: var(--text-2); white-space: nowrap; background: var(--bg); }
 .chip-btn:hover { border-color: var(--muted); }
