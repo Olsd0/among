@@ -87,6 +87,10 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .me.flow .me-go .ghost { height: var(--h-btn-sm); padding: 0 14px; border-radius: var(--r-sm); color: var(--text-2); font-weight: 700; font-size: 13.5px; }
 .me.flow .me-go .act { min-width: 120px; }
 @media (max-width: 360px) { .me.flow .me-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 11/22 점검표 4: 첫 문구 상자(노랑)와 붙어 구분이 약하던 것 → 흰 바탕 + 노란 테두리. PC에서 통신사 버튼이 화면 끝까지 늘어나지 않게 */
+.me.flow { background: var(--surface); border: 1.5px solid var(--primary); }
+.me.flow .me-opts, .me.flow .me-go { max-width: 560px; }
+.me.flow .me-go { justify-self: start; width: 100%; }
 
 /* 구역 제목 */
 .sec-h { display: flex; align-items: baseline; gap: 8px; padding: 20px 16px 12px; }
