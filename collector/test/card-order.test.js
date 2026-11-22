@@ -20,6 +20,11 @@ const COUPONS = [
     source_url: 'https://www.burgerking.co.kr/event/detail/1793 https://www.burgerking.co.kr/event/ongoing', official_link: 'https://www.burgerking.co.kr/event/ongoing' },
   { ...base, id: 'kt', brand: '테스트버거', menu: '불고기 버거', discount_type: 'percent', discount_rate: 20, programs: ['KT'], end_date: null,
     source_url: 'https://membership.kt.com/x', official_link: 'https://membership.kt.com/x' },
+  // 11/22 정확도 점검: 피자헛 주말 1+1 (메뉴에 'M SIZE + M SIZE'만 적힘) / 같은 피자헛의 굿즈 증정은 그대로 '증정'
+  { ...base, id: 'ph11', brand: '피자헛', category: '피자', item_type: '세트', menu: '프리미엄 피자 또는 US 오리진 피자 (M SIZE + M SIZE)', discount_type: 'free_item',
+    regular_price: 46400, coupon_price: 46400, channels: ['픽업'], start_date: kst(-3), end_date: kst(8), source_url: 'https://www.pizzahut.co.kr/cs/event/extra/hellopizzahut' },
+  { ...base, id: 'phgift', brand: '피자헛', category: '피자', item_type: '세트', menu: '안창 스테이크 슈프림 + 피자헛 클리커', discount_type: 'free_item',
+    regular_price: 35900, coupon_price: 35900, start_date: kst(-3), end_date: kst(30), source_url: 'https://www.pizzahut.co.kr/cs/event/829' },
 ];
 
 async function open(colorScheme = 'light') {
@@ -158,4 +163,14 @@ test('같은 공식 행사 글에서 읽은 쿠폰은 그 글의 포스터를 �
   for (const id of ['pp1', 'pp2']) assert.match(await page.locator(`#card-${id} .stub img`).getAttribute('src'), /popeyes-double-day-bfweek/, id);
   const other = page.locator('#card-pp3 .stub img');
   assert.ok(!(await other.count()) || !/popeyes-double-day-bfweek/.test(await other.getAttribute('src')), '목록 주소에서 읽은 다른 행사 쿠폰은 빌리지 않음');
+});
+
+test('피자 두 판이 적힌 증정은 1+1로, 굿즈 증정은 그대로 증정으로 (11/22 피자헛 주말 1+1)', { timeout: 30000 }, async (t) => {
+  const { context, page } = await open();
+  t.after(() => context.close());
+  const one = page.locator('#card-ph11');
+  assert.match(await one.innerText(), /1\+1/);
+  assert.match(await one.locator('.price').innerText(), /46400원\s*결제 시\s*하나 더 \(1\+1\)/);
+  const gift = page.locator('#card-phgift');
+  assert.match(await gift.locator('.price').innerText(), /35900원\s*결제 시\s*함께 증정/);
 });

@@ -522,6 +522,21 @@ export function textPeriod(text, now = new Date()) {
   if (end < start) end = parseDate(`${+start.slice(0, 4) + 1}-${m[3]}-${m[4]}`, now);
   return end && start <= end && diffDays(end, start) <= 400 ? { start, end } : null;
 }
+/**
+ * '11/22(일), 단 하루!'처럼 날짜 하나에 '단 하루·하루만·하루 한정·당일 한정'이 붙은 행사 → 그 날 'YYYY-MM-DD'.
+ * 11/22: 파리바게뜨 '수험생 초코쫀득츄러스'가 조건에 '11/22(일), 단 하루!'라고 적혀 있는데 기간이 비어 '종료일 미정'으로 남았다.
+ * 글에 날짜가 둘 이상이면(기간일 수 있음) 읽지 않는다.
+ */
+export function oneDay(text, now = new Date()) {
+  const s = String(text || '').normalize('NFKC');
+  const D = /(?:^|[^\d./])(\d{1,2})\s*(?:월\s*|\/)\s*(\d{1,2})\s*일?(?!\s*\d)/g;
+  const all = [...s.matchAll(D)];
+  if (all.length !== 1 || /[~∼〜]|부터/.test(s)) return null;
+  const W = '\\s*(?:\\([^)]{1,4}\\))?[\\s,.!·]{0,4}';
+  const after = s.slice(all[0].index + all[0][0].length).match(new RegExp(`^${W}(?:단\\s*하루|하루\\s*(?:만|한정)|당일\\s*한정)`));
+  const before = /(?:단\s*하루|하루\s*(?:만|한정))[\s,.!:]{0,4}$/.test(s.slice(0, all[0].index + 1));
+  return after || before ? parseDate(`${all[0][1]}/${all[0][2]}`, now) : null;
+}
 function squash(s) { return String(s || '').replace(/[\s,·•\-–—~()\[\]"'“”‘’]/g, '').toLowerCase(); }
 
 function priceVariants(n) {
@@ -651,8 +666,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
     channels: menuChannel && !normChannels(raw.channels).length ? [menuChannel] : normChannels(raw.channels),
     audience: normAudience(raw.audience),
     app_only: toBool(raw.app_only),
-    start_date: sd0 || period?.start || null,
-    end_date: ed0 || period?.end || null,
+    start_date: sd0 || period?.start || (!sd0 && !ed0 && !period && oneDay([raw.conditions, raw.evidence, raw.menu].map(clean).join(' '), now)) || null,
+    end_date: ed0 || period?.end || (!sd0 && !ed0 && !period && oneDay([raw.conditions, raw.evidence, raw.menu].map(clean).join(' '), now)) || null,
     conditions: clean(raw.conditions),
     confidence: Math.max(0, Math.min(1, toNumber(raw.confidence) ?? 0.5)),
     issues,
@@ -1439,6 +1454,10 @@ export function normalizeNews(raw = {}, ctx = {}) {
   if (!n.start_date && !n.end_date) {
     const p = textPeriod(`${n.summary} ${n.evidence}`, now);
     if (p) { n.start_date = p.start; n.end_date = p.end; n.issues.push('기간은 요약의 날짜로 읽음'); }
+  }
+  if (!n.start_date && !n.end_date) {
+    const d = oneDay(`${n.summary} ${n.evidence}`, now);
+    if (d) { n.start_date = d; n.end_date = d; n.issues.push('기간은 요약의 하루 날짜로 읽음'); }
   }
   // 끝나는 날 없이 달만 적힌 행사('26년 10월 와주 2900원 프로모션')는 그 달이 지나면 끝난 것으로 본다
   const tag = n.end_date ? null : monthTag(`${n.title} ${n.evidence}`, now);

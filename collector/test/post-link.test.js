@@ -220,3 +220,18 @@ test('메가·도미노·굽네·할리스·BBQ 목록에서 행사 글 주소�
     assert.equal(postLinkFor({ title: 'BBQ 리니지2M 콜라보', evidence: '' }, bbq.map((p) => ({ ...p, href: p.href.replace('http:', 'https:') }))), '', '제목 없는 글로는 공지를 보내지 않는다');
   } finally { await ctx.close(); await site.close(); }
 });
+
+test('날짜 하나에 \'단 하루\'가 붙은 혜택은 그 날 하루로 — 기간 칸이 비어 \'종료일 미정\'으로 남지 않게 (11/22 파리바게뜨 수험생 츄러스)', async () => {
+  const { oneDay, normalizeAndValidate } = await import('../src/engine.js');
+  const now = new Date('2026-11-22T03:00:00Z');
+  assert.equal(oneDay('11/22(일), 단 하루! 수험생 대상. 수험표 제시 및 27년 필적문구 언급 시', now), '2026-11-22');
+  assert.equal(oneDay('단 하루! 11월 22일', now), '2026-11-22');
+  for (const t of ['11/20 ~ 11/22 단 하루', '매월 22일 하루 한정', '11/22 수험생 대상', '11/22(일) 당일 한정, 11/23 사용 불가', '1인 1회, 수험표 제시']) assert.equal(oneDay(t, now), null, t);
+  const c = normalizeAndValidate({ brand: '파리바게뜨', menu: '초코쫀득츄러스', discount_type: 'free_item', conditions: '11/22(일), 단 하루! 수험생 대상. 수험표 제시 및 27년 필적문구 언급 시', evidence: '수험생 초코쫀득츄러스 1+1', confidence: 0.9 },
+    { sourceUrl: 'https://www.paris.co.kr/promotion/', brand: '파리바게뜨', now });
+  assert.equal(c.start_date, '2026-11-22');
+  assert.equal(c.end_date, '2026-11-22');
+  const next = normalizeAndValidate({ brand: '파리바게뜨', menu: '초코쫀득츄러스', discount_type: 'free_item', conditions: '11/22(일), 단 하루!', confidence: 0.9 },
+    { sourceUrl: 'https://www.paris.co.kr/promotion/', brand: '파리바게뜨', now: new Date('2026-11-23T03:00:00Z') });
+  assert.equal(next.status, 'rejected', '다음 날에는 끝난 혜택');
+});

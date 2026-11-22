@@ -3,7 +3,7 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, PAY_PROGRAMS, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget, textPeriod,
-} from './engine.js?v=20261122-1';
+} from './engine.js?v=20261122-2';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261121-1';
 
@@ -811,7 +811,11 @@ function dueChip(c, today) {
 }
 
 const upTo = (c) => /^최대/.test(c.program_note || '');
-const isOnePlusOne = (c) => /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''}`);
+// 11/22 정확도 점검: 피자헛 '주말 1+1'이 메뉴 'M SIZE + M SIZE'로만 적혀 '46400원 결제 시 함께 증정'(무엇을 주는지 없음)으로 보였다
+// → 증정 혜택의 메뉴가 '+' 양쪽 모두 사이즈가 붙은 피자 두 판이면 1+1 (굿즈를 주는 '슈프림 + 피자헛 클리커'는 사이즈가 없어 그대로 증정)
+const SIZE_MARK = /(?:^|[^A-Za-z])[SMLR]\s*(?:SIZE|사이즈)|(?:^|[^A-Za-z])[SML]\s*$/i;
+const isOnePlusOne = (c) => /1\s*\+\s*1/.test(`${c.menu} ${c.conditions || ''}`)
+  || (c.discount_type === 'free_item' && (c.category === '피자' || /피자/.test(c.menu || '')) && (() => { const parts = String(c.menu || '').split('+'); return parts.length === 2 && parts.every((x) => SIZE_MARK.test(x.replace(/[()]/g, ' ').trim())); })());
 // 쿠폰 사진 종류 표시 (정확한 상품 사진은 표시 없음)
 const PHOTO_LABEL = { campaign: '공식 행사', related: '관련 상품', representative: '대표 메뉴', parts: '구성 상품' };
 /** 두 가지 상품·세트: 함께 나온 사진이 없을 때 각 상품의 공식 사진을 나란히 */
