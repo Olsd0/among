@@ -465,3 +465,10 @@ footer .link-btn { margin-top: 8px; display: inline-block; }
 .hcard .lbl.long-label { font-size: 17px; }
 .stub .big.medium-label { font-size: 23px; }
 .nutrition-unit { font-size: 11px; }
+
+/* 11/22 점검표 7: 누르는 곳을 40px 이상으로 — 보이는 모양은 그대로, 누르는 영역만 넓힘 */
+.brand-link, .refresh { position: relative; }
+.brand-link::after { content: ""; position: absolute; inset: -10px -6px; }
+.refresh::after { content: ""; position: absolute; inset: -5px -2px; }
+.me .x { width: 40px; height: 40px; }
+.x-close { width: 40px; height: 40px; }
