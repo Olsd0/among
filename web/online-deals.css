@@ -104,3 +104,8 @@ article.od-card .body { cursor: auto; }
 .od-best .od-list-heading { display: flex; align-items: center; gap: 8px; }
 .od-best-help { margin: 4px 0 10px; color: var(--muted); font-size: 13px; }
 .od-best-frame { display: block; width: 100%; max-width: 680px; height: 140px; border: 0; border-radius: 12px; background: var(--surface); }
+
+/* 11/22 점검표 9: 쿠팡 위젯 안쪽은 늘 흰 바탕이라, 어두운 화면에서는 상자도 흰 카드로 맞춘다 (어두운 상자 안의 흰 띠보다 덜 튐) */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .od-best-frame { background: #fff; } }
+:root[data-theme="dark"] .od-best-frame { background: #fff; }
+.od-best[hidden] { display: none; }

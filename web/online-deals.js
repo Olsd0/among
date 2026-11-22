@@ -221,6 +221,14 @@ export function createOnlineDealsUI(root, options = {}) {
       <span class="menu">오늘의 골드박스</span><span class="conds"><span>지금 진행 중인 특가 상품</span><span class="od-membership">와우회원 전용</span></span>
       <span class="foot"><span class="cta">쿠팡에서 특가 보기${NEW_TAB}</span></span></span></span></a></div>
     <p class="od-footnote">주문과 결제는 각 판매처에서 진행돼요. AMONG은 가격을 보장하지 않아요.</p>`;
+  // 11/22 점검표 9: 쿠팡 스크립트를 못 받으면(광고 차단·네트워크) 빈 흰 상자로 남던 것 → 상자를 숨긴다.
+  // 위젯 페이지는 같은 사이트라 불러온 뒤 쿠팡 스크립트가 있었는지 볼 수 있다.
+  const bestFrame = root.querySelector('.od-best-frame');
+  bestFrame?.addEventListener('load', () => {
+    let ok = false;
+    try { ok = !!bestFrame.contentWindow?.PartnersCoupang; } catch { ok = true; } // 읽을 수 없으면 그대로 둔다
+    if (!ok) bestFrame.closest('.od-best').hidden = true;
+  }, { once: true });
   const list = root.querySelector('.od-products-list');
   const pickList = root.querySelector('.od-picks > .od-picks-list');
   const status = root.querySelector('.od-status');
