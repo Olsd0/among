@@ -679,10 +679,18 @@ function noticePeriod(n, today = todayKST()) {
   if (d !== null) return { text: `${md(n.end_date)}까지`, due: false };
   return { text: '', due: false };
 }
+// 11/22 점검표 2: 브랜드 이름이 바로 위에 따로 보이는 곳에서는 제목 앞의 같은 이름을 뺀다
+// ('도미노피자 / 도미노피자 1434 피자어택 50%' → '1434 피자어택 50%'). 남는 말이 두 글자 미만이면 그대로.
+function dropBrand(title, brand) {
+  const t = String(title || '').trim();
+  if (!brand || !t.startsWith(brand)) return t;
+  const rest = t.slice(brand.length).replace(/^[\s·:|,~\-–—]+/, '').trim();
+  return rest.length >= 2 ? rest : t;
+}
 function hotCard(h, i) {
   const why = h.reason === 'NEW' ? '새 혜택' : h.reason || '';
   const whyCls = /마감|D-/.test(why) ? '' : h.reason === 'NEW' ? ' n' : ' d';
-  const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : h.title;
+  const title = h.kind === 'coupon' ? h.title.replace(h.brand, '').trim() || h.title : dropBrand(h.title, h.brand);
   const lbl = h.kind === 'news' ? '' : h.label || '';
   const hc = h.kind === 'coupon' ? state.coupons.find(c => c.id === h.id) : null;
   const tone = hc ? stubParts(hc).tone : 'sale';
@@ -1543,7 +1551,7 @@ function openNews(id) {
     <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 행사 글에서 확인해 주세요.</p>
     <p class="news-meta">${esc(n.brand)} · ${esc(pf ? `${md(n.start_date)} ~ ${md(n.end_date)} ${pf.note}` : period)}${need ? ` · ${esc(need)}` : ''}</p>
     ${pf && pf.refs.length ? `<p class="news-period-refs">기간을 확인한 기사: ${pf.refs.map((r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.outlet)}${r.published ? ` (${esc(md(r.published))})` : ''}</a>`).join(', ')}</p>` : ''}
-    <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
+    <h2 class="news-title" id="newsTitle">${esc(dropBrand(n.title, n.brand))}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
     ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}
     ${/* 11/22 상세 흐름 통일(점검표 1번): 같은 공식 링크가 위 줄과 아래 버튼에 두 번 나오던 것 → 쿠폰 상세와 같은 순서로
