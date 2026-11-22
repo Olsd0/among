@@ -3,8 +3,9 @@
 // 바꾼 뒤 공유 파일이면 npm --prefix collector run sync-web 도 (collector/src → web 사본)
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('../../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../../', import.meta.url));
 const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
 const files = [...walk(join(root, 'web')), ...walk(join(root, 'collector/src'))].filter((p) => /\.(html|js|css|webmanifest)$/.test(p));
 const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '');

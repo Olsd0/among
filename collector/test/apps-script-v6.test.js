@@ -97,6 +97,21 @@ test('제보: 브라우저당 1시간 5건, 메모의 전화번호·메일은 �
   assert.ok(!JSON.stringify(m.reports).includes('010-1234'));
 });
 
+test('제보 메모는 제어문자 정리 후 연락처를 지우고 마지막에 길이를 제한한다', () => {
+  const { gas, admin } = boot();
+  const send = (memo) => gas.post({ action: 'report', sid: SID, reason: '기타', memo });
+  for (const control of ['\u200b', '\u0000', '\u202e', '\u2066']) {
+    assert.equal(send(`할인 5900원\nsynthetic${control}@example.test / 010${control}12345678`).ok, true);
+    assert.equal(rows(gas, 'reports').at(-1).memo, '할인 5900원\n[메일 주소 지움] / [전화번호 지움]');
+  }
+  // 저장 길이 경계에 걸친 연락처도 자르기 전에 전체를 가린다.
+  const prefix = '가'.repeat(490) + ' ';
+  assert.equal(send(prefix + 'synthetic\u200b@example.test').ok, true);
+  assert.equal(rows(gas, 'reports').at(-1).memo, (prefix + '[메일 주소 지움]').slice(0, 500));
+  const m = gas.post({ action: 'metrics', token: admin });
+  assert.doesNotMatch(JSON.stringify(m.reports), /synthetic|example\.test|01012345678/);
+});
+
 test('동시에 몰리면(잠금 실패) 기록을 버리고, 제보는 다시 보내 달라고 알림', () => {
   const { gas } = boot();
   gas.lockBusy.value = true;

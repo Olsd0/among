@@ -372,10 +372,15 @@ function appendPublic_(name, obj, kind, sid) {
   } finally { lock.releaseLock(); }
 }
 
+/** 저장 과정에서 제거할 문자는 개인정보 검사 전에 같은 기준으로 정리한다. */
+function stripControls_(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F​-‏‪-‮⁦-⁩]/g, '');
+}
+
 /** 공개 입력 → 시트에 넣을 안전한 글자: 제어문자 제거, 길이 제한, 수식으로 해석될 시작 글자(= + - @) 무력화 */
 function text_(v, n, multiline) {
-  let s = String(v === undefined || v === null ? '' : v)
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F​-‏‪-‮⁦-⁩]/g, '');
+  let s = stripControls_(v);
   s = multiline ? s.replace(/\r\n?/g, '\n') : s.replace(/[\r\n\t]+/g, ' ');
   s = s.replace(/^\s+/, '').slice(0, n);
   return /^[=+\-@]/.test(s) ? "'" + s : s;
@@ -384,7 +389,7 @@ function idOrEmpty_(v) { const s = String(v === undefined || v === null ? '' : v
 
 /** 제보 메모에 적힌 전화번호·메일 주소는 저장하지 않는다 (개인정보 최소 수집) */
 function scrubPersonal_(v) {
-  return String(v === undefined || v === null ? '' : v)
+  return stripControls_(v)
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[메일 주소 지움]')
     .replace(/(?:\+?82[-\s.]?)?0?1[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g, '[전화번호 지움]');
 }

@@ -76,6 +76,10 @@ const prefs0 = store.get('among_prefs', {});
 // v5 홈: 카테고리 탭 대신 아이콘. 예전 설정의 기본 탭(햄버거)·빠른 칩(통신사·곧 끝나는)은 아이콘으로 옮겨져 처음 한 번 초기화
 const prefs = prefs0.v === 5 ? prefs0 : { ...prefs0, category: '전체', kind: '', quick: { ...(prefs0.quick || {}), programsOnly: false, endingSoon: false } };
 const storedBrands = store.get('among_following', []);
+const readSaved = () => {
+  const saved = store.get('among_saved', []);
+  return new Set(Array.isArray(saved) ? saved.filter(id => typeof id === 'string' && id.length > 0) : []);
+};
 // 예산(쿠폰 적용가 기준): 목록 위 버튼과 필터 시트가 같은 state.filters.maxPrice를 쓴다.
 const BUDGETS = [['', '제한 없음'], ['5000', '5000원 이하'], ['8000', '8000원 이하'], ['10000', '10000원 이하'], ['15000', '15000원 이하']];
 const budgetValue = (v) => { const s = String(v ?? ''); return BUDGETS.some(([k]) => k === s) ? s : ''; };
@@ -91,7 +95,7 @@ const state = {
   filters: { itemType: '', channel: '', everyoneOnly: false, maxPrice: '', ...(prefs.filters || {}) },
   quick: { mine: false, programsOnly: false, fresh: false, endingSoon: false, saved: false, ...(prefs.quick || {}) },
   profile: store.get('among_profile', null),      // { telecom, pays: [], newMember }
-  saved: new Set(store.get('among_saved', [])),
+  saved: readSaved(),
   q: '',
   coupons: [],
   appCoupons: [],
@@ -552,11 +556,14 @@ $('#brandPanel').addEventListener('click', (e) => {
 });
 $('#brandPanel').addEventListener('input', (e) => { if (e.target.id === 'brandSearch') { state.brandQuery = e.target.value; renderBrandDirectory(); } });
 addEventListener('storage', (e) => {
-  if (e.key !== 'among_following') return;
-  const saved = store.get('among_following', []);
-  state.following = new Set(Array.isArray(saved) ? saved.filter((x) => typeof x === 'string') : []);
-  if (state.view === 'following' && state.brand && !state.following.has(state.brand)) state.brand = '';
-  render();
+  if (e.storageArea !== localStorage || (e.key !== null && !['among_following', 'among_saved'].includes(e.key))) return;
+  if (e.key === null || e.key === 'among_following') {
+    const saved = store.get('among_following', []);
+    state.following = new Set(Array.isArray(saved) ? saved.filter((x) => typeof x === 'string' && x.length < 80) : []);
+    if (state.view === 'following' && state.brand && !state.following.has(state.brand)) state.brand = '';
+  }
+  if (e.key === null || e.key === 'among_saved') state.saved = readSaved();
+  renderSavedChange();
 });
 
 // ---------- 화면 조각 ----------
@@ -1093,7 +1100,7 @@ function visible(extra = quickFilters()) {
 function renderQuick() {
   // 각 칩 옆 숫자 = 그 칩만 켰을 때 지금 화면에서 보일 개수
   setHTML($('#quick'), QUICK.map(({ key, label }) => {
-    if (key === 'saved' && !state.saved.size) return '';
+    if (key === 'saved' && !state.saved.size && !state.quick.saved) return '';
     const n = visible({ ...quickFilters({ mine: false, fresh: false, saved: false }), ...quickFilters({ [key]: true }) }).length;
     if (!n && !state.quick[key] && key !== 'mine') return '';
     return `<button class="chip-btn" data-quick="${key}" aria-pressed="${!!state.quick[key]}">${label} <span class="n">${n}</span></button>`;
@@ -1620,7 +1627,7 @@ $('#list').addEventListener('click', async (e) => {
   const rep = e.target.closest('[data-report]');
   if (rep) { openReport(rep.dataset.report); return; }
   const sv = e.target.closest('[data-save]');
-  if (sv) { toggleSave(sv.dataset.save, sv); return; }
+  if (sv) { toggleSave(sv.dataset.save); return; }
   const sh = e.target.closest('[data-share]');
   if (sh) { shareCoupon(sh.dataset.share); return; }
   if (e.target.closest('[data-clear-quick]')) { Object.keys(state.quick).forEach((k) => { state.quick[k] = false; }); state.kind = ''; savePrefs(); render(); return; }
@@ -1655,15 +1662,30 @@ function toggleCard(cardEl) {
   if (btn) { btn.setAttribute('aria-expanded', String(open)); btn.innerHTML = `${open ? '상세 닫기' : '상세 보기'}${ICON.down}`; }
 }
 
-function toggleSave(id, btn) {
-  renderedHTML.delete($('#list'));
-  if (state.saved.has(id)) state.saved.delete(id); else state.saved.add(id);
-  store.set('among_saved', [...state.saved]);
-  const on = state.saved.has(id);
-  btn.setAttribute('aria-pressed', String(on));
-  btn.innerHTML = `${ICON.heart}${on ? '찜함' : '찜'}`;
+function renderSavedChange() {
+  const active = document.activeElement;
+  const savedId = active?.dataset.save;
+  const quickKey = active?.dataset.quick;
+  render();
+  // 목록이 바뀌어도 키보드 초점을 잃지 않는다. 다른 탭의 변경은 다른 입력의 초점을 뺏지 않는다.
+  if (active?.isConnected || (!savedId && !quickKey)) return;
+  const next = savedId ? document.querySelector(`[data-save="${CSS.escape(savedId)}"]`)
+    : document.querySelector(`[data-quick="${CSS.escape(quickKey)}"]`);
+  (next || $('#quick [data-quick="saved"]') || $('#list')).focus({ preventScroll: true });
+}
+
+function toggleSave(id) {
+  if (!state.coupons.some(c => c.id === id)) return;
+  const next = new Set(state.saved);
+  const on = !next.has(id);
+  if (on) next.add(id); else next.delete(id);
+  if (!store.set('among_saved', [...next])) {
+    toast('이 기기에 저장하지 못했어요. 브라우저 저장 설정을 확인해 주세요.');
+    return;
+  }
+  state.saved = next;
+  renderSavedChange();
   toast(on ? '찜했어요. 위의 ‘찜’에서 모아볼 수 있어요.' : '찜을 뺐어요.');
-  renderQuick();
 }
 
 async function shareCoupon(id) {
