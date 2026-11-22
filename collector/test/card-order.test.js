@@ -174,3 +174,25 @@ test('피자 두 판이 적힌 증정은 1+1로, 굿즈 증정은 그대로 증�
   const gift = page.locator('#card-phgift');
   assert.match(await gift.locator('.price').innerText(), /35900원\s*결제 시\s*함께 증정/);
 });
+
+test('브랜드 화면 주소 ?brand= — 열면 주소가 붙고, 뒤로 가기로 목록, 주소로 바로 열기 (11/22 점검표 11)', { timeout: 30000 }, async (t) => {
+  const { context, page } = await open();
+  t.after(() => context.close());
+  await page.click('[data-view="brands"]');
+  await page.click('[data-brand-open="버거킹"]');
+  await page.locator('.brand-heading').waitFor({ timeout: 5000 });
+  assert.equal(new URL(page.url()).searchParams.get('brand'), '버거킹');
+  await page.goBack({ timeout: 5000 }).catch(() => {});
+  await page.locator('#brandDirectory').waitFor({ timeout: 5000 });
+  assert.equal(new URL(page.url()).searchParams.get('brand'), null);
+  assert.equal(await page.locator('.brand-heading').count(), 0, '뒤로 가기 = 브랜드 목록');
+  await page.goForward({ timeout: 5000 }).catch(() => {});
+  await page.locator('.brand-heading').waitFor({ timeout: 5000 });
+  assert.match(await page.locator('.brand-heading').innerText(), /버거킹/);
+  const direct = new URL(page.url()); direct.search = `?brand=${encodeURIComponent('버거킹')}`;
+  await page.goto(direct.href);
+  await page.locator('.brand-heading').waitFor({ timeout: 8000 });
+  assert.match(await page.locator('.brand-heading').innerText(), /버거킹/);
+  await page.click('[data-view="all"]');
+  assert.equal(new URL(page.url()).searchParams.get('brand'), null, '다른 탭으로 가면 주소에서 브랜드를 지운다');
+});

@@ -517,13 +517,27 @@ function changeView(view) {
       return;
     }
   }
+  if (state.brand) brandUrl('');
   state.view = view; state.brand = ''; state.brandQuery = ''; state.q = ''; $('#q').value = '';
   state.category = '전체'; state.kind = ''; state.menu = 'main'; state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
   Object.keys(state.quick).forEach((k) => { state.quick[k] = false; });
   state.open.clear(); render(); window.scrollTo({ top: 0, behavior: 'auto' });
 }
-function openBrand(brand) {
+// 11/22 점검표 11: 브랜드 화면에 주소(?brand=버거킹)를 붙여 공유·북마크·뒤로 가기가 되게.
+// 브랜드를 열 때 기록을 하나 쌓고(push), 탭을 바꾸거나 목록으로 돌아갈 때는 주소만 지운다.
+function brandUrl(brand, push = false) {
+  const url = brand ? `${location.pathname}?brand=${encodeURIComponent(brand)}` : location.pathname;
+  if (`${location.pathname}${location.search}` === url) return;
+  try { history[push ? 'pushState' : 'replaceState'](brand ? { brand } : null, '', url); } catch { /* 주소를 못 바꿔도 화면은 그대로 */ }
+}
+addEventListener('popstate', () => {
+  const b = new URLSearchParams(location.search).get('brand') || '';
+  if (b && b !== state.brand && brandNames().includes(b)) openBrand(b, { push: false });
+  else if (!b && state.brand) { state.brand = ''; render(); }
+});
+function openBrand(brand, { push = true } = {}) {
   if (!brandNames().includes(brand)) return;
+  brandUrl(brand, push);
   if (state.view !== 'following') state.view = 'brands';
   state.brand = brand; state.q = ''; $('#q').value = ''; state.category = '전체'; state.kind = ''; state.menu = 'main';
   state.filters = { itemType: '', channel: '', everyoneOnly: false, maxPrice: '' };
@@ -551,7 +565,7 @@ $('#viewNav').addEventListener('click', (e) => { const b = e.target.closest('[da
 $('#brandPanel').addEventListener('click', (e) => {
   const f = e.target.closest('[data-follow]'); if (f) { toggleFollow(f.dataset.follow); return; }
   const b = e.target.closest('[data-brand-open]'); if (b) { openBrand(b.dataset.brandOpen); return; }
-  if (e.target.closest('[data-brand-back]')) { state.brand = ''; render(); }
+  if (e.target.closest('[data-brand-back]')) { if (history.state?.brand) { history.back(); return; } brandUrl(''); state.brand = ''; render(); }
   if (e.target.closest('[data-browse]')) changeView('brands');
 });
 $('#brandPanel').addEventListener('input', (e) => { if (e.target.id === 'brandSearch') { state.brandQuery = e.target.value; renderBrandDirectory(); } });
@@ -1507,6 +1521,7 @@ addEventListener('scroll', () => $('header.top').classList.toggle('scrolled', sc
 function jumpTo(id) {
   const c = state.coupons.find((x) => x.id === id);
   if (!c) { toast('이 혜택은 이미 끝났거나 바뀌었어요.'); return; }
+  if (state.brand) brandUrl('');
   state.view = 'all'; state.brand = '';
   state.category = c.category || '전체';
   state.kind = '';
@@ -1569,10 +1584,10 @@ function openNews(id) {
     <div class="acts"><button class="act-btn" type="button" data-news-share="${esc(n.id)}">${ICON.share}공유</button></div>
     <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.press ? ' 사진은 기사에 실린 브랜드 관련 홍보 이미지예요. 이 결제 행사의 전용 포스터는 아니에요.' : v.capture ? ' 이미지는 공식 행사 페이지를 캡처한 화면이에요.' : v.campaign ? ' 이미지는 이번 프로모션과 함께 브랜드가 공개한 공식 캠페인 포스터예요. 결제 혜택의 조건은 행사 안내를 확인해 주세요.' : v.related ? ' 사진은 공식 출처의 관련 상품·매장 이미지예요. 행사 포스터와는 구분해 주세요.' : v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
   if (!newsSheet.open) newsSheet.showModal();
-  history.replaceState(null, '', `${location.pathname}?n=${encodeURIComponent(id)}`);
+  history.replaceState(history.state, '', `${location.pathname}?n=${encodeURIComponent(id)}`);
 }
 // 소식 시트는 저장할 값이 없어서 닫을 때 주소만 정리 (close 이벤트가 오지 않는 웹뷰도 있으므로 닫는 버튼에서도 처리)
-function closeNews() { if (newsSheet.open) newsSheet.close(); history.replaceState(null, '', location.pathname); }
+function closeNews() { if (newsSheet.open) newsSheet.close(); history.replaceState(history.state, '', state.brand ? `${location.pathname}?brand=${encodeURIComponent(state.brand)}` : location.pathname); }
 newsSheet.addEventListener('click', async (e) => {
   if (e.target === newsSheet || e.target.closest('[data-close]')) { closeNews(); return; }
   const r = e.target.closest('[data-rel]');
@@ -1846,6 +1861,7 @@ $('#themeBtn').addEventListener('click', () => {
 
 // 공유 링크로 들어오면: ?c=쿠폰id → 그 쿠폰을 펼쳐서, ?n=소식id → 소식 상세
 function openFromLink() {
+  if (params.get('brand')) { openBrand(params.get('brand'), { push: false }); return; }
   if (params.get('view') === 'appCoupons') changeView('appCoupons');
   if (params.get('ac')) { changeView('appCoupons'); appCouponUI.open(params.get('ac')); return; }
   const n = params.get('n');

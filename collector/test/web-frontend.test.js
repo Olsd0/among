@@ -161,7 +161,9 @@ test('브랜드 검색·구독·상세·새로고침·구독 취소가 이어지
   assert.equal(await page.locator('#list .card').count(), 1);
   assert.equal(await page.locator('#card-coffee').count(), 0);
   await page.reload();
-  await page.locator('#card-coffee').waitFor();
+  // 11/22 점검표 11: 브랜드 화면에는 주소(?brand=)가 있어 새로고침해도 같은 브랜드
+  await page.locator('#brandTitle').waitFor();
+  assert.equal(await page.locator('#brandTitle').innerText(), '테스트버거');
   await page.locator('[data-view="following"]').click();
   assert.equal(await page.locator('#followingCount').innerText(), '1');
   assert.equal(await page.locator('#list .card').count(), 1);
