@@ -1125,7 +1125,8 @@ function renderMeBar() {
     const n = state.coupons.length ? mineCount(p) : 0;
     setHTML(bar, `<span class="grow">${items.length ? `<b>${esc(items.join(' · '))}</b> 기준으로` : '조건 없는 쿠폰 기준으로'} 내가 쓸 수 있는 혜택${n ? ` <b>${n}개</b>` : ''}를 먼저 보여드려요</span><button class="act" data-open-me>변경</button>`);
     bar.hidden = false;
-  } else if (!meSnoozed() && state.coupons.length) {
+  } else if (!meSnoozed() && state.coupons.length && state.view === 'all' && !state.brand && !state.q) {
+    // 11/22 점검표 3: 첫 방문 질문은 전체 혜택 첫 화면에서만 (브랜드 화면·검색 중에는 내용을 아래로 밀지 않게)
     bar.classList.add('flow');
     if (meFlow.step === 'telecom') {
       setHTML(bar, `<div class="me-q"><b>어느 통신사를 쓰세요?</b><small>통신사·페이 할인 중 내가 쓸 수 있는 것만 골라드려요 · 1/2</small></div>
