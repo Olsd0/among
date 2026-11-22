@@ -1088,20 +1088,56 @@ function renderQuick() {
   }).join(''));
 }
 
+/**
+ * '내 조건' 첫 설정 (11/22 로드맵 2번): 처음 온 사람이 홈에서 바로 2~3번 눌러 끝낸다 — 창을 띄우지 않고 이 줄 안에서.
+ * ① 통신사(누르면 바로 다음) ② 자주 쓰는 결제(여러 개, 건너뛰기 가능) → 저장하고 '내가 쓸 수 있는' 목록으로.
+ * 닫으면 7일 동안 다시 묻지 않는다. 이미 설정한 사람에게는 지금처럼 요약 + 변경.
+ */
+const ME_SNOOZE_DAYS = 7;
+const meSnoozed = () => {
+  const at = Date.parse(store.get('among_me_dismissed_at', '') || '');
+  if (Number.isFinite(at)) return Date.now() - at < ME_SNOOZE_DAYS * 864e5;
+  return false;
+};
+// 예전 '안내 닫기'(영구)를 받은 사람은 지금부터 7일로 바꿔 준다
+if (store.get('among_me_dismissed', false) === true && !store.get('among_me_dismissed_at', '')) { store.set('among_me_dismissed_at', new Date().toISOString()); store.set('among_me_dismissed', false); }
+const meFlow = { step: 'telecom', telecom: '', pays: [] };
+const payOptions = () => [...document.querySelectorAll('#meSheet [data-me="pays"] [data-v]')].map((b) => [b.dataset.v, b.dataset.label || b.textContent.replace(/\s*\d+$/, '')]);
+const mineCount = (p) => { const o = { programs: [p.telecom, ...(p.pays || [])].filter(Boolean), newMember: p.newMember !== false }; return state.coupons.filter((c) => usableBy(c, o)).length; };
 function renderMeBar() {
   const bar = $('#meBar');
   const p = state.profile;
+  bar.classList.remove('flow');
   if (p) {
-    const items = [p.telecom ? `${p.telecom} 멤버십` : '', ...(p.pays || [])].filter(Boolean);
-    setHTML(bar, `<span class="grow">${items.length ? `<b>${esc(items.join(' · '))}</b> 기준으로 내가 쓸 수 있는 혜택을 먼저 보여드려요` : '조건 없는 쿠폰을 먼저 보여드려요'}</span><button class="act" data-open-me>변경</button>`);
+    const items = [p.telecom ? `${p.telecom === 'LGU+' ? 'LG U+' : p.telecom} 멤버십` : '', ...(p.pays || [])].filter(Boolean);
+    const n = state.coupons.length ? mineCount(p) : 0;
+    setHTML(bar, `<span class="grow">${items.length ? `<b>${esc(items.join(' · '))}</b> 기준으로` : '조건 없는 쿠폰 기준으로'} 내가 쓸 수 있는 혜택${n ? ` <b>${n}개</b>` : ''}를 먼저 보여드려요</span><button class="act" data-open-me>변경</button>`);
     bar.hidden = false;
-  } else if (!store.get('among_me_dismissed', false)) {
-    setHTML(bar, '<span class="grow">통신사·자주 쓰는 페이를 알려주시면 <b>내가 쓸 수 있는 할인</b>만 골라드려요</span><button class="act" data-open-me>설정</button><button class="x" data-dismiss-me aria-label="안내 닫기">✕</button>');
+  } else if (!meSnoozed() && state.coupons.length) {
+    bar.classList.add('flow');
+    if (meFlow.step === 'telecom') {
+      setHTML(bar, `<div class="me-q"><b>어느 통신사를 쓰세요?</b><small>통신사·페이 할인 중 내가 쓸 수 있는 것만 골라드려요 · 1/2</small></div>
+        <button class="x" data-dismiss-me aria-label="7일 동안 묻지 않기">✕</button>
+        <div class="me-opts" role="group" aria-label="통신사">${[['SKT', 'SKT'], ['KT', 'KT'], ['LGU+', 'LG U+'], ['', '알뜰폰·없음']].map(([v, l]) => `<button type="button" class="chip-btn" data-me-telecom="${esc(v)}">${esc(l)}</button>`).join('')}</div>`);
+    } else {
+      const opts = payOptions();
+      setHTML(bar, `<div class="me-q"><b>자주 쓰는 결제·포인트는요?</b><small>여러 개 골라도 돼요 · 2/2</small></div>
+        <button class="x" data-dismiss-me aria-label="7일 동안 묻지 않기">✕</button>
+        <div class="me-opts pays" role="group" aria-label="결제·포인트">${opts.map(([v, l]) => `<button type="button" class="chip-btn" data-me-pay="${esc(v)}" aria-pressed="${meFlow.pays.includes(v)}">${esc(l)}</button>`).join('')}</div>
+        <div class="me-go"><button type="button" class="ghost" data-me-back>이전</button><button type="button" class="act" data-me-done>${meFlow.pays.length ? '내 혜택 보기' : '없음 · 내 혜택 보기'}</button></div>`);
+    }
     bar.hidden = false;
   } else bar.hidden = true;
   const picked = p ? [p.telecom === 'LGU+' ? 'LG U+' : p.telecom, ...(p.pays || [])].filter(Boolean) : [];
   $('#meLabel').textContent = p ? (picked.length ? picked.join('·') : '조건 없음') : '내 조건';
   $('#meBtn').classList.toggle('set', !!p);
+}
+function saveProfile(profile, how) {
+  state.profile = profile; store.set('among_profile', profile);
+  state.quick.mine = true; state.sort = 'best'; savePrefs(); render();
+  track('filter', { value: `profile:${[profile.telecom || '없음', ...profile.pays].join(',')}${how ? `:${how}` : ''}` });
+  const n = mineCount(profile);
+  toast(n ? `내가 쓸 수 있는 혜택 ${n}개를 먼저 보여드려요.` : '내가 쓸 수 있는 혜택을 먼저 보여드려요.');
 }
 
 /**
@@ -1683,7 +1719,18 @@ function openMe(turnOnMine = false) {
 $('#meBtn').addEventListener('click', () => openMe(false));
 $('#meBar').addEventListener('click', (e) => {
   if (e.target.closest('[data-open-me]')) openMe(!state.profile);
-  if (e.target.closest('[data-dismiss-me]')) { store.set('among_me_dismissed', true); render(); }
+  if (e.target.closest('[data-dismiss-me]')) { store.set('among_me_dismissed_at', new Date().toISOString()); render(); toast('7일 동안 묻지 않을게요. 위쪽 \'내 조건\'에서 언제든 설정할 수 있어요.'); return; }
+  const t = e.target.closest('[data-me-telecom]');
+  if (t) { meFlow.telecom = t.dataset.meTelecom; meFlow.step = 'pays'; renderMeBar(); $('#meBar [data-me-pay], #meBar [data-me-done]')?.focus(); return; }
+  const pay = e.target.closest('[data-me-pay]');
+  if (pay) { const v = pay.dataset.mePay; meFlow.pays = meFlow.pays.includes(v) ? meFlow.pays.filter((x) => x !== v) : [...meFlow.pays, v]; renderMeBar(); $(`#meBar [data-me-pay="${CSS.escape(v)}"]`)?.focus(); return; }
+  if (e.target.closest('[data-me-back]')) { meFlow.step = 'telecom'; renderMeBar(); $('#meBar [data-me-telecom]')?.focus(); return; }
+  if (e.target.closest('[data-me-done]')) {
+    saveProfile({ telecom: meFlow.telecom, pays: [...meFlow.pays], newMember: true }, 'quick');
+    meFlow.step = 'telecom'; meFlow.pays = [];
+    const list = $('#listTitle') || $('#list');
+    list?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'instant' : 'smooth' });
+  }
 });
 meSheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-v]');
@@ -1702,12 +1749,8 @@ $('#meReset').addEventListener('click', () => {
 });
 onSheetSubmit(meSheet, (v) => {
   if (v !== 'ok' || !meDraft) return;
-  state.profile = meDraft; store.set('among_profile', meDraft);
-  if (meTurnOnMine || !state.quick.mine) state.quick.mine = true;
-  state.sort = 'best'; savePrefs(); render();
   // 어떤 수단을 고르는지만 익명으로 (서비스에 어떤 출처를 늘릴지 판단용)
-  track('filter', { value: `profile:${[meDraft.telecom || '없음', ...meDraft.pays].join(',')}` });
-  toast('내가 쓸 수 있는 혜택을 먼저 보여드려요.');
+  saveProfile(meDraft, meTurnOnMine ? 'sheet-first' : 'sheet');
 });
 
 // 필터 시트

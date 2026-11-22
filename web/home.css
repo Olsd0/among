@@ -73,6 +73,20 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .me .act { flex: none; height: var(--h-btn-sm); padding: 0 14px; border-radius: var(--r-sm); background: var(--primary); color: var(--primary-ink); font-weight: 700; font-size: 13.5px; }
 .me .act:hover { background: var(--primary-press); }
 .me .x { flex: none; width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); border-radius: 8px; font-size: 13px; }
+/* 내 조건 첫 설정 (11/22): 홈 안에서 두 단계 — 질문 · 선택 칩 · (2단계) 이전/내 혜택 보기 */
+.me.flow { display: grid; grid-template-columns: 1fr auto; gap: 10px 8px; padding: 14px 10px 14px 14px; background: var(--primary-soft); color: var(--text-2); }
+.me.flow .me-q { display: grid; gap: 2px; align-self: center; }
+.me.flow .me-q b { font-size: var(--fs-card); letter-spacing: -.02em; }
+.me.flow .me-q small { color: var(--text-2); font-size: var(--fs-caption); }
+.me.flow .x { align-self: start; }
+.me.flow .me-opts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.me.flow .me-opts.pays { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.me.flow .me-opts .chip-btn { width: 100%; height: 44px; margin: 0; justify-content: center; padding: 0 6px; background: var(--surface); border-color: var(--line-strong); font-size: 14px; font-weight: 700; }
+.me.flow .me-opts .chip-btn[aria-pressed="true"] { background: var(--hd-on, #211c10); border-color: var(--hd-on, #211c10); color: var(--hd-on-ink, #ffe765); }
+.me.flow .me-go { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+.me.flow .me-go .ghost { height: var(--h-btn-sm); padding: 0 14px; border-radius: var(--r-sm); color: var(--text-2); font-weight: 700; font-size: 13.5px; }
+.me.flow .me-go .act { min-width: 120px; }
+@media (max-width: 360px) { .me.flow .me-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* 구역 제목 */
 .sec-h { display: flex; align-items: baseline; gap: 8px; padding: 20px 16px 12px; }
