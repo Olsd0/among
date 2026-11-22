@@ -63,6 +63,34 @@ export const POST_RULES = {
     selector: 'a.box[href]', attr: 'href', pattern: '^/event/\\d{1,6}$', title: 'dt', follow: 4,
     followText: '1\\+1|할인|원|두배|쿠폰|데이|특가|증정|위크',
   },
+  // 11/22 정확도 점검: 시트의 따라가기 선택자가 실제 링크 모양과 달라 목록 한 장만 읽던 출처 (페이지 1)
+  // 메가MGC커피: 글 링크가 상대 주소 'detail/?<base64>' (시트 선택자 a[href*='/bbs/detail/']는 맞지 않음), 제목은 .cont_text_title
+  'mega-mgccoffee.com/bbs/': {
+    selector: 'a[href^="detail/?"]', attr: 'href', pattern: '^detail/\\?[A-Za-z0-9+/=]{8,}$', title: '.cont_text_title', follow: 4,
+    followText: '할인|적립|1\\+1|증정|쿠폰|원|이벤트',
+  },
+  // BBQ: 진행 중 이벤트 카드가 이미지뿐인 <a href="/events/200"> (시트 선택자는 전체 주소를 기대). 제목이 없어 공지 연결에는 안 쓰고 상세만 읽는다
+  'bbq.co.kr/events': {
+    selector: 'a[href^="/events/"]', attr: 'href', pattern: '^/events/\\d{1,6}$', follow: 4,
+  },
+  // 도미노피자: 대부분 javascript:goViewHtml('1','2184','_self','E0200') → /event/viewHtml?seq=2184&gubun=E0200. 제목은 이미지 대체텍스트
+  'web.dominos.co.kr/event/list': {
+    selector: 'a[href*="goViewHtml"], a[href*="/event/viewHtml"]', attr: 'href', pattern: "(?:goViewHtml\\('\\d+',\\s*'|viewHtml\\?seq=)(\\d{1,6})",
+    url: 'https://web.dominos.co.kr/event/viewHtml?seq={1}&gubun=E0200', follow: 6,
+    followText: '할인|원|1\\+1|증정|쿠폰|데이|day|어택|특가|무료',
+  },
+  // 굽네: javascript:brdView('90127') → 폼으로 /brd/event/view_p (GET ?seq= 로도 같은 글, 11/22 확인). 제목 dt.main
+  'goobne.co.kr/brd/event/list_p': {
+    selector: 'a[href^="javascript:brdView"]', attr: 'href', pattern: "brdView\\('(\\d{3,8})'\\)",
+    url: 'https://www.goobne.co.kr/brd/event/view_p?seq={1}', title: 'dt.main', follow: 4,
+    followText: '할인|원|1\\+1|증정|쿠폰|적립',
+  },
+  // 할리스: <a href="#" onclick="javascript:onDetail(576)"> → GET 폼 /news/event/view.do?idx=576 (robots.txt는 /membership·/myHollys만 막음)
+  'hollys.co.kr/news/event/list.do': {
+    selector: 'a[onclick*="onDetail("]', attr: 'onclick', pattern: 'onDetail\\((\\d{1,6})\\)',
+    url: 'https://www.hollys.co.kr/news/event/view.do?idx={1}&pageNo=1', follow: 4,
+    followText: '할인|원|1\\+1|증정|쿠폰|적립|선물',
+  },
 };
 export function postRuleFor(url) {
   try { const u = new URL(url); return POST_RULES[u.hostname.replace(/^www\./, '') + u.pathname] || null; } catch { return null; }
@@ -140,7 +168,8 @@ export async function renderPage(ctx, url, opts = {}) {
       // 클릭으로만 열리는 글의 주소 (POST_RULES) — 글 제목(주변 글)과 함께
       const posts = post ? [...document.querySelectorAll(post.selector)].map((a) => {
         const v = (a.getAttribute(post.attr) || '').trim();
-        if (!new RegExp(post.pattern).test(v)) return null;
+        const hit = v.match(new RegExp(post.pattern));
+        if (!hit) return null;
         const box = a.closest('li') || a.parentElement;
         // 제목 칸이 정해져 있으면 그것만 (파파이스 <dt>), 아니면 칸 전체 글자
         const t = post.title ? (a.querySelector(post.title) || (box && box.querySelector(post.title))) : null;
@@ -150,9 +179,10 @@ export async function renderPage(ctx, url, opts = {}) {
         const img = ti ? thumbOf(ti) : null;
         // url 틀이 없으면 링크 주소(href)를 그 페이지 기준으로 그대로
         let href = '';
-        try { href = post.url ? post.url.replace('{v}', encodeURIComponent(v)) : new URL(v, location.href).href; } catch (e) { return null; }
+        // url 틀의 {v} = 속성값 전체, {1} = 규칙 정규식의 첫 괄호 (도미노 goViewHtml의 글 번호)
+        try { href = post.url ? post.url.replace('{v}', encodeURIComponent(v)).replace('{1}', encodeURIComponent(hit[1] || '')) : new URL(v, location.href).href; } catch (e) { return null; }
         return { href, text, ...(img ? { img } : {}) };
-      }).filter(Boolean).slice(0, 120) : [];
+      }).filter(Boolean).filter((p, i, all) => all.findIndex((q) => q.href === p.href) === i).slice(0, 120) : []; // 할리스처럼 한 칸에 같은 글 링크가 둘이면 하나만
       // 공지 이미지 후보 (주소·대체텍스트·크기·주변 글만 — 이미지 파일은 받지도 저장하지도 않음)
       // nearLen: 주변 글 전체 길이 — 카드 하나 분량인지(목록 전체가 아닌지) 판단용
       const nearText = (img) => {

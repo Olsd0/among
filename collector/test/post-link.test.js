@@ -177,3 +177,46 @@ test('메뉴 자리에 주문 방법만 있으면 전 메뉴 + 그 주문 방법
   const c = normalizeAndValidate({ brand: '버거킹', menu: '와퍼 세트', discount_type: 'price', coupon_price: 6000, evidence: '와퍼 세트 6,000원' }, { brand: '버거킹', now });
   assert.equal(c.menu, '와퍼 세트');
 });
+
+// 11/22 정확도 점검: 자정 수집에서 목록 한 장만 읽던 출처들 — 실제 목록 모양(11/22 공식 사이트 확인)으로 글 주소와 제목을 뽑는다
+test('메가·도미노·굽네·할리스·BBQ 목록에서 행사 글 주소를 뽑는다 (목록만 읽던 출처, 11/22)', async () => {
+  const { fileURLToPath } = await import('node:url');
+  const { serveDir } = await import('./helpers.js');
+  const { openBrowser, renderPage, postRuleFor: rule } = await import('../src/fetch.js');
+  const R = {
+    mega: rule('https://www.mega-mgccoffee.com/bbs/?bbs_category=3'),
+    dominos: rule('https://web.dominos.co.kr/event/list?gubun=E0200'),
+    goobne: rule('https://www.goobne.co.kr/brd/event/list_p'),
+    hollys: rule('https://www.hollys.co.kr/news/event/list.do'),
+    bbq: rule('https://bbq.co.kr/events'),
+  };
+  for (const [k, r] of Object.entries(R)) assert.ok(r && r.selector, k);
+  const site = await serveDir(fileURLToPath(new URL('./fixtures/site', import.meta.url)));
+  const ctx = await openBrowser();
+  const read = async (name) => (await renderPage(ctx, `${site.base}/accuracy/${name}.html`, { selector: 'main', maxShots: 0, post: R[name] })).posts;
+  try {
+    const mega = await read('mega');
+    assert.deepEqual(mega.map((p) => p.text), ['[이벤트] 11월 메가MGC커피 X 신한 SOL페이 적립 EVENT', '[출시] 샌드위치 신메뉴 출시']);
+    assert.match(new URL(mega[0].href).pathname + new URL(mega[0].href).search, /^\/accuracy\/detail\/\?YmJz/);
+    assert.equal(mega[0].img.src, 'https://img.mega.test/714.jpg');
+
+    const dom = await read('dominos');
+    assert.deepEqual(dom.map((p) => p.href), [2100, 2184, 2493].map((n) => `https://web.dominos.co.kr/event/viewHtml?seq=${n}&gubun=E0200`));
+    assert.match(dom[1].text, /도미노스데이: 모든 피자 포장 40% 할인/);
+    assert.equal(postLinkFor({ title: '도미노스데이 모든 피자 포장 40% 할인', evidence: '' }, dom), dom[1].href);
+
+    const goob = await read('goobne');
+    assert.deepEqual(goob.map((p) => [p.href, p.text]), [
+      ['https://www.goobne.co.kr/brd/event/view_p?seq=90127', '콕 찍어도 굽네는 정답! 수능 대박 기원 굽네 할인!'],
+      ['https://www.goobne.co.kr/brd/event/view_p?seq=90126', '입맛도는 가을엔 굽네 먹자! 매주 금토일 4천원 할인!'],
+    ]);
+
+    const hol = await read('hollys');
+    assert.deepEqual(hol.map((p) => p.href), ['https://www.hollys.co.kr/news/event/view.do?idx=572&pageNo=1', 'https://www.hollys.co.kr/news/event/view.do?idx=569&pageNo=1'], '한 칸의 링크 둘은 글 하나');
+    assert.match(hol[0].text, /11월의 선물/);
+
+    const bbq = await read('bbq');
+    assert.deepEqual(bbq.map((p) => new URL(p.href).pathname), ['/events/200'], '진행/지난 이벤트 탭 링크는 글이 아니다');
+    assert.equal(postLinkFor({ title: 'BBQ 리니지2M 콜라보', evidence: '' }, bbq.map((p) => ({ ...p, href: p.href.replace('http:', 'https:') }))), '', '제목 없는 글로는 공지를 보내지 않는다');
+  } finally { await ctx.close(); await site.close(); }
+});
