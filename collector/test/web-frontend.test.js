@@ -514,7 +514,7 @@ test('공지 이미지가 없고 상품 사진도 못 불러오면 공식 브랜
   assert.match(await card.locator('.notice-brand-logo').getAttribute('src'), /^https:\/\/www\.kfckorea\.com\/assets\/favicon\.ico/);
   assert.equal(await card.locator('img.ph').count(), 0);
   assert.equal(await card.locator('.notice-excerpt img').count(), 0);
-  const link = card.getByRole('link', { name: 'KFC 공식 공지 원문 보기 (새 탭)' });
+  const link = card.getByRole('link', { name: 'KFC 공식 행사 글 보기 (새 탭)' });
   assert.equal(await link.getAttribute('href'), n.source_url);
   await link.focus();
   const [popup] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('Enter')]);
@@ -682,9 +682,9 @@ test('공식 원문이 공통 T멤버십 목록이면 버튼을 실제 목적지
   const chip = card.locator('.hot-source');
   assert.equal(await chip.getAttribute('href'), list.source_url, '목적지 주소는 그대로');
   assert.match(await chip.innerText(), /T멤버십 혜택 목록/);
-  assert.doesNotMatch(await chip.innerText(), /공식 원문/);
+  assert.doesNotMatch(await chip.innerText(), /공식 행사 글/);
   assert.match(await chip.getAttribute('aria-label'), /폴바셋 소식이 실린 T멤버십 혜택 목록 보기/);
-  assert.match(await page.locator('[data-hot="news:kfc-detail"] .hot-source').innerText(), /공식 원문/);
+  assert.match(await page.locator('[data-hot="news:kfc-detail"] .hot-source').innerText(), /공식 행사 글/);
   await card.getByRole('button').click();
   const link = page.locator('.notice-source-link');
   await link.waitFor();

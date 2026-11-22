@@ -2,34 +2,7 @@
    원칙: 회색 바탕 위에 흰 구역을 쌓아 묶음을 보여 준다(테두리는 줄인다).
    가장 눈에 띄는 것은 티켓의 혜택 숫자 하나. 버튼·칩·배지는 조용하게. 색은 뜻이 있을 때만:
    노랑 = 선택·주요 동작, 빨강 = 할인·임박, 초록 = 적립. */
-:root {
-  --canvas: #f2f2f6; --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f5f8; --line: #ebebf0; --line-strong: #dcdce4;
-  --text: #17161c; --text-2: #46454f; --muted: #6b6a78;
-  --sale: #e0213a; --sale-soft: #fff1f3; --warn: #9a5200; --warn-soft: #fff4e2; --info: #2152c4; --info-soft: #eaf1ff;
-  --good: #0f7a55; --good-soft: #e5f6ee;
-  --t-bun: #fff4e4; --t-cafe: #f6eee7; --t-chk: #fff6e2; --t-piz: #ffefea; --t-des: #ffeff6; --t-red: #fff0f2; --t-blue: #ecf2ff; --t-grn: #e7f7f0; --t-gold: #fff7de;
-  --ticket-shadow: drop-shadow(0 1px 1px rgba(20, 18, 40, .04)) drop-shadow(0 3px 10px rgba(20, 18, 40, .05));
-  --r-sec: 0px; --hh: 104px;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --canvas: #0c0b10; --bg: #16151b; --surface: #1c1b22; --surface-2: #25242c; --line: #2c2b34; --line-strong: #3b3a45;
-    --text: #f3f2f7; --text-2: #cac9d4; --muted: #9b9aa9;
-    --sale: #ff6b7c; --sale-soft: #33181e; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
-    --good: #4fcf91; --good-soft: #142a20;
-    --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617;
-    --ticket-shadow: none; color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --canvas: #0c0b10; --bg: #16151b; --surface: #1c1b22; --surface-2: #25242c; --line: #2c2b34; --line-strong: #3b3a45;
-  --text: #f3f2f7; --text-2: #cac9d4; --muted: #9b9aa9;
-  --sale: #ff6b7c; --sale-soft: #33181e; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
-  --good: #4fcf91; --good-soft: #142a20;
-  --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617;
-  --ticket-shadow: none; color-scheme: dark;
-}
+/* 색·크기 규칙은 brand.css (모든 화면 공통, 11/22) */
 
 /* 기본 */
 * { box-sizing: border-box; }
@@ -97,13 +70,13 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .me { margin: 14px 0 0; padding: 12px 10px 12px 14px; border-radius: 14px; background: var(--surface-2); color: var(--text-2); display: flex; gap: 8px; align-items: center; font-size: 13.5px; line-height: 1.45; }
 .me b { color: var(--text); font-weight: 700; }
 .me .grow { flex: 1; min-width: 0; }
-.me .act { flex: none; height: 34px; padding: 0 14px; border-radius: 10px; background: var(--primary); color: var(--primary-ink); font-weight: 700; font-size: 13.5px; }
+.me .act { flex: none; height: var(--h-btn-sm); padding: 0 14px; border-radius: var(--r-sm); background: var(--primary); color: var(--primary-ink); font-weight: 700; font-size: 13.5px; }
 .me .act:hover { background: var(--primary-press); }
 .me .x { flex: none; width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); border-radius: 8px; font-size: 13px; }
 
 /* 구역 제목 */
 .sec-h { display: flex; align-items: baseline; gap: 8px; padding: 20px 16px 12px; }
-.sec-h h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.03em; }
+.sec-h h2 { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-head); letter-spacing: -.03em; }
 .sec-h small { color: var(--muted); font-size: 12.5px; }
 .sec-h .sp { flex: 1; }
 .sec-h .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -153,7 +126,7 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 
 /* 목록 머리: 제목 · 정렬·빠른 필터(화면 위에 붙음) · 개수와 확인 시각 */
 .list-h { display: flex; align-items: center; gap: 8px; padding: 22px 16px 2px; }
-.list-h h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.03em; }
+.list-h h2 { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-head); letter-spacing: -.03em; }
 .list-h .clear { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 999px; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong) inset; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .list-h .clear::after { content: "✕"; font-size: 10px; color: var(--muted); }
 /* 예산: 목록 위 한 줄(고정하지 않음). 좁은 화면에서는 이 줄 안에서만 가로로 넘긴다. 선택은 색 + 테두리 + ✓ */
@@ -170,13 +143,13 @@ header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); paddi
 .budget-opts::-webkit-scrollbar { display: none; }
 /* 왼쪽으로 넘긴 상태면 왼쪽도 흐리게 해 앞에 버튼이 더 있음을 보여 준다 */
 .budget-opts.scrolled { -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 16px), transparent); }
-.budget .budget-btn { height: 38px; padding: 0 14px; font-size: 14px; }
+.budget .budget-btn { height: var(--h-chip); padding: 0 14px; font-size: 14px; }
 .budget-btn[aria-pressed="true"]::before, #filterSheet .chip-btn[aria-pressed="true"]::before { content: "✓"; font-weight: 800; }
 .budget-note { margin: 6px 16px 0; font-size: 12.5px; color: var(--muted); }
 .tools { position: sticky; top: var(--hh); z-index: 15; display: flex; align-items: center; gap: 6px; padding: 10px 16px; background: var(--canvas); }
 .chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); padding-right: 16px; }
 .chips::-webkit-scrollbar { display: none; }
-.chip-btn { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13.5px; font-weight: 550; color: var(--text-2); white-space: nowrap; background: var(--bg); }
+.chip-btn { flex: none; display: inline-flex; align-items: center; gap: 4px; height: var(--h-chip); padding: 0 13px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); font-size: var(--fs-small); font-weight: 550; color: var(--text-2); white-space: nowrap; background: var(--bg); }
 .chip-btn:hover { border-color: var(--muted); }
 .chip-btn[aria-pressed="true"] { border-color: var(--primary); color: var(--primary-label); background: var(--primary-soft); font-weight: 700; }
 .chip-btn .n { font-size: 12px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -246,7 +219,7 @@ main { flex: 1; padding: 2px 16px 24px; display: flex; flex-direction: column; g
 .price .what + b { font-size: 18px; }
 .detail .dd-sub { color: var(--muted); font-size: .92em; }
 .detail .dd-pay { display: block; margin-top: 2px; color: var(--text-2); font-weight: 650; }
-.who .more { flex: none; margin: -8px -6px -8px auto; display: inline-flex; align-items: center; gap: 1px; height: 36px; padding: 0 6px; border-radius: 8px; font-size: 12.5px; font-weight: 650; color: var(--muted); white-space: nowrap; }
+.who .more { flex: none; margin: -8px -6px -8px auto; display: inline-flex; align-items: center; gap: 1px; height: var(--h-btn-sm); padding: 0 6px; border-radius: var(--r-sm); font-size: var(--fs-caption); font-weight: 650; color: var(--muted); white-space: nowrap; }
 .who .more:hover { color: var(--text); background: var(--surface-2); }
 .who .more svg { width: 14px; height: 14px; transition: transform .15s; }
 .who .more[aria-expanded="true"] svg { transform: rotate(180deg); }
@@ -261,7 +234,7 @@ main { flex: 1; padding: 2px 16px 24px; display: flex; flex-direction: column; g
 .chip.none { color: var(--muted); font-weight: 550; }
 .chip .dday { margin-left: 5px; padding: 0 5px; border-radius: 5px; background: var(--surface-2); font-size: 11.5px; line-height: 18px; }
 .chip.due .dday { background: var(--sale-soft); }
-.cta { margin-left: auto; flex: none; max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; gap: 1px; height: 34px; padding: 0 7px 0 10px; border-radius: 10px; background: var(--primary-soft); color: var(--primary-label); font-size: 13px; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.cta { margin-left: auto; flex: none; max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; gap: 1px; height: var(--h-btn-sm); padding: 0 8px 0 11px; border-radius: var(--r-sm); background: var(--primary-soft); color: var(--primary-label); font-size: 13px; font-weight: 750; text-decoration: none; white-space: nowrap; }
 .cta:hover { background: color-mix(in srgb, var(--primary-soft) 70%, var(--primary) 12%); }
 .cta:active { transform: translateY(1px); }
 .card > .detail { margin-top: 6px; padding: 16px; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 1px var(--line) inset; }
@@ -297,7 +270,7 @@ main { flex: 1; padding: 2px 16px 24px; display: flex; flex-direction: column; g
 .empty button { margin-top: 14px; }
 .empty b + button { margin-top: 6px; }
 .suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 14px; }
-.suggest .chip-btn { margin: 0; height: 34px; }
+.suggest .chip-btn { margin: 0; }
 .skel { display: grid; grid-template-columns: 92px minmax(0, 1fr); height: 128px; border-radius: 16px; overflow: hidden; background: var(--surface); }
 .skel .sk-stub { background: var(--surface-2); }
 .skel .sk-lines { display: flex; flex-direction: column; gap: 10px; padding: 16px 14px; }
@@ -311,7 +284,7 @@ body.searching .list-h { padding-top: 16px; }
 
 /* 브랜드 탐색 */
 .brand-panel { padding: 20px 16px 8px; background: var(--bg); scroll-margin-top: var(--hh); }
-.brand-intro h2 { margin: 0; font-size: 20px; letter-spacing: -.035em; }
+.brand-intro h2 { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-head); letter-spacing: -.035em; }
 .brand-intro p, .brand-heading p { margin: 4px 0 14px; color: var(--muted); font-size: 13px; }
 .brand-search { width: 100%; height: 44px; border: 1.5px solid transparent; border-radius: 12px; background: var(--surface-2); color: var(--text); padding: 0 13px; font: inherit; font-size: 15px; margin-bottom: 12px; outline: none; }
 .brand-search:focus { border-color: var(--primary); background: var(--bg); }
@@ -331,12 +304,12 @@ body.searching .list-h { padding-top: 16px; }
 .follow.active { background: var(--surface-2); color: var(--text-2); }
 .brand-heading { display: flex; gap: 12px; align-items: center; padding: 8px 0 12px; }
 .brand-heading > div { flex: 1; min-width: 0; }
-.brand-heading h2 { font-size: 22px; margin: 0; letter-spacing: -.035em; }
+.brand-heading h2 { font-size: var(--fs-title); font-weight: var(--fw-head); margin: 0; letter-spacing: -.035em; }
 .brand-heading p { margin-bottom: 0; }
 .brand-heading .brand-avatar { width: 48px; height: 48px; border-radius: 14px; }
 .brand-heading .brand-avatar img.logo { width: 48px; height: 48px; padding: 7px; }
 /* 브랜드 화면 (11/21 버거킹 앱 참고): 공식 행사 페이지 바로 가기 + 진행 중인 행사 배너 목록 */
-.brand-events { display: flex; align-items: center; justify-content: center; gap: 2px; min-height: 44px; margin: 0 0 8px; border-radius: 12px; background: var(--surface-2); color: var(--text); font-size: 14px; font-weight: 700; text-decoration: none; }
+.brand-events { display: flex; align-items: center; justify-content: center; gap: 2px; min-height: 44px; margin: 0 0 8px; border-radius: var(--r-md); background: var(--surface-2); color: var(--text); font-size: 14px; font-weight: 700; text-decoration: none; }
 .brand-events:hover { background: color-mix(in srgb, var(--surface-2) 80%, var(--text) 6%); }
 .brand-events svg { width: 14px; height: 14px; color: var(--muted); }
 @media (min-width: 720px) { .brand-events { display: inline-flex; padding: 0 20px; } }
@@ -358,7 +331,7 @@ body.searching .list-h { padding-top: 16px; }
 .news-meta { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
 .news-period-refs { font-size: 12px; color: var(--muted); margin: 0 0 6px; line-height: 1.5; }
 .news-period-refs a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.news-title { margin: 0 0 10px; font-size: 21px; font-weight: 800; letter-spacing: -.03em; line-height: 1.35; }
+.news-title { margin: 0 0 10px; font-size: var(--fs-title); font-weight: var(--fw-head); letter-spacing: -.03em; line-height: 1.35; }
 .news-sum { margin: 0 0 16px; font-size: 15px; color: var(--text); line-height: 1.65; }
 .news-rel { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 16px; }
 .rel { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--surface-2); text-align: left; width: 100%; }
@@ -374,7 +347,7 @@ dialog::backdrop { background: rgba(12, 11, 16, .5); }
 @keyframes sheet-in { from { transform: translateY(24px); opacity: .6; } }
 .sheet { position: relative; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); }
 form.sheet::before { content: ""; display: block; width: 36px; height: 4px; margin: 0 auto 16px; border-radius: 2px; background: var(--line-strong); }
-.sheet h2 { margin: 0 44px 6px 0; font-size: 19px; font-weight: 800; letter-spacing: -.03em; }
+.sheet h2 { margin: 0 44px 6px 0; font-size: var(--fs-section); font-weight: var(--fw-head); letter-spacing: -.03em; }
 .sheet .lead { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
 .sheet-x { position: absolute; top: 22px; right: 14px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); background: var(--surface-2); font-size: 14px; }
 .group { margin-bottom: 18px; }
@@ -387,8 +360,10 @@ form.sheet::before { content: ""; display: block; width: 36px; height: 4px; marg
 .switch input:checked { background: var(--primary); }
 .switch input:checked::before { background: var(--primary-ink); transform: translateX(20px); }
 .sheet .btns { display: flex; gap: 8px; margin-top: 10px; }
-.btn { flex: 1; height: 50px; border-radius: 14px; font-size: 15px; font-weight: 700; }
+.btn { flex: 1; height: var(--h-btn); border-radius: var(--r-md); font-size: var(--fs-body); font-weight: 700; }
 .btn.primary { background: var(--primary); color: var(--primary-ink); }
+.detail .detail-cta { display: flex; gap: 4px; width: 100%; margin: 16px 0 0; }
+.detail .detail-cta svg { width: 14px; height: 14px; }
 .btn.primary:hover { background: var(--primary-press); }
 .btn.ghost { background: var(--surface-2); color: var(--text-2); }
 a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }

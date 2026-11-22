@@ -8,7 +8,7 @@
 
 /* 혜택을 고르는 기준 · 자주 묻는 질문 */
 .service-guide { margin: 16px 0 0; padding: 24px 16px 12px; background: var(--bg); }
-.service-guide h2 { margin: 0 0 6px; font-size: 18px; font-weight: 800; letter-spacing: -.03em; }
+.service-guide h2 { margin: 0 0 6px; font-size: var(--fs-section); font-weight: var(--fw-head); letter-spacing: -.03em; }
 .service-guide > p { margin: 0 0 16px; font-size: 14px; color: var(--text-2); line-height: 1.6; }
 .service-guide ul.criteria { display: grid; gap: 12px; margin: 0 0 18px; padding: 0; list-style: none; }
 .service-guide ul.criteria li { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; font-size: 14px; line-height: 1.5; }
@@ -43,7 +43,7 @@ body { background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft
 .bar .logo { min-height: 44px; }
 .me-pill { min-height: 40px; border: 1px solid var(--line); }
 .view-nav { align-items: center; padding-block: 4px 8px; }
-.view-nav button { min-height: 40px; padding: 0 14px; border-radius: 11px; }
+.view-nav button { min-height: 40px; padding: 0 14px; border-radius: var(--r-sm); }
 .view-nav button[aria-pressed="true"] { color: var(--primary-ink); background: var(--primary); }
 .view-nav button[aria-pressed="true"]::after { content: none; }
 .view-nav button[aria-pressed="true"] #followingCount:not(:empty) { background: var(--primary-ink); color: var(--primary); }
@@ -112,7 +112,7 @@ header.top :focus-visible { outline-color: var(--hd-ink); }
 .hero .intro-detail { color: var(--hero-detail); font-size: 15px; }
 
 .hero-links { display: flex; align-items: center; gap: 16px; margin-top: 17px; }
-.hero-links .budget-jump { display: inline-flex; gap: 10px; align-items: center; min-height: 42px; padding: 0 16px; border-radius: 12px; background: var(--hero-btn); color: var(--hero-btn-ink); font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 2px 5px rgb(35 22 57 / .12); }
+.hero-links .budget-jump { display: inline-flex; gap: 10px; align-items: center; min-height: 44px; padding: 0 16px; border-radius: var(--r-md); background: var(--hero-btn); color: var(--hero-btn-ink); font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 2px 5px rgb(35 22 57 / .12); }
 #budget { scroll-margin-block-start: calc(var(--hh) + 12px); }
 .hot, .grid, .brand-panel, .service-guide { box-shadow: var(--panel-shadow); }
 .hot, .grid { margin-top: 14px; }
@@ -166,7 +166,7 @@ header.top :focus-visible { outline-color: var(--hd-ink); }
 
   .hero .intro-detail p { font-size: 13px; }
   .hero-links { gap: 12px; margin-top: 14px; }
-  .hero-links .budget-jump { min-height: 40px; font-size: 13px; }
+  .hero-links .budget-jump { min-height: 44px; font-size: var(--fs-small); }
   .hot, .grid, .brand-panel, .service-guide { margin-inline: var(--gutter); border-radius: 22px; }
   .hot .sec-h { gap: 6px; padding: 15px 12px 10px; }
   .hot .sec-h small { display: none; }
@@ -176,7 +176,7 @@ header.top :focus-visible { outline-color: var(--hd-ink); }
   .gi .ic svg { width: 30px; height: 30px; }
   .gi .n { left: calc(50% + 11px); }
   .hot + .grid { margin-top: 12px; }
-  .budget .budget-btn { height: 40px; }
+  .budget .budget-btn { height: var(--h-chip); }
 }
 @media (max-width: 350px) {
 

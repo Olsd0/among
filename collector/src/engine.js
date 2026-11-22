@@ -629,6 +629,12 @@ export function normalizeAndValidate(raw, ctx = {}) {
   // 메뉴 자리에 프로그램 이름만 적힌 경우('해피포인트 적립', '네이버페이 결제') → '전 메뉴'
   let menu = clean(raw.menu);
   if (menu && detectPrograms(menu).length && PROGRAM_ONLY_MENU.test(menu.replace(/\s/g, ''))) menu = '전 메뉴';
+  // 메뉴 자리에 주문 방법만('딜리버리', '배달 주문') → 전 메뉴 + 그 주문 방법. 행사 이름만('프로모션', '이벤트') → 메뉴를 모르는 것
+  // (11/22 버거킹: 목록 제목만 읽은 날 '딜리버리 4000원 할인'·'프로모션 6000원'이 따로 게시됨)
+  const channelOnly = menu.replace(/\s/g, '').match(/^(딜리버리|배달|포장|매장|드라이브스루|픽업)(?:주문|전용|할인)?$/);
+  let menuChannel = '';
+  if (channelOnly) { menuChannel = { 딜리버리: '배달', 드라이브스루: '드라이브 스루' }[channelOnly[1]] || channelOnly[1]; menu = '전 메뉴'; }
+  const eventOnlyMenu = !channelOnly && /^(?:프로모션|이벤트|행사|할인|특가|쿠폰|혜택)$/.test(menu.replace(/\s/g, ''));
 
   const c = {
     brand,
@@ -642,7 +648,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
     discount_value,
     max_discount: toInt(raw.max_discount),
     min_order: toInt(raw.min_order),
-    channels: normChannels(raw.channels),
+    channels: menuChannel && !normChannels(raw.channels).length ? [menuChannel] : normChannels(raw.channels),
     audience: normAudience(raw.audience),
     app_only: toBool(raw.app_only),
     start_date: sd0 || period?.start || null,
@@ -689,6 +695,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
 
   // ---- pending: 사람이 보기 전엔 게시하지 않을 것 ----
   const hold = [];
+  if (eventOnlyMenu) hold.push('메뉴가 행사 이름뿐 (어떤 메뉴인지 불명확)');
   // 쿠폰가·할인율·할인액 중 하나라도 있으면 비교 가능 (주문 전체 할인 포함). 아무것도 없으면 보류
   if (c.coupon_price === null && c.discount_rate === null && !((c.discount_type === 'amount' || c.discount_type === 'point_back') && c.discount_value > 0) && c.discount_type !== 'free_item') hold.push('쿠폰가 계산 불가');
   if (c.discount_rate !== null && c.discount_rate > RULES.maxRate) hold.push('할인율 90% 초과');
@@ -1766,16 +1773,16 @@ const LIST_PAGES = {
 };
 /**
  * 공지 원문 주소 → { kind, label }. kind: 'detail'(행사 상세·확인 안 된 주소) | 'list'(행사 목록) | 'home'(홈페이지).
- * label은 버튼에 쓰는 목적지 이름이다. 모르는 주소는 지금처럼 '공식 원문'.
+ * label은 버튼에 쓰는 목적지 이름이다. 모르는 주소(행사 글)는 '공식 행사 글' — 11/22 쿠폰 카드('공식 행사 보기')와 같은 말로 통일.
  */
 export function noticeLinkTarget(value) {
   let url;
-  try { url = new URL(value); } catch { return { kind: 'detail', label: '공식 원문' }; }
+  try { url = new URL(value); } catch { return { kind: 'detail', label: '공식 행사 글' }; }
   const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
   const path = decodeURIComponent(url.pathname).toLowerCase().replace(/\/+$/, '');
   const keys = [...url.searchParams.keys()].map((k) => k.toLowerCase());
   if (!path && !keys.length) return { kind: 'home', label: '공식 홈페이지' };
   const hit = LIST_PAGES[`${hostname}${path}`];
   if (hit && keys.every((k) => (hit[1] || []).includes(k))) return { kind: 'list', label: hit[0] };
-  return { kind: 'detail', label: '공식 원문' };
+  return { kind: 'detail', label: '공식 행사 글' };
 }

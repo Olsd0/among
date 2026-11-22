@@ -167,7 +167,7 @@ test('예산을 바꾸거나 예산만 해제해도 카테고리·검색어·정
   await page.fill('#q', '불고기 버거');
   await page.getByRole('button', { name: '10000원 이하', exact: true }).click();
   await page.fill('#q', '라떼');
-  await page.getByText('선택한 조건에 맞는 혜택이 없어요.').waitFor();
+  await page.getByText('이 예산에 맞는 혜택이 없어요').waitFor();
   await page.getByRole('button', { name: '예산만 해제' }).click();
   assert.equal(await pressed(page), '제한 없음');
   assert.equal(await page.inputValue('#q'), '라떼');
@@ -245,8 +245,11 @@ test('불러오기 실패는 결과 없음과 구분하고, 다시 시도는 혜
     return route.abort();
   });
   await page.goto(`${site.base}/index.html`);
-  await page.getByText('혜택을 불러오지 못했어요.').waitFor();
-  assert.equal(await page.getByText('선택한 조건에 맞는 혜택이 없어요.').count(), 0);
+  await page.getByText('혜택을 불러오지 못했어요', { exact: true }).waitFor();
+  assert.equal(await page.getByText('이 예산에 맞는 혜택이 없어요').count(), 0);
+  // 11/22: 저장본 없이 실패하면 쓸 수 없는 예산·분류 칸은 숨기고 오류 안내만
+  assert.equal(await page.locator('#budget').isHidden(), true);
+  assert.equal(await page.locator('#grid').isHidden(), true);
   fail = false;
   const before = coupons;
   const postsBefore = posts;

@@ -4,17 +4,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { noticeLinkTarget } from '../src/engine.js';
 
-test('T멤버십 공통 목록은 T멤버십 혜택 목록, 행사 상세는 공식 원문', () => {
+test('T멤버십 공통 목록은 T멤버십 혜택 목록, 행사 상세는 공식 행사 글', () => {
   assert.deepEqual(noticeLinkTarget('https://m.tworld.co.kr/v6/benefit'), { kind: 'list', label: 'T멤버십 혜택 목록' });
   assert.deepEqual(noticeLinkTarget('https://m.tworld.co.kr/membership/benefit/brand/'), { kind: 'list', label: 'T멤버십 혜택 목록' });
-  assert.deepEqual(noticeLinkTarget('https://www.kfckorea.com/promotion/promotionList/detail/1129'), { kind: 'detail', label: '공식 원문' });
-  assert.deepEqual(noticeLinkTarget('https://www.pji.co.kr/event/ongoing/9640'), { kind: 'detail', label: '공식 원문' });
+  assert.deepEqual(noticeLinkTarget('https://www.kfckorea.com/promotion/promotionList/detail/1129'), { kind: 'detail', label: '공식 행사 글' });
+  assert.deepEqual(noticeLinkTarget('https://www.pji.co.kr/event/ongoing/9640'), { kind: 'detail', label: '공식 행사 글' });
   assert.equal(noticeLinkTarget('https://www.pizzahut.co.kr/cs/event').label, '공식 이벤트 목록');
   assert.equal(noticeLinkTarget('https://www.mrpizza.co.kr/bbs/board.php?bo_table=event').kind, 'list');
   assert.equal(noticeLinkTarget('https://www.mrpizza.co.kr/bbs/board.php?bo_table=event&wr_id=21').kind, 'detail', '게시글 번호가 있으면 상세');
   assert.equal(noticeLinkTarget('https://www.twosome.co.kr/').kind, 'home');
   assert.equal(noticeLinkTarget('').kind, 'detail');
-  assert.equal(noticeLinkTarget('not a url').label, '공식 원문');
+  assert.equal(noticeLinkTarget('not a url').label, '공식 행사 글');
   assert.equal(noticeLinkTarget('https://pay.naver.com/benefit/payment/list?firstCategory=DOMESTIC_INSTORE&secondCategory=FNB').kind, 'list');
   assert.equal(noticeLinkTarget('https://pay.naver.com/benefit/payment/detail/24278798653708').kind, 'detail');
 });

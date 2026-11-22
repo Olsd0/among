@@ -135,3 +135,45 @@ test('파파이스 두배로데이 핫딜: 확인 목록이 공식 행사 글(/e
   assert.equal(noticePhoto({ ...n, source_url: 'https://popeyes.co.kr/event/72' }, '2026-11-21').source, 'https://popeyes.co.kr/event/72', '다음 수집부터 상세 글에서 읽어도 같은 공지');
   assert.equal(noticePhoto(n, '2026-12-01'), null, '행사가 끝나면 쓰지 않는다');
 });
+
+test('버튼 목록에서 이번에 못 연 글은 지난 실행에서 기억한 주소로 채운다 — 제목이 지금 목록에 있을 때만 (11/22)', async () => {
+  const { mergeKnownPosts } = await import('../src/fetch.js');
+  const opened = Object.assign([{ href: 'https://bk.test/event/detail/1815', text: '트머와 세트 4종 1,500원 할인' }], { missed: 1 });
+  const known = [
+    { href: 'https://bk.test/event/detail/1793', text: '26년 11월 딜리버리 21,000원 이상 주문 시 4,000원 할인', seen_at: '2026-11-21T13:00:00Z' },
+    { href: 'https://bk.test/event/detail/1815', text: '트머와 세트 4종 1,500원 할인', seen_at: '2026-11-21T13:00:00Z' },
+    { href: 'https://bk.test/event/detail/1700', text: '지난달 끝난 행사', seen_at: '2026-11-20T13:00:00Z' },
+  ];
+  const list = '일반 26년 11월 딜리버리 21,000원 이상 주문 시 4,000원 할인 detail 일반 트머와 세트 4종 1,500원 할인 detail';
+  const out = mergeKnownPosts(opened, known, list);
+  assert.deepEqual(out.map((p) => [p.href.split('/').pop(), !!p.remembered]), [['1815', false], ['1793', true]]);
+  assert.equal(out.missed, 1);
+});
+
+test('글 주소 기억은 7일만, 기억으로 채운 글은 다시 기억하지 않는다', async () => {
+  const { PageCache } = await import('../src/page-cache.js');
+  const { mkdtempSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const file = join(mkdtempSync(join(tmpdir(), 'pc-')), 'pages.json');
+  const c = new PageCache(file);
+  const L = 'https://www.burgerking.co.kr/event/ongoing';
+  c.rememberPosts(L, [{ href: 'a', text: '가' }, { href: 'b', text: '나', remembered: true }], new Date('2026-11-21T13:00:00Z'));
+  c.save(new Date('2026-11-21T13:00:00Z'));
+  const d = new PageCache(file);
+  assert.deepEqual(d.knownPosts(L, new Date('2026-11-22T00:00:00Z')).map((p) => p.href), ['a']);
+  assert.deepEqual(d.knownPosts(L, new Date('2026-11-29T00:00:00Z')), [], '7일 지나면 잊는다');
+});
+
+test('메뉴 자리에 주문 방법만 있으면 전 메뉴 + 그 주문 방법, 행사 이름만 있으면 게시하지 않고 보류한다 (11/22 버거킹)', async () => {
+  const { normalizeAndValidate } = await import('../src/engine.js');
+  const now = new Date('2026-11-22T05:00:00Z');
+  const a = normalizeAndValidate({ brand: '버거킹', menu: '딜리버리', discount_type: 'amount', discount_value: 4000, min_order: 21000, evidence: '26년 11월 딜리버리 21,000원 이상 주문 시 4,000원 할인' }, { brand: '버거킹', now });
+  assert.equal(a.menu, '전 메뉴');
+  assert.deepEqual(a.channels, ['배달']);
+  const b = normalizeAndValidate({ brand: '버거킹', menu: '프로모션', discount_type: 'price', coupon_price: 6000, evidence: '26년 11월 2FOR6000 + 2FOR7000원 프로모션' }, { brand: '버거킹', now });
+  assert.equal(b.status, 'pending', '게시하지 않고 사람이 확인');
+  assert.ok(b.issues.includes('메뉴가 행사 이름뿐 (어떤 메뉴인지 불명확)'));
+  const c = normalizeAndValidate({ brand: '버거킹', menu: '와퍼 세트', discount_type: 'price', coupon_price: 6000, evidence: '와퍼 세트 6,000원' }, { brand: '버거킹', now });
+  assert.equal(c.menu, '와퍼 세트');
+});

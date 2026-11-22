@@ -216,7 +216,7 @@ async function takeShots(page, root, selector, maxShots) {
  * 출처 1개 수집: 목록 페이지 + (follow 설정 시) 상세 페이지 최대 max_follow개.
  * @returns {Promise<Array<page>>}
  */
-export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}) {
+export async function collectSource(ctx, source, { outDir, delayMs = 1500, knownPosts = [] } = {}) {
   const opts = {
     selector: source.selector || undefined,
     exclude: splitList(source.exclude),
@@ -230,6 +230,8 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
   const first = await renderPage(ctx, source.url, { ...opts, post: rule && !rule.click ? rule : null });
   if (rule && rule.click) {
     try { first.posts = await clickPosts(ctx, first.finalUrl || source.url, rule, opts); } catch (e) { first.posts = []; first.postError = e.message; }
+    first.postsMissed = first.posts.missed || 0;
+    first.posts = mergeKnownPosts(first.posts, knownPosts, first.text);
   }
   const pages = [first];
   let limit = source.max_follow === '' || source.max_follow === undefined ? 6 : +source.max_follow;
@@ -264,6 +266,19 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500 } = {}
  * 카드의 버튼을 눌러야만 열리는 목록(버거킹): 버튼을 하나씩 눌러 바뀐 주소를 적고 목록으로 돌아온다.
  * 돌려주는 모양은 POST_RULES의 posts와 같다: [{ href, text, img }]. 같은 사이트·규칙에 맞는 주소만.
  */
+/**
+ * 지난 실행에서 버튼으로 연 글 주소(knownPosts)를 이번 목록에 더한다 — 이번에 못 연 글만, 그 글 제목이 지금 목록 글자에 아직 있을 때만.
+ * (11/22 버거킹: 자정 수집에서 상세 글을 일부만 열어 '전 메뉴 4000원·11/16~11/22·앱 전용'이 목록 제목만으로 바뀜)
+ */
+export function mergeKnownPosts(posts = [], known = [], listText = '') {
+  const have = new Set(posts.map((p) => p.href));
+  const text = String(listText || '').replace(/\s+/g, ' ');
+  const add = known.filter((p) => p && p.href && p.text && !have.has(p.href) && text.includes(String(p.text).replace(/\s+/g, ' ').trim()));
+  const out = [...posts, ...add.map(({ href, text: t, img }) => ({ href, text: t, ...(img ? { img } : {}), remembered: true }))];
+  out.missed = posts.missed || 0;
+  return out;
+}
+
 export async function clickPosts(ctx, listUrl, rule, { waitMs = 0 } = {}) {
   const page = await ctx.context.newPage();
   const re = new RegExp(rule.urlPattern);
@@ -278,7 +293,9 @@ export async function clickPosts(ctx, listUrl, rule, { waitMs = 0 } = {}) {
     };
     await open();
     const n = Math.min(await page.locator(rule.click).count(), rule.max || 12);
-    for (let i = 0; i < n; i++) {
+    // 11/22: 자정 전체 수집에서 버거킹 상세 글을 일부만 열어 목록 제목만 읽힌 날이 있었다 → 못 연 글은 더 오래 기다려 한 번 더
+    const missed = [];
+    const tryOne = async (i, slow) => {
       const btn = page.locator(rule.click).nth(i);
       // 글 제목: 제목 칸이 있으면 그것만 (분류 꼬리표·'detail'·'n일 남았어요' 같은 글자는 빼야 제목 낱말 대조가 맞는다)
       const meta = await btn.evaluate((b, { item, title }) => {
@@ -288,23 +305,32 @@ export async function clickPosts(ctx, listUrl, rule, { waitMs = 0 } = {}) {
         const src = im ? new URL(im.currentSrc || im.getAttribute('src') || im.getAttribute('data-src') || '', location.href).href : '';
         return { text: ((t || box || b).innerText || '').replace(/\s+/g, ' ').trim().slice(0, 200), img: src ? { src, alt: (im.alt || '').slice(0, 80), w: im.naturalWidth || 0, h: im.naturalHeight || 0 } : null };
       }, { item: rule.item || 'li', title: rule.title || '' }).catch(() => null);
-      if (!meta) continue;
+      if (!meta) return false;
       await btn.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
-      await btn.click({ timeout: 8000 }).catch(() => {});
-      const moved = await page.waitForURL((u) => re.test(u.pathname) && u.host === host, { timeout: 8000 }).then(() => true).catch(() => false);
+      await btn.click({ timeout: slow ? 15000 : 8000 }).catch(() => {});
+      const moved = await page.waitForURL((u) => re.test(u.pathname) && u.host === host, { timeout: slow ? 20000 : 8000 }).then(() => true).catch(() => false);
       if (moved) posts.push({ href: page.url().split('#')[0], text: meta.text, ...(meta.img && /^https:/.test(meta.img.src) ? { img: meta.img } : {}) });
       // 목록으로 (뒤로 가기가 안 되면 다시 열기)
       if (page.url() !== listUrl) {
         await page.goBack({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
         const back = await page.locator(rule.click).nth(i).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
-        if (!back) await open();
+        if (!back) await open().catch(() => {});
       }
-      await sleep(400);
+      await sleep(slow ? 900 : 400);
+      return moved;
+    };
+    for (let i = 0; i < n; i++) if (!(await tryOne(i, false))) missed.push(i);
+    if (missed.length) {
+      await open().catch(() => {});
+      for (const i of missed.splice(0)) if (!(await tryOne(i, true))) missed.push(i);
     }
+    posts.missed = missed.length;
   } finally {
     await page.close().catch(() => {});
   }
-  return [...new Map(posts.map((p) => [p.href, p])).values()];
+  const out = [...new Map(posts.map((p) => [p.href, p])).values()];
+  out.missed = posts.missed || 0;
+  return out;
 }
 
 /**

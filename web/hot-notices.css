@@ -62,7 +62,7 @@
 /* 핫딜 전체 보기 (11/21 대표 요청: '공지 전체 보기' 말고 '핫딜 전체 보기', 펼치면 타일로).
    넘기는 줄의 모든 핫딜을 같은 순서로 작은 타일에: 정사각 사진 · 브랜드 · 제목 두 줄 · 기간(또는 혜택).
    펼친 동안 넘기는 줄·점·숫자는 숨긴다(app.js renderHot). */
-.all-notices-toggle{display:block;margin:12px auto 0;padding:10px 18px;border:1px solid var(--line-strong,#dcdce4);border-radius:12px;background:var(--surface,#fff);color:var(--text,inherit);font:inherit;font-weight:650;cursor:pointer}
+.all-notices-toggle{display:block;min-height:44px;margin:12px auto 0;padding:0 18px;border:1px solid var(--line-strong,#dcdce4);border-radius:var(--r-md,14px);background:var(--surface,#fff);color:var(--text,inherit);font:inherit;font-weight:650;cursor:pointer}
 /* 펼친 동안 '핫딜 접기'는 제목 줄 오른쪽에 (app.js가 옮긴다) */
 .hot .sec-h .all-notices-toggle{flex:none;margin:0;padding:7px 12px;font-size:13px;border-radius:10px}
 .all-hot-notices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 16px 6px}

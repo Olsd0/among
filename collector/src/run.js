@@ -176,7 +176,15 @@ export async function runCollector(o = {}) {
       report.sources.push(sr);
       try {
         if (stopReason) throw new Error(`건너뜀: ${stopReason}`);
-        const pages = await collectSource(ctx, source, { outDir: env.SAVE_SHOTS === '1' ? join(outDir, 'shots') : undefined });
+        const knownPosts = pageCache ? pageCache.knownPosts(source.url, now) : [];
+        const pages = await collectSource(ctx, source, { outDir: env.SAVE_SHOTS === '1' ? join(outDir, 'shots') : undefined, knownPosts });
+        // 버튼으로만 열리는 목록(버거킹 등): 연 글 수·못 연 글·기억으로 채운 글을 남기고, 이번에 연 글을 기억한다
+        const head = pages[0] || {};
+        if (head.postError || head.postsMissed || (head.posts || []).some((p) => p.remembered)) {
+          const rem = (head.posts || []).filter((p) => p.remembered).length;
+          console.log(`  · ${source.id}: 목록 글 ${(head.posts || []).length - rem}개 열림${head.postsMissed ? ` · 못 연 글 ${head.postsMissed}개` : ''}${rem ? ` · 지난 실행에서 기억한 글 ${rem}개로 채움` : ''}${head.postError ? ` · 오류 ${head.postError}` : ''}`);
+        }
+        if (pageCache && (head.posts || []).length) pageCache.rememberPosts(source.url, head.posts, now);
         artworkPages.push(...pages.filter(p => !p.error).map(p => ({ url: p.finalUrl || p.url, title: p.title, links: p.links || [], source_id: source.id, brand: source.brand }))); 
         const srcNews = [];  // [소식, 읽은 페이지, 그 페이지의 소식이 하나뿐인가]
         for (const page of pages) {

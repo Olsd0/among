@@ -130,3 +130,32 @@ test('브랜드 화면(버거킹 앱 흐름): 공식 행사 페이지 → 진행
   await page.locator('#dt-bk dl').waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
+test('같은 공식 행사 글에서 읽은 쿠폰은 그 글의 포스터를 쓴다 — 여러 행사가 섞인 목록 주소로는 빌리지 않는다 (11/22 파파이스)', { timeout: 30000 }, async (t) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  t.after(() => context.close());
+  const poster = './event-images/popeyes-double-day-bfweek-20261130.webp';
+  const p = { ...base, brand: '파파이스', category: '치킨', discount_type: 'free_item', start_date: kst(-2), end_date: kst(7), official_link: 'https://www.popeyes.co.kr/event' };
+  const coupons = [
+    { ...p, id: 'pp1', menu: '루이 블랙페퍼 버거', source_url: 'https://popeyes.co.kr/event/72 https://popeyes.co.kr/event' },
+    { ...p, id: 'pp2', menu: '치킨', source_url: 'https://popeyes.co.kr/event/72' },
+    { ...p, id: 'pp3', menu: '레그 순살 치킨', source_url: 'https://www.popeyes.co.kr/event' },
+  ];
+  const news = [{ id: 'n72', brand: '파파이스', category: '치킨', title: '두배로데이 블프위크 1+1', summary: '', start_date: kst(-2), end_date: kst(7), programs: [], related_ids: [],
+    image_url: poster, source_url: 'https://popeyes.co.kr/event/72', official_link: 'https://www.popeyes.co.kr/event', checked_at: now, first_seen: now, status: 'published' }];
+  await context.route('**/*', (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === site.base) return route.continue();
+    if (url.hostname === 'script.google.com') {
+      const json = url.searchParams.get('action') === 'coupons' ? { ok: true, coupons, news, last_checked_at: now } : { ok: true, state: 'idle', last_checked_at: now };
+      return route.fulfill({ status: 200, json, headers: { 'access-control-allow-origin': '*' } });
+    }
+    return route.abort();
+  });
+  const page = await context.newPage();
+  await page.goto(site.base + '/index.html');
+  await page.waitForSelector('#card-pp1');
+  for (const id of ['pp1', 'pp2']) assert.match(await page.locator(`#card-${id} .stub img`).getAttribute('src'), /popeyes-double-day-bfweek/, id);
+  const other = page.locator('#card-pp3 .stub img');
+  assert.ok(!(await other.count()) || !/popeyes-double-day-bfweek/.test(await other.getAttribute('src')), '목록 주소에서 읽은 다른 행사 쿠폰은 빌리지 않음');
+});

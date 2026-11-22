@@ -32,7 +32,7 @@ main.story { max-width: none; padding: 0 0 64px; }
 .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
 .prose { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .section { padding: 56px 0 0; }
-.section > .wrap > h2, .section > .prose > h2, .sec-head h2 { font-size: clamp(23px, 4.6vw, 30px); line-height: 1.3; letter-spacing: -.03em; margin: 0 0 10px; padding: 0; }
+.section > .wrap > h2, .section > .prose > h2, .sec-head h2 { font-size: clamp(23px, 4.6vw, 30px); font-weight: var(--fw-head); line-height: 1.3; letter-spacing: -.03em; margin: 0 0 10px; padding: 0; }
 .sec-head { max-width: 640px; margin-bottom: 24px; }
 .sec-head p { color: var(--text-2); font-size: 16px; margin: 0; }
 
@@ -47,7 +47,7 @@ main.story { max-width: none; padding: 0 0 64px; }
 .hero .eyebrow { margin-bottom: 10px; }
 .hero h1 { font-size: clamp(31px, 7vw, 48px); line-height: 1.2; letter-spacing: -.04em; font-weight: 800; margin: 0 0 14px; }
 .hero .lead { font-size: 17px; color: var(--text-2); margin: 0 0 22px; max-width: 34em; }
-.cta { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 999px; background: var(--primary-ink); color: var(--primary); font-weight: 800; text-decoration: none; font-size: 16px; }
+.cta { display: inline-flex; align-items: center; gap: 8px; min-height: var(--h-btn); padding: 0 22px; border-radius: var(--r-md); background: var(--primary-ink); color: var(--primary); font-weight: 800; text-decoration: none; font-size: 16px; }
 .cta:hover { background: #000; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cta { background: var(--primary); color: var(--primary-ink); } }
 :root[data-theme="dark"] .cta { background: var(--primary); color: var(--primary-ink); }
@@ -244,7 +244,7 @@ main.story { max-width: none; padding: 0 0 64px; }
 
 .duo { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .duo > section { border-radius: 20px; background: var(--surface-2); padding: 20px; }
-.duo h2 { font-size: 18px; margin: 0 0 8px; padding: 0; }
+.duo h2 { font-size: var(--fs-section); font-weight: var(--fw-head); margin: 0 0 8px; padding: 0; }
 .duo p { margin: 0; color: var(--text-2); font-size: 14.5px; line-height: 1.65; }
 
 /* ---------- 가이드 그림 ---------- */

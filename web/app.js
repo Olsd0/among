@@ -3,14 +3,14 @@ import {
   sortCoupons, matchesFilters, daysLeft, todayKST, usableBy, myPrograms, matchNutrition, sodiumPercent,
   PROGRAM_LABEL, PAY_PROGRAMS, isOpenToEveryone, pickHeadlines, orderHeadlines, compareHeadlines, KINDS, benefitLabel, verificationStatus, moneyDigits, formatMoneyLabel, noticeImageFor, budgetPrice,
   isSideMenu, noticeLinkTarget, textPeriod,
-} from './engine.js?v=20261121-3';
+} from './engine.js?v=20261122-1';
 import { decodeArtworkUrl } from './artwork-meta.js?v=20261114-1';
 import { couponImage, couponPhoto, brandPhoto } from './product-images.js?v=20261121-1';
 
 import { noticePhoto } from './notice-images.js?v=20261121-1';
 import { withVerifiedNews } from './verified-news.js?v=20261029-8';
 import { withVerifiedEvents } from './verified-events.js?v=20261121-1';
-import { withCouponEventNews } from './event-notices.js?v=20261121-3';
+import { withCouponEventNews } from './event-notices.js?v=20261122-1';
 import { officialBrandLogo } from './brand-logos.js?v=20261121-1';
 import { acHotEligible, acBenefit, acAudience, acPublic } from './app-coupons.js?v=20261029-8';
 import { createAppCouponUI } from './app-coupon-ui.js?v=20261103-1';
@@ -621,8 +621,12 @@ function couponEventPhoto(c) {
   const own = safeImg(c.event_image);
   if (own) return { url: own, source: c.event_image_source || '', name: c.menu || '', kind: 'campaign', label: '공식 행사 이미지', detailUrl: own };
   if (!c.id) return null;
-  const n = state.news.find((x) => x.brand === c.brand && (x.related_ids || []).includes(c.id) && safeImg(x.image_url)
-    && (!x.image_kind || /^official_(?:event|campaign|poster)$/.test(x.image_kind)) && noticeAbout(x, c));
+  // 같은 공식 행사 글에서 읽은 쿠폰이면 그 글의 포스터를 그대로 쓴다 (11/22 파파이스 두배로데이: 버거·치킨 1+1 쿠폰 = /event/72 포스터)
+  const post = postUrl(c);   // 공식 목록과 다른, 같은 사이트의 행사 글에서 읽은 쿠폰만 (여러 행사가 섞인 목록 주소로는 잇지 않는다)
+  // 같은 글이어도 혜택 종류는 맞아야 한다(1+1 쿠폰 ↔ '1+1'·'증정' 공지, 할인 쿠폰 ↔ 같은 숫자) — 한 글에 다른 행사가 함께 있을 수 있다
+  const samePost = (x) => !!post && safeUrl(x.source_url) === post && benefitMatches(x, c);
+  const n = state.news.find((x) => x.brand === c.brand && ((x.related_ids || []).includes(c.id) || samePost(x)) && safeImg(x.image_url)
+    && (!x.image_kind || /^official_(?:event|campaign|poster)$/.test(x.image_kind)) && (samePost(x) || noticeAbout(x, c)));
   const url = n ? safeImg(n.image_url) : '';
   return url ? { url, source: n.source_url || '', name: n.title || '', kind: 'campaign', label: '공식 행사 이미지', detailUrl: url } : null;
 }
@@ -638,6 +642,13 @@ function noticeAbout(n, c) {
   const text = plainKey(`${n.title || ''} ${n.summary || ''} ${n.discount_label || ''}`);
   const words = String(c.menu || '').normalize('NFKC').split(/[\s·,+/()\[\]&]+/).map(plainKey).filter((t) => t.length >= 2 && !MENU_GENERIC.test(t));
   if (words.length) return words.some((t) => text.includes(t));
+  return benefitMatches(n, c);
+}
+/** 공지 글자에 쿠폰과 같은 혜택이 있는가: 1+1·증정 쿠폰은 '1+1'·'증정'·'무료', 할인 쿠폰은 같은 할인율·금액 */
+function benefitMatches(n, c) {
+  const raw = `${n.title || ''} ${n.summary || ''} ${n.discount_label || ''}`.normalize('NFKC');
+  if (c.discount_type === 'free_item') return /1\s*\+\s*1|증정|무료|하나\s*더|두\s*배/.test(raw);
+  const text = plainKey(raw);
   const nums = [];
   if (Number(c.discount_rate) > 0) nums.push(`${Number(c.discount_rate)}%`);
   for (const v of [c.discount_value, c.coupon_price]) if (Number(v) >= 100) nums.push(`${Number(v)}원`);
@@ -690,7 +701,7 @@ function hotCard(h, i) {
         <span class="hot-visual">${noticePreview(n)}${visualImg(v, i)}</span>
         <span class="hot-copy"><span class="top"><span class="br">${esc(h.brand)}</span>${badge ? `<span class="why${whyCls}">${esc(badge)}</span>` : ''}</span><span class="tt">${esc(title)}</span><span class="hot-meta">${p.text ? `<span class="period${p.due ? ' due' : ''}">${ICON.cal}${esc(p.text)}</span>` : ''}<span class="kind">상세 보기 ›</span></span></span>
       </button>
-      ${source ? `<a class="hot-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(target.kind === 'detail' ? `${h.brand} 공식 공지 원문 보기 (새 탭)` : `${h.brand} 소식이 실린 ${target.label} 보기 (새 탭)`)}" data-link-kind="${target.kind}"><span class="source-host">${esc(host(source))}</span><span>${esc(target.label)} ↗</span></a>` : '<span class="hot-source source-unavailable">원문 주소 확인 중</span>'}
+      ${source ? `<a class="hot-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(target.kind === 'detail' ? `${h.brand} 공식 행사 글 보기 (새 탭)` : `${h.brand} 소식이 실린 ${target.label} 보기 (새 탭)`)}" data-link-kind="${target.kind}"><span class="source-host">${esc(host(source))}</span><span>${esc(target.label)} ↗</span></a>` : '<span class="hot-source source-unavailable">원문 주소 확인 중</span>'}
     </article>`;
   }
   const v = h.kind === 'coupon' ? couponVisual(hc || { brand: h.brand, menu: title }) : couponVisual({ brand: h.brand, menu: h.title });
@@ -977,6 +988,10 @@ function detailHtml(c, today) {
   const post = postUrl(c);
   const steps = howTo(c);
   const saved = state.saved.has(c.id);
+  // 11/22 상세 흐름 통일: 공지 상세처럼 맨 아래에 공식 페이지 큰 버튼 → 그 아래 찜·공유·제보 (펼쳐 읽은 뒤 바로 공식 페이지로)
+  const link = post || safeUrl(c.official_link) || src;
+  const hit = LINK_LABELS.find(([re]) => re.test(safeUrl(c.official_link)));
+  const go = hit ? `${hit[1]}에서 확인` : post ? '공식 행사 보기' : '공식 페이지 보기';
   // 사진은 행사 포스터·구성 상품만 크게 (브랜드 대표 메뉴 사진은 '전 메뉴' 할인과 상관없어 펼친 상세에서는 뺀다)
   return `
     ${photo?.kind === 'parts' ? `<figure class="coupon-artwork parts">${photo.parts.map((p) => `<span><img src="${esc(safeImg(p.url))}" alt="${esc(`${c.brand} ${p.name}`)}" loading="lazy" referrerpolicy="no-referrer"><small>${esc(p.name)}</small></span>`).join('')}<figcaption>구성 상품 이미지 (각 상품의 공식 메뉴 사진) · <a href="${esc(photo.source)}" target="_blank" rel="noopener noreferrer">공식 메뉴 ↗</a></figcaption></figure>` : ''}
@@ -993,6 +1008,7 @@ function detailHtml(c, today) {
     ${steps.length ? `<section><h4>이렇게 쓰세요</h4><ol class="howto">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>` : ''}
     <div data-nut="${esc(c.id)}">${nutritionBlock(c)}</div>
     ${src ? `<section><p class="src">출처 <a href="${esc(src)}" target="_blank" rel="noopener">${esc(host(src))} ${post ? '공식 행사 글' : '공식 페이지'}</a> · ${fmtChecked(c.checked_at) ? `${esc(fmtChecked(c.checked_at))} 확인` : '확인 시각 정보 없음'}${photo && photo.kind !== 'representative' ? ` · <a href="${esc(photo.source)}" target="_blank" rel="noopener">${photo.kind === 'product' ? '공식 상품 사진' : photo.label} 출처</a>` : ''}</p></section>` : ''}
+    ${link ? `<a class="btn primary detail-cta" href="${esc(link)}" target="_blank" rel="noopener" data-click="${esc(c.id)}">${esc(go)}<span class="sr"> (새 탭)</span>${ICON.ext}</a>` : ''}
     <div class="acts">
       <button class="act-btn" data-save="${esc(c.id)}" aria-pressed="${saved}">${ICON.heart}${saved ? '찜함' : '찜'}</button>
       <button class="act-btn" data-share="${esc(c.id)}">${ICON.share}공유</button>
@@ -1202,6 +1218,8 @@ function render() {
 
   const list = $('#list');
   list.setAttribute('aria-busy', String(state.loading));
+  // 11/22 오류 화면 정리: 저장본도 없이 불러오기에 실패하면 쓸 수 없는 예산·분류·정렬은 숨기고 오류 안내와 '다시 시도'만 앞에 둔다
+  const failedEmpty = state.loadFailed && !state.loading && !state.coupons.length;
   if (state.loading && !state.coupons.length) {
     setHTML(list, '<div class="skel" aria-hidden="true"><span class="sk-stub"></span><span class="sk-lines"><i></i><i></i><i></i><i></i></span></div>'.repeat(3));
     $('#summary').textContent = '';
@@ -1217,6 +1235,7 @@ function render() {
   for (const el of [$('#grid'), $('.list-h'), $('#budget'), $('.tools'), $('#summary'), $('.list-meta'), $('#list')]) el.hidden = directory || (state.view === 'following' && !state.following.size);
   if ($('#budget').hidden) { $('#budgetNote').hidden = true; $('#menuType').hidden = true; }
   if (state.brand && !state.q) $('#grid').hidden = true;
+  if (failedEmpty) for (const el of [$('#grid'), $('#budget'), $('#budgetNote'), $('#menuType'), $('.tools'), $('#summary'), $('.list-meta')]) el.hidden = true;
   const shown = sortCoupons(visible(), state.sort, today, profileObj());
   const brands = new Set(shown.map((c) => c.brand)).size;
   const usable = profileObj() ? shown.filter((c) => usableBy(c, profileObj())).length : shown.filter(isOpenToEveryone).length;
@@ -1235,13 +1254,13 @@ function render() {
     const otherN = visible({ ...quickFilters(), menu: other }).length;
     const otherLabel = other === 'side' ? '사이드메뉴' : '메인 메뉴';
     setHTML(list, state.loadFailed && !state.coupons.length
-      ? '<div class="empty" role="alert"><b>혜택을 불러오지 못했어요.</b>연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 시도</button></div>'
+      ? '<div class="empty" role="alert"><b>혜택을 불러오지 못했어요</b>인터넷 연결을 확인한 뒤 다시 시도해 주세요.<br><button class="chip-btn" data-retry>다시 시도</button></div>'
       : otherN
-      ? `<div class="empty"><b>${state.menu === 'side' ? '사이드메뉴' : '메인 메뉴'}에는 맞는 혜택이 없어요.</b>${otherLabel}에 ${otherN}개 있어요.<br><button class="chip-btn" data-menu-go="${other}">${otherLabel} 보기</button></div>`
+      ? `<div class="empty"><b>${state.menu === 'side' ? '사이드메뉴' : '메인 메뉴'}에는 맞는 혜택이 없어요</b>${otherLabel}에 ${otherN}개 있어요.<br><button class="chip-btn" data-menu-go="${other}">${otherLabel} 보기</button></div>`
       : state.filters.maxPrice
-      ? `<div class="empty"><b>선택한 조건에 맞는 혜택이 없어요.</b><button class="chip-btn" data-clear-budget>예산만 해제</button></div>`
+      ? `<div class="empty"><b>이 예산에 맞는 혜택이 없어요</b>예산을 풀면 다른 혜택을 볼 수 있어요.<br><button class="chip-btn" data-clear-budget>예산만 해제</button></div>`
       : state.q
-      ? `<div class="empty"><b>‘${esc(state.q)}’에 맞는 혜택이 없어요</b>브랜드 이름이나 메뉴 이름으로 찾아보세요.${popular.length ? `<div class="suggest">${popular.map((b) => `<button class="chip-btn" data-suggest="${esc(b)}">${esc(b)}</button>`).join('')}</div>` : ''}</div>`
+      ? `<div class="empty"><b>‘${esc(state.q)}’에 맞는 혜택이 없어요</b>브랜드 이름이나 메뉴 이름으로 찾아보세요. 자주 찾는 브랜드:${popular.length ? `<div class="suggest">${popular.map((b) => `<button class="chip-btn" data-suggest="${esc(b)}">${esc(b)}</button>`).join('')}</div>` : ''}</div>`
       : inCat
       ? `<div class="empty"><b>조건에 맞는 혜택이 없어요</b>${anyQuick || state.kind ? '위 아이콘이나 빠른 필터를 꺼 보세요.' : '필터나 검색어를 바꿔 보세요.'}${anyQuick || state.kind ? '<br><button class="chip-btn" data-clear-quick>조건 모두 끄기</button>' : ''}</div>`
       : `<div class="empty"><b>${esc(state.category)} 혜택은 준비 중이에요</b>브랜드를 차례로 늘려가고 있어요.</div>`);
@@ -1481,14 +1500,14 @@ function openNews(id) {
     </div>
     ${v?.official ? `<a class="notice-original" href="${esc(originalImg)}" target="_blank" rel="noopener">${originalVisual?.press ? '기사 관련 이미지' : originalVisual?.capture ? '공식 페이지 캡처' : originalVisual?.campaign ? '공식 캠페인 이미지' : originalVisual?.related ? '공식 관련 이미지' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
     ${v?.source ? `<p class="notice-image-credit">이미지 출처: <a href="${esc(v.source)}" target="_blank" rel="noopener noreferrer">${esc(host(v.source))} ↗</a></p>` : ''}
-    <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 원문에서 확인해 주세요.</p>
+    <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 행사 글에서 확인해 주세요.</p>
     ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}"><span>${esc(target.label)}</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(pf ? `${md(n.start_date)} ~ ${md(n.end_date)} ${pf.note}` : period)}${need ? ` · ${esc(need)}` : ''}</p>
     ${pf && pf.refs.length ? `<p class="news-period-refs">기간을 확인한 기사: ${pf.refs.map((r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.outlet)}${r.published ? ` (${esc(md(r.published))})` : ''}</a>`).join(', ')}</p>` : ''}
     <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
     ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}
-    <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">${esc(target.kind === 'detail' ? '공식 공지 보기' : `${target.label} 보기`)}</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
+    <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">${esc(target.kind === 'detail' ? '공식 행사 보기' : `${target.label} 보기`)}</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
     <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.press ? ' 사진은 기사에 실린 브랜드 관련 홍보 이미지예요. 이 결제 행사의 전용 포스터는 아니에요.' : v.capture ? ' 이미지는 공식 행사 페이지를 캡처한 화면이에요.' : v.campaign ? ' 이미지는 이번 프로모션과 함께 브랜드가 공개한 공식 캠페인 포스터예요. 결제 혜택의 조건은 행사 안내를 확인해 주세요.' : v.related ? ' 사진은 공식 출처의 관련 상품·매장 이미지예요. 행사 포스터와는 구분해 주세요.' : v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
   if (!newsSheet.open) newsSheet.showModal();
   history.replaceState(null, '', `${location.pathname}?n=${encodeURIComponent(id)}`);

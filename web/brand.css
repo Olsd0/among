@@ -1,3 +1,46 @@
+/* AMONG 공통 디자인 규칙 (11/22 대표 요청: 화면마다 조금씩 다른 데서 오는 '덜 만든 느낌' 없애기)
+   모든 페이지(홈·소개·제휴·개인정보·약관·404·관리)가 이 파일을 먼저 읽는다. 색은 여기 한 곳에서만 정한다.
+   글자: 큰 제목 28 · 화면 제목 22 · 구역 제목 19 · 카드 제목 16 · 본문 15 · 작은 글 13.5 · 설명 12.5, 제목 굵기 800.
+   버튼: 큰 동작 높이 48·모서리 14 / 작은 동작 36·10 / 고르는 칩 38·알약. 모서리: 6 · 10 · 14 · 20 · 알약. */
+:root {
+  --fs-display: 28px; --fs-title: 22px; --fs-section: 19px; --fs-card: 16px; --fs-body: 15px; --fs-small: 13.5px; --fs-caption: 12.5px;
+  --fw-head: 800;
+  --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-pill: 999px;
+  --h-btn: 48px; --h-btn-sm: 36px; --h-chip: 38px;
+  /* 머리글: 위 줄 흰색 + 탭 줄 바나나 옐로우 (홈 launch.css와 같은 값) */
+  --hd-top: #ffffff; --hd-strip: #fff3ad; --hd-muted: #5a4a12; --hd-on: #211c10; --hd-on-ink: #ffe765;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hd-top: #16151b; --hd-strip: #2e2713; --hd-muted: #9b9aa9; --hd-on: #ffe765; --hd-on-ink: #211c10; } }
+:root[data-theme="dark"] { --hd-top: #16151b; --hd-strip: #2e2713; --hd-muted: #9b9aa9; --hd-on: #ffe765; --hd-on-ink: #211c10; }
+:root {
+  --canvas: #f2f2f6; --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f5f8; --line: #ebebf0; --line-strong: #dcdce4;
+  --text: #17161c; --text-2: #46454f; --muted: #6b6a78;
+  --sale: #e0213a; --sale-soft: #fff1f3; --warn: #9a5200; --warn-soft: #fff4e2; --info: #2152c4; --info-soft: #eaf1ff;
+  --good: #0f7a55; --good-soft: #e5f6ee;
+  --t-bun: #fff4e4; --t-cafe: #f6eee7; --t-chk: #fff6e2; --t-piz: #ffefea; --t-des: #ffeff6; --t-red: #fff0f2; --t-blue: #ecf2ff; --t-grn: #e7f7f0; --t-gold: #fff7de;
+  --ticket-shadow: drop-shadow(0 1px 1px rgba(20, 18, 40, .04)) drop-shadow(0 3px 10px rgba(20, 18, 40, .05));
+  --r-sec: 0px; --hh: 104px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0c0b10; --bg: #16151b; --surface: #1c1b22; --surface-2: #25242c; --line: #2c2b34; --line-strong: #3b3a45;
+    --text: #f3f2f7; --text-2: #cac9d4; --muted: #9b9aa9;
+    --sale: #ff6b7c; --sale-soft: #33181e; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
+    --good: #4fcf91; --good-soft: #142a20;
+    --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617;
+    --ticket-shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #0c0b10; --bg: #16151b; --surface: #1c1b22; --surface-2: #25242c; --line: #2c2b34; --line-strong: #3b3a45;
+  --text: #f3f2f7; --text-2: #cac9d4; --muted: #9b9aa9;
+  --sale: #ff6b7c; --sale-soft: #33181e; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
+  --good: #4fcf91; --good-soft: #142a20;
+  --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617;
+  --ticket-shadow: none; color-scheme: dark;
+}
+
 /* Banana Yellow · 2022-40. Use the darker tone for text on light surfaces. */
 :root {
   --primary: #ffe765;
