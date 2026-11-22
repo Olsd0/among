@@ -94,7 +94,7 @@ test('머리글 바둑판 칸은 가로 1.7 : 세로 1 직사각형 (밝은·어
   }
 });
 
-test('바나나 옐로우 로고와 머리글 바둑판이 화면 크기와 테마에 관계없이 표시된다', async (t) => {
+test('로고와 머리글(흰 로고 줄 · 바나나 탭 줄)이 화면 크기와 테마에 관계없이 표시된다', async (t) => {
   const { context, page } = await setup({ ok: true, coupons: [], news: [] });
   t.after(() => context.close());
   await page.goto(site.base + '/');
@@ -116,21 +116,16 @@ test('바나나 옐로우 로고와 머리글 바둑판이 화면 크기와 테�
     assert.ok(left && right && left.x + left.width <= right.x);
     assert.ok(Math.abs((left.y + left.height / 2) - (right.y + right.height / 2)) < 1);
     assert.equal(await logo.evaluate((img) => getComputedStyle(img).filter), colorScheme === 'dark' ? 'invert(1)' : 'none');
-    // 11/07 대표 요청: 바둑판 배너 = 머리글(로고·탭). 칸은 가로 1.7 : 세로 1 직사각형. 소개 상자는 바둑판 없이 옅은 바나나색
+    // 11/22 대표 요청: 바둑판 대신 로고 줄은 흰색, 전체 혜택 탭 줄은 바나나 옐로우 — 두 띠 모두 화면 양끝까지(가로 스크롤 없이)
     await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
-    const header = page.locator('header.top');
     const dark = colorScheme === 'dark';
-    const tile = dark ? 'banana-bricks-dark.svg' : 'banana-bricks.svg';
-    const head = await header.evaluate((el) => {
-      const css = getComputedStyle(el); const r = el.getBoundingClientRect();
-      return { image: css.backgroundImage, border: css.borderImageSource, outset: css.borderImageOutset, left: r.left, right: r.right };
-    });
-    if (width >= 680) {
-      assert.match(head.border, new RegExp(tile.replace('.', '\\.')), '넓은 화면: 화면 양끝까지 border-image 바깥 그림');
-      assert.match(head.outset, /100vmax|\d{3,}px/);
-    } else {
-      assert.match(head.image, new RegExp(tile.replace('.', '\\.')));
-    }
+    const band = (sel) => page.locator(sel).evaluate((el) => { const css = getComputedStyle(el); return { bg: css.backgroundColor, image: css.borderImageSource, outset: css.borderImageOutset }; });
+    const top = await band('header.top .bar'), strip = await band('header.top .view-nav');
+    assert.equal(top.bg, dark ? 'rgb(22, 21, 27)' : 'rgb(255, 255, 255)', '로고 줄 = 흰색(어두운 화면은 바탕색)');
+    assert.equal(strip.bg, dark ? 'rgb(46, 39, 19)' : 'rgb(255, 231, 101)', '탭 줄 = 바나나 옐로우(어두운 화면은 어두운 바나나)');
+    for (const b of [top, strip]) { assert.match(b.image, /linear-gradient/); assert.match(b.outset, /100vmax|\d{3,}px/); }
+    assert.doesNotMatch(await page.locator('header.top').evaluate((el) => getComputedStyle(el).backgroundImage), /banana-bricks/, '바둑판 없음');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     const hero = page.locator('.hero');
     assert.doesNotMatch(await hero.evaluate((el) => getComputedStyle(el).backgroundImage), /banana-/, '소개 상자에는 바둑판 없음');
     const heroColor = await hero.evaluate((el) => getComputedStyle(el).color);
