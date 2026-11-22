@@ -1541,13 +1541,16 @@ function openNews(id) {
     ${v?.official ? `<a class="notice-original" href="${esc(originalImg)}" target="_blank" rel="noopener">${originalVisual?.press ? '기사 관련 이미지' : originalVisual?.capture ? '공식 페이지 캡처' : originalVisual?.campaign ? '공식 캠페인 이미지' : originalVisual?.related ? '공식 관련 이미지' : '공지 이미지'} 크게 보기 ↗</a>` : ''}
     ${v?.source ? `<p class="notice-image-credit">이미지 출처: <a href="${esc(v.source)}" target="_blank" rel="noopener noreferrer">${esc(host(v.source))} ↗</a></p>` : ''}
     <p class="notice-image-error" role="status" hidden>이미지를 불러오지 못했어요. 공식 행사 글에서 확인해 주세요.</p>
-    ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}"><span>${esc(target.label)}</span><strong>${esc(host(src))}</strong><span aria-hidden="true">↗</span></a>` : ''}
     <p class="news-meta">${esc(n.brand)} · ${esc(pf ? `${md(n.start_date)} ~ ${md(n.end_date)} ${pf.note}` : period)}${need ? ` · ${esc(need)}` : ''}</p>
     ${pf && pf.refs.length ? `<p class="news-period-refs">기간을 확인한 기사: ${pf.refs.map((r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.outlet)}${r.published ? ` (${esc(md(r.published))})` : ''}</a>`).join(', ')}</p>` : ''}
     <h2 class="news-title" id="newsTitle">${esc(n.title)}</h2>
     ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ''}
     ${rel.length ? `<div class="detail"><h4>이 소식의 쿠폰</h4></div><div class="news-rel">${rel.map((c) => `<button class="rel" type="button" data-rel="${esc(c.id)}"><b>${esc(benefitLabel(c))}</b><span>${esc(c.menu)}</span>${ICON.chev}</button>`).join('')}</div>` : ''}
-    <div class="btns">${src ? `<a class="btn primary" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">${esc(target.kind === 'detail' ? '공식 행사 보기' : `${target.label} 보기`)}</a>` : ''}<button class="btn ghost" type="button" data-news-share="${esc(n.id)}">공유</button></div>
+    ${/* 11/22 상세 흐름 통일(점검표 1번): 같은 공식 링크가 위 줄과 아래 버튼에 두 번 나오던 것 → 쿠폰 상세와 같은 순서로
+       출처 한 줄 → 공식 행사 보기(가로 전체) → 공유 */ ''}
+    ${src ? `<a class="notice-source-link" href="${esc(src)}" target="_blank" rel="noopener noreferrer" data-link-kind="${target.kind}">출처 <span>${esc(target.label)}</span> · <strong>${esc(host(src))}</strong> <span aria-hidden="true">↗</span></a>` : ''}
+    ${src ? `<a class="btn primary detail-cta" href="${esc(src)}" target="_blank" rel="noopener" data-news-src="${esc(n.id)}">${esc(target.kind === 'detail' ? '공식 행사 보기' : `${target.label} 보기`)}${ICON.ext}</a>` : ''}
+    <div class="acts"><button class="act-btn" type="button" data-news-share="${esc(n.id)}">${ICON.share}공유</button></div>
     <p class="news-note">AMONG이 ${esc(host(src) || '공식 페이지')}의 행사 내용을 사실만 짧게 정리했어요. 정확한 조건은 공식 공지에서 확인하세요.${esc(via)}<span class="img-note">${v ? (v.press ? ' 사진은 기사에 실린 브랜드 관련 홍보 이미지예요. 이 결제 행사의 전용 포스터는 아니에요.' : v.capture ? ' 이미지는 공식 행사 페이지를 캡처한 화면이에요.' : v.campaign ? ' 이미지는 이번 프로모션과 함께 브랜드가 공개한 공식 캠페인 포스터예요. 결제 혜택의 조건은 행사 안내를 확인해 주세요.' : v.related ? ' 사진은 공식 출처의 관련 상품·매장 이미지예요. 행사 포스터와는 구분해 주세요.' : v.official ? ' 사진은 공식 공지 이미지예요.' : ' 사진은 공식 메뉴의 상품 이미지예요(행사 이미지 아님).') : ''}</span></p>`;
   if (!newsSheet.open) newsSheet.showModal();
   history.replaceState(null, '', `${location.pathname}?n=${encodeURIComponent(id)}`);

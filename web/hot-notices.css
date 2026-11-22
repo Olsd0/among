@@ -81,3 +81,10 @@
 @media(min-width:600px){.all-hot-notices{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}}
 @media(min-width:960px){.all-hot-notices{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
 .notice-image-credit{font-size:12px;color:var(--muted,#69645b);margin:8px 22px}.notice-image-credit a{color:inherit;text-decoration:underline}
+
+/* 11/22 상세 흐름 통일(점검표 1번): 공지 상세도 쿠폰 상세처럼 출처 한 줄 → 공식 행사 보기(가로 전체) → 공유 */
+#newsBody .notice-source-link { display: inline-block; padding: 9px 0; margin: 6px 0 0; background: none; border-radius: 0; color: var(--muted); font-size: 12.5px; line-height: 1.6; text-decoration: underline; text-underline-offset: 3px; }
+#newsBody .notice-source-link strong { color: inherit; font-weight: 600; }
+#newsBody .detail-cta { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; margin: 12px 0 0; }
+#newsBody .detail-cta svg { width: 14px; height: 14px; }
+#newsBody .acts { margin-top: 8px; }
