@@ -15,7 +15,7 @@
 :root {
   --canvas: #f2f2f6; --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f5f8; --line: #ebebf0; --line-strong: #dcdce4;
   --text: #17161c; --text-2: #46454f; --muted: #6b6a78;
-  --sale: #e0213a; --sale-soft: #fff1f3; --warn: #9a5200; --warn-soft: #fff4e2; --info: #2152c4; --info-soft: #eaf1ff;
+  --sale: #e0213a; --sale-soft: #fff1f3; --sale-ink: #c0142e; --warn: #9a5200; --warn-soft: #fff4e2; --info: #2152c4; --info-soft: #eaf1ff;
   --good: #0f7a55; --good-soft: #e5f6ee;
   --t-bun: #fff4e4; --t-cafe: #f6eee7; --t-chk: #fff6e2; --t-piz: #ffefea; --t-des: #ffeff6; --t-red: #fff0f2; --t-blue: #ecf2ff; --t-grn: #e7f7f0; --t-gold: #fff7de;
   --ticket-shadow: drop-shadow(0 1px 1px rgba(20, 18, 40, .04)) drop-shadow(0 3px 10px rgba(20, 18, 40, .05));
@@ -26,7 +26,7 @@
   :root:not([data-theme="light"]) {
     --canvas: #0c0b10; --bg: #16151b; --surface: #1c1b22; --surface-2: #25242c; --line: #2c2b34; --line-strong: #3b3a45;
     --text: #f3f2f7; --text-2: #cac9d4; --muted: #9b9aa9;
-    --sale: #ff6b7c; --sale-soft: #33181e; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
+    --sale: #ff6b7c; --sale-soft: #33181e; --sale-ink: #ff6b7c; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
     --good: #4fcf91; --good-soft: #142a20;
     --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617;
     --ticket-shadow: none; color-scheme: dark;
@@ -35,7 +35,7 @@
 :root[data-theme="dark"] {
   --canvas: #0c0b10; --bg: #16151b; --surface: #1c1b22; --surface-2: #25242c; --line: #2c2b34; --line-strong: #3b3a45;
   --text: #f3f2f7; --text-2: #cac9d4; --muted: #9b9aa9;
-  --sale: #ff6b7c; --sale-soft: #33181e; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
+  --sale: #ff6b7c; --sale-soft: #33181e; --sale-ink: #ff6b7c; --warn: #ffb54d; --warn-soft: #33260f; --info: #8fb4ff; --info-soft: #1a2440;
   --good: #4fcf91; --good-soft: #142a20;
   --t-bun: #2b2219; --t-cafe: #29211c; --t-chk: #2b2518; --t-piz: #2d1f1d; --t-des: #2d1d25; --t-red: #2e1c21; --t-blue: #1b2438; --t-grn: #17271f; --t-gold: #2b2617;
   --ticket-shadow: none; color-scheme: dark;

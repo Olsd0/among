@@ -248,7 +248,7 @@ main { flex: 1; padding: 2px 16px 24px; display: flex; flex-direction: column; g
 .chip { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chip svg { width: 14px; height: 14px; }
 .chip.due { color: var(--sale); font-weight: 750; }
-.chip.today { padding: 0 8px; border-radius: 7px; background: var(--sale-soft); color: var(--sale); font-weight: 800; }
+.chip.today { padding: 0 8px; border-radius: 7px; background: var(--sale-soft); color: var(--sale-ink, var(--sale)); /* 11/22 점검표 6: 연분홍 바탕 위 대비 4.3:1 → 5.6:1 */ font-weight: 800; }
 .chip.soon { color: var(--info); }
 .chip.none { color: var(--muted); font-weight: 550; }
 .chip .dday { margin-left: 5px; padding: 0 5px; border-radius: 5px; background: var(--surface-2); font-size: 11.5px; line-height: 18px; }
