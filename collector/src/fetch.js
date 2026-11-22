@@ -53,7 +53,8 @@ export const POST_RULES = {
   // 11/21 대표 지적: 버거킹 '전 메뉴 4,000원 할인'이 목록 제목('26년 11월')만 보고 11/1~11/30으로 잡힘. 공식 상세는 11/16~11/22·앱 전용·중복 불가.
   // 버거킹 목록은 주소 없이 카드의 'detail' 버튼으로만 열린다(Vue). 버튼을 차례로 눌러 /event/detail/번호 주소를 모으고 상세 글을 읽는다.
   'burgerking.co.kr/event/ongoing': {
-    click: 'li button.btn_detail', item: 'li', title: '.tit_event span:last-child', urlPattern: '/event/detail/\\d+$', max: 12, follow: 8,
+    // 11/22: 목록이 20칸까지 늘어 12번째 뒤 행사(딜리버리 4000원 등)를 못 열던 것 → 24칸까지, 상세는 10개까지
+    click: 'li button.btn_detail', item: 'li', title: '.tit_event span:last-child', urlPattern: '/event/detail/\\d+$', max: 24, follow: 10,
     followText: '할인|쿠폰|원|1\\+1|증정|딜리버리|적립|세트|프로모션',
   },
   // 11/21 대표 지적: 파파이스 '두배로데이 블프위크' 핫딜이 이벤트 목록(/event)으로만 열림. 목록 칸은 <a class="box" href="/event/72"> + 제목 <dt>.
