@@ -107,3 +107,10 @@ tr:last-child td { border-bottom: 0; }
 @media (max-width: 420px) {
   main h2[id] { scroll-margin-top: calc(124px + env(safe-area-inset-top)); }
 }
+
+/* 11/22 점검표 8: 없는 주소(404)도 다른 빈 화면처럼 다음 행동 버튼 */
+.go-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+a.btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--h-btn); padding: 0 18px; color: var(--text); text-decoration: none; font-size: var(--fs-body); }
+a.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+a.btn:hover { border-color: var(--muted); }
+a.btn.primary:hover { background: var(--primary-press, var(--primary)); }
