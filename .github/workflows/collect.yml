@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       mode:
-        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 / nutrition = 영양성분만 갱신 / site = 공개 화면 점검 / images = 사진 점검(공지 이미지 대조, only에 menu=주소들 이면 메뉴 사진 목록) (check·probe·e2e·nutrition·site·images는 AI 호출 없음)'
+        description: 'collect = 수집 / dry = AI 추출 시험(시트에 안 씀) / check = 출처 점검 / probe = 브랜드 탐색 / e2e = 전체 경로 점검 / nutrition = 영양성분만 갱신 / site = 공개 화면 점검 / snapshot = 공개 데이터 사본을 로그에(화면 점검표용) / images = 사진 점검(공지 이미지 대조, only에 menu=주소들 이면 메뉴 사진 목록) (check·probe·e2e·nutrition·site·images는 AI 호출 없음)'
         required: false
         default: collect
         type: choice
-        options: [collect, dry, check, probe, e2e, nutrition, site, images]
+        options: [collect, dry, check, probe, e2e, nutrition, site, images, snapshot]
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
@@ -113,6 +113,12 @@ jobs:
           SITE_URL: https://www.amongpick.com/
         run: node src/site-check.js
 
+      - name: 공개 데이터 사본 (AI 호출 없음 · 공개 API 응답만 · 화면 점검표를 실제 데이터로 찍기 위해)
+        if: inputs.mode == 'snapshot'
+        env:
+          SITE_URL: https://www.amongpick.com/
+        run: node scripts/snapshot-public.js
+
       - name: 사진 점검 (AI 호출 없음 · 시트에 안 씀 · 공지 이미지가 출처의 어느 카드 것인지 / 공식 메뉴 사진 목록)
         if: inputs.mode == 'images'
         env:
@@ -131,7 +137,7 @@ jobs:
           restore-keys: page-cache-
 
       - name: 수집
-        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition' && inputs.mode != 'site' && inputs.mode != 'images'
+        if: inputs.mode != 'check' && inputs.mode != 'probe' && inputs.mode != 'e2e' && inputs.mode != 'nutrition' && inputs.mode != 'site' && inputs.mode != 'images' && inputs.mode != 'snapshot'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
