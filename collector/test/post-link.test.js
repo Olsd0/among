@@ -252,3 +252,23 @@ test('조건에 적힌 기간(10/29(목)-11/3(화))으로 기간 칸을 채워 �
   assert.equal(live.end_date, '2026-11-25');
   assert.notEqual(live.status, 'rejected');
 });
+
+test('11/23 표본 점검: 배달앱 제휴(푸라닭 X 요기요)·친구 초대 미션은 버리고, 요일 한정은 조건에 남긴다', async () => {
+  const { normalizeAndValidate, normalizeNews, weekdayNote, isDeliveryAppOnly } = await import('../src/engine.js');
+  const now = new Date('2026-11-23T01:00:00Z');
+  assert.equal(isDeliveryAppOnly('[푸라닭 X 요기요] 전메뉴 최대 5,500원 할인! 요기요 회원 대상, 비회원 적용 불가'), true);
+  assert.equal(isDeliveryAppOnly('배민 주문 시 적용 불가, 매장 전용'), false, '배달앱 제외 문구는 그대로 게시 대상');
+  const yogiyo = normalizeAndValidate({ brand: '푸라닭', menu: '전 메뉴', discount_type: 'amount', discount_value: 5500, conditions: '요기요 회원 대상, 비회원 적용 불가', evidence: '[푸라닭 X 요기요] 전메뉴 최대 5,500원 할인!', start_date: '2026-11-09', end_date: '2026-11-30', confidence: 0.9 },
+    { sourceUrl: 'https://www.puradakchicken.com/news/event.asp', brand: '푸라닭', now });
+  assert.equal(yogiyo.status, 'rejected');
+  assert.ok(yogiyo.issues.some((x) => /배달앱/.test(x)));
+  const invite = normalizeNews({ title: 'KFC 친구 초대 이벤트', summary: '초대 미션을 완수하면 최대 10만원 할인 쿠폰', discount_label: '최대 10만원 할인', start_date: '2026-11-10', end_date: '2027-01-04', evidence: 'THE MISSION : 친구초대 초대 미션을 완수하고 보상을 받으세요' },
+    { sourceUrl: 'https://www.kfckorea.com/promotion/promotionList/detail/1133', brand: 'KFC', now });
+  assert.equal(invite.status, 'rejected');
+  assert.equal(weekdayNote('피자 라지 사이즈 이상 주문 시', '매주 수요일은 반올림데이 APP 주문 시 배달 4천원'), '매주 수요일 한정 · 피자 라지 사이즈 이상 주문 시');
+  assert.equal(weekdayNote('', '매주 금토일 4천원 할인!'), '매주 금토일 한정');
+  assert.equal(weekdayNote('x', '수퍼데이 매주 수요일 / 프라이데이 매주 금요일'), 'x', '요일이 둘 이상이면 건드리지 않는다');
+  const wed = normalizeAndValidate({ brand: '반올림피자', menu: '전 메뉴', discount_type: 'amount', discount_value: 4000, channels: ['배달'], conditions: '피자 라지 사이즈 이상 주문 시 사용 가능', evidence: '매주 수요일은 반올림데이 APP 주문 시 전메뉴 배달 4천원', start_date: '2024-07-01', end_date: '2027-08-03', confidence: 0.9 },
+    { sourceUrl: 'https://order.banolimpizza.com/event/detail/x', brand: '반올림피자', now });
+  assert.match(wed.conditions, /^매주 수요일 한정/);
+});

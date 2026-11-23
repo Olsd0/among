@@ -131,10 +131,27 @@ export function normPrograms(list) {
 const PROGRAM_ONLY_MENU = /^(?:SKT|SK텔레콤|T멤버십|KT|LGU\+|U\+|유플러스|네이버페이|Npay|카카오페이|토스페이|해피포인트(?:플러스)?|CJONE|적립|할인|결제|혜택|이벤트|쿠폰|회원|멤버십|앱|[+·,/()])+$/i;
 const DELIVERY_APPS = /쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|위메프오|먹깨비/;
 const DELIVERY_EXCLUDED = /(쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요|배달\s*앱)[^.·\n]{0,20}(제외|불가|미적용|적용\s*(안|않|불가)|사용\s*(안|불가))/;
+// 11/23 표본 점검: '[푸라닭 X 요기요] 전메뉴 최대 5,500원 할인'(조건 '요기요 회원 대상, 비회원 적용 불가')이
+// '…불가' 때문에 배달앱 제외 문구로 읽혀 게시됐다 → 'X 요기요'·'요기요 회원 대상'·'요기요 전용'은 그것만으로 배달앱 행사
+const DELIVERY_ONLY_STRONG = /[xX×]\s*(?:쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요)|(?:쿠팡\s*이츠|배달의\s*민족|배민|요기요|땡겨요)\s*(?:회원\s*(?:대상|전용|한정)|전용|단독)/;
 /** 외부 배달앱 전용 행사인가 (경쟁 서비스가 이미 다루는 영역이라 제외, D7·HANDOFF 4장) */
 export function isDeliveryAppOnly(text) {
   const s = String(text || '');
-  return DELIVERY_APPS.test(s) && !DELIVERY_EXCLUDED.test(s);
+  return DELIVERY_ONLY_STRONG.test(s) || (DELIVERY_APPS.test(s) && !DELIVERY_EXCLUDED.test(s));
+}
+// 11/23 표본 점검: KFC 'THE MISSION : 친구초대'(초대 인원에 따라 할인권)가 '최대 10만원 할인' 핫딜로 올라왔다
+// → 친구 초대·추천 미션은 누구나 받는 할인이 아니라 경품 성격이라 제외 (할인 글자가 있어도)
+export const REFERRAL_EVENT = /친구\s*초대|초대\s*(?:미션|보상|이벤트|인원)|추천\s*(?:인|코드)\s*(?:입력|가입|으로)/;
+/** 조건에 요일·주말 한정이 빠졌으면 근거 글의 '매주 수요일'·'금토일'을 조건 앞에 붙인다 (한 가지만 있을 때) */
+export function weekdayNote(conditions, text) {
+  const c = String(conditions || '');
+  const found = [...new Set([...String(text || '').matchAll(/매주\s*([월화수목금토일](?:\s*[·,/]?\s*[월화수목금토일]){0,6})\s*(?:요일)?|([월화수목금토일]{2,3})\s*(?=한정|특가|할인|데이)/g)]
+    .map((m) => (m[1] || m[2]).replace(/[\s·,/]/g, '')))].filter((d) => d.length <= 7);
+  if (found.length !== 1) return c;
+  const d = found[0];
+  const days = d.length === 1 ? `${d}요일` : d;
+  if (new RegExp(`${d}\\s*요일|${days}|${[...d].join('[\\s·,/]*')}`).test(c)) return c;
+  return c ? `매주 ${days} 한정 · ${c}` : `매주 ${days} 한정`;
 }
 
 /** "1천원당 150원 할인" → 15 (%). 등급별로 여러 번 나오면 가장 낮은 값 (D21: 과장하지 않기) */
@@ -672,7 +689,8 @@ export function normalizeAndValidate(raw, ctx = {}) {
     app_only: toBool(raw.app_only),
     start_date: sd0 || period?.start || (!sd0 && !ed0 && !period && oneDay([raw.conditions, raw.evidence, raw.menu].map(clean).join(' '), now)) || null,
     end_date: ed0 || period?.end || (!sd0 && !ed0 && !period && oneDay([raw.conditions, raw.evidence, raw.menu].map(clean).join(' '), now)) || null,
-    conditions: clean(raw.conditions),
+    // 11/23 표본 점검: 반올림 '매주 수요일은 반올림데이' 쿠폰 조건에 수요일이 빠져 아무 날이나 되는 것처럼 보였다
+    conditions: weekdayNote(clean(raw.conditions), [raw.menu, raw.evidence].map(clean).join(' ')),
     confidence: Math.max(0, Math.min(1, toNumber(raw.confidence) ?? 0.5)),
     issues,
     evidence: clean(raw.evidence).slice(0, 300),
@@ -709,6 +727,7 @@ export function normalizeAndValidate(raw, ctx = {}) {
   if (c.discount_type !== 'free_item' && c.coupon_price !== null && c.regular_price !== null && c.coupon_price >= c.regular_price) reject.push('쿠폰가 ≥ 정상가');
   if (!fixed && !known) reject.push('지원하지 않는 브랜드');
   if (isDeliveryAppOnly(allText)) reject.push('외부 배달앱 전용 행사');
+  if (REFERRAL_EVENT.test(allText)) reject.push('친구 초대·추천 이벤트');
   if (programs.includes('카드')) reject.push('특정 카드 결제 할인');
   else if (!programs.length && needsOtherPayment(allText)) reject.push('특정 결제수단 할인');
 
@@ -1474,6 +1493,7 @@ export function normalizeNews(raw = {}, ctx = {}) {
   if (n.end_date && n.end_date < today) reject.push('이미 종료');
   if (n.start_date && n.end_date && n.start_date > n.end_date) reject.push('기간 역전');
   if (isDeliveryAppOnly(allText)) reject.push('외부 배달앱 전용 행사');
+  if (REFERRAL_EVENT.test(allText)) reject.push('친구 초대·추천 이벤트');
   if (programs.includes('카드')) reject.push('특정 카드 결제 할인');
   else if (!n.programs.length && needsOtherPayment(allText)) reject.push('특정 결제수단 할인');
   if (!PROMO_WORDS.test(allText)) reject.push('혜택 소식이 아님');
