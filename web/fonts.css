@@ -1,6 +1,7 @@
 @font-face {
-  font-family: "Pretendard Variable";
-  src: url("fonts/PretendardVariable.woff2") format("woff2");
+  font-family: "AMONG Sans";
+  /* Pretendard를 자주 쓰는 한글 2,350자 등으로 줄인 수정본(2.0MB → 0.5MB). fonts/AMONG-Sans-NOTICE.txt */
+  src: url("fonts/AMONGSans-Variable-20261123.woff2") format("woff2");
   font-weight: 100 900;
   font-display: swap;
 }

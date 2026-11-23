@@ -9,7 +9,7 @@
     --good: #4cc98b; --good-soft: #15291f; --warn: #ffb547; --warn-soft: #3a2a12; --bad: #ff6574; --bad-soft: #3a1d23; color-scheme: dark; }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; font-size: 14px; line-height: 1.45; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: "AMONG Sans", "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; font-size: 14px; line-height: 1.45; }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 48px; }
 header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 h1 { font-size: 20px; margin: 0; flex: 1; }

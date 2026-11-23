@@ -1,0 +1,8 @@
+AMONG Sans (fonts/AMONGSans-Variable-YYYYMMDD.woff2)
+
+이 글꼴은 Pretendard Variable(Copyright (c) 2021, Kil Hyung-jin, https://github.com/orioncactus/pretendard)을
+웹 화면에 필요한 글자(라틴·문장 부호·자주 쓰는 기호·한글 자모, KS X 1001 한글 2,350자)만 남겨 줄인 수정본입니다.
+원본 라이선스는 SIL Open Font License 1.1(같은 폴더의 Pretendard-OFL.txt)이며, 이 수정본도 같은 라이선스를 따릅니다.
+원본의 예약 글꼴 이름(Reserved Font Name) 'Pretendard'를 쓰지 않도록 글꼴 안의 이름을 'AMONG Sans'로 바꿨습니다.
+2,350자에 없는 드문 한글은 기기의 기본 글꼴로 보입니다.
+만든 방법: fontTools subset (2026-11-23), 원본 2.0MB → 0.5MB.

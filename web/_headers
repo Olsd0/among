@@ -15,6 +15,10 @@
   X-Robots-Tag: noindex, nofollow
   Cache-Control: no-store
 
+# 글꼴: 파일 이름에 날짜가 있어 바뀌면 이름이 바뀐다 → 1년 캐시 (첫 방문 뒤 다시 받지 않게, 11/23)
+/fonts/AMONGSans-*
+  Cache-Control: public, max-age=31536000, immutable
+
 # 서비스 워커는 항상 새로 확인
 /sw.js
   Cache-Control: no-cache
