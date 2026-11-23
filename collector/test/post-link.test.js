@@ -235,3 +235,20 @@ test('날짜 하나에 \'단 하루\'가 붙은 혜택은 그 날 하루로 — 
     { sourceUrl: 'https://www.paris.co.kr/promotion/', brand: '파리바게뜨', now: new Date('2026-11-23T03:00:00Z') });
   assert.equal(next.status, 'rejected', '다음 날에는 끝난 혜택');
 });
+
+test('조건에 적힌 기간(10/29(목)-11/3(화))으로 기간 칸을 채워 끝난 특가를 게시하지 않는다 (11/23 메가커피)', async () => {
+  const { textPeriod, normalizeAndValidate } = await import('../src/engine.js');
+  const now = new Date('2026-11-22T03:00:00Z');
+  assert.deepEqual(textPeriod('10/29(목)-11/3(화)', now), { start: '2026-10-29', end: '2026-11-03' });
+  assert.deepEqual(textPeriod('행사 기간 11/20(목)-11/30(일)', now), { start: '2026-11-20', end: '2026-11-30' });
+  for (const t of ['1+1 행사 10-20개 한정', '문의 010-1234-5678', '11월 11일 하루']) assert.equal(textPeriod(t, now), null, t);
+  const ended = normalizeAndValidate({ brand: '메가MGC커피', menu: '쫀득 모찌 밀크티', regular_price: 3800, coupon_price: 3300, discount_type: 'price', conditions: '10/29(목)-11/3(화)', evidence: '쫀득 모찌 밀크티 3,800원 → 3,300원', confidence: 0.95 },
+    { sourceUrl: 'https://www.mega-mgccoffee.com/bbs/detail/?x', brand: '메가MGC커피', now });
+  assert.equal(ended.status, 'rejected');
+  assert.equal(ended.end_date, '2026-11-03');
+  const live = normalizeAndValidate({ brand: '메가MGC커피', menu: '딥 초코 체리 프라페', regular_price: 4400, coupon_price: 3900, discount_type: 'price', conditions: '11/20(금)-11/25(수)', evidence: '딥 초코 체리 프라페 4,400원 → 3,900원', confidence: 0.95 },
+    { sourceUrl: 'https://www.mega-mgccoffee.com/bbs/detail/?y', brand: '메가MGC커피', now });
+  assert.equal(live.start_date, '2026-11-20');
+  assert.equal(live.end_date, '2026-11-25');
+  assert.notEqual(live.status, 'rejected');
+});

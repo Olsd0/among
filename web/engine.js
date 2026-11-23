@@ -513,7 +513,8 @@ export function textPeriod(text, now = new Date()) {
     return a && b && a <= b && diffDays(b, a) <= 400 ? { start: a, end: b } : null;
   }
   const D = `(\\d{1,2})\\s*(?:월\\s*|[./])\\s*(\\d{1,2})\\s*일?${W}`;
-  const m = s.match(new RegExp(`(?:^|[^\\d.])${D}\\s*(?:부터|[~∼〜]|-(?!\\d{2,}))\\s*${D}\\s*(?:까지)?`));
+  // '-' 뒤의 두 자리 달('10/29(목)-11/3(화)')은 기간으로, 네 자리(연도)는 위 Y 형식에서 다룬다
+  const m = s.match(new RegExp(`(?:^|[^\\d.])${D}\\s*(?:부터|[~∼〜]|-(?!\\d{3,}))\\s*${D}\\s*(?:까지)?`));
   if (!m) return null;
   const start = parseDate(`${m[1]}/${m[2]}`, now);
   let end = parseDate(`${m[3]}/${m[4]}`, now);
@@ -639,7 +640,10 @@ export function normalizeAndValidate(raw, ctx = {}) {
   // AI가 기간을 비워 두었으면 근거 문구의 '(8/19~8/21)' 같은 표기에서 읽는다
   // (AI가 '상시'·'null'처럼 날짜가 아닌 글자를 넣은 경우도 비운 것으로 본다 — 10/27 재실행에서 확인)
   const sd0 = parseDate(raw.start_date, now), ed0 = parseDate(raw.end_date, now);
-  const period = (!sd0 || !ed0) ? inferPeriod([raw.evidence, raw.conditions, raw.menu, raw.program_note].map(clean).join(' '), now) : null;
+  // 11/23 정확도: 조건에 '10/29(목)-11/3(화)'처럼 기간이 적혀 있는데 기간 칸이 비어 끝난 메가커피 특가가 '종료일 미정'으로 게시됐다
+  // → 기간 칸이 둘 다 비면 조건·근거 글의 기간도 읽는다(끝났으면 아래에서 버려짐)
+  const periodText = [raw.evidence, raw.conditions, raw.menu, raw.program_note].map(clean).join(' ');
+  const period = (!sd0 || !ed0) ? (inferPeriod(periodText, now) || (!sd0 && !ed0 ? textPeriod(periodText, now) : null)) : null;
 
   // 메뉴 자리에 프로그램 이름만 적힌 경우('해피포인트 적립', '네이버페이 결제') → '전 메뉴'
   let menu = clean(raw.menu);
