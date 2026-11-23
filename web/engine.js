@@ -706,6 +706,14 @@ export function normalizeAndValidate(raw, ctx = {}) {
   };
   // 통신사 멤버십이 필요한데 대상이 '전체'로 읽혔으면 멤버십으로 (누구나 쓰는 쿠폰과 구분)
   if (programs.some((p) => ['SKT', 'KT', 'LGU+', 'CJ ONE'].includes(p)) && c.audience === '전체') c.audience = '멤버십';
+  // 11/23 표본 점검: 파파이스 두배로데이('본 행사는 매장 전용 이벤트')가 배달 포함으로 저장됨 → '매장 전용'이면 배달을 뺀다
+  if (/매장\s*전용/.test(allText) && !/배달\s*(?:주문\s*)?(?:가능|포함)/.test(allText) && c.channels.includes('배달')) c.channels = c.channels.filter((x) => x !== '배달');
+  // 11/23 표본 점검: 스타벅스 '카드 3만원 이상 충전 후 등록 시 1+1'의 3만원이 '최소 주문'으로 저장됨 → 충전 조건은 조건 글로
+  const charge = allText.match(/(\d+(?:,\d{3})*|\d+\s*만)\s*원\s*이상\s*(?:최초\s*)?충전/);
+  if (charge && c.min_order !== null) {
+    const amt = /만/.test(charge[1]) ? +charge[1].replace(/\D/g, '') * 10000 : +charge[1].replace(/,/g, '');
+    if (amt === c.min_order) { c.min_order = null; if (!c.conditions.includes('충전')) c.conditions = [`카드 ${amt}원 이상 충전 시`, c.conditions].filter(Boolean).join(' · '); }
+  }
 
   // 등급 %로 바꾼 가격(priceTier)은 AI가 읽은 VIP 가격을 쓰지 않는다
   const calc = computeCouponPrice({ ...raw, discount_type, discount_value, discount_unit, ...(priceTier ? { coupon_price: null } : {}) });

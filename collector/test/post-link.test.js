@@ -272,3 +272,15 @@ test('11/23 표본 점검: 배달앱 제휴(푸라닭 X 요기요)·친구 초�
     { sourceUrl: 'https://order.banolimpizza.com/event/detail/x', brand: '반올림피자', now });
   assert.match(wed.conditions, /^매주 수요일 한정/);
 });
+
+test('11/23 표본 점검: 매장 전용이면 배달을 빼고, 충전 조건은 최소 주문이 아니다', async () => {
+  const { normalizeAndValidate } = await import('../src/engine.js');
+  const now = new Date('2026-11-23T01:00:00Z');
+  const pop = normalizeAndValidate({ brand: '파파이스', menu: '치킨', discount_type: 'free_item', channels: ['매장', '포장', '배달'], conditions: '본 행사는 매장 전용 이벤트입니다. 타 할인과 중복 불가', evidence: '11/23(월) ~ 11/26(목) : 치킨 1+1', start_date: '2026-11-23', end_date: '2026-11-26', confidence: 0.9 },
+    { sourceUrl: 'https://popeyes.co.kr/event/72', brand: '파파이스', now });
+  assert.deepEqual(pop.channels.includes('배달'), false);
+  const sb = normalizeAndValidate({ brand: '스타벅스', menu: '제조음료', discount_type: 'free_item', min_order: 30000, channels: ['매장'], audience: '멤버십', conditions: '스타벅스 리워드 웰컴·그린·골드 회원', evidence: 'POS에서 스타벅스 카드를 3만원 이상 최초 충전 후 계정 등록 시 제조음료 1+1 쿠폰 증정', start_date: '2026-11-16', end_date: '2026-11-29', confidence: 0.9 },
+    { sourceUrl: 'https://www.starbucks.co.kr/whats_new/campaign_view.do?pro_seq=3634', brand: '스타벅스', now });
+  assert.equal(sb.min_order, null);
+  assert.match(sb.conditions, /카드 30000원 이상 충전 시/);
+});
