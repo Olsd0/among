@@ -75,7 +75,8 @@ function summary(out, dry) {
     if (!r) { lines.push(`- ${label}: 받은 상품 ${list.length}개`); continue; }
     if (!r.applied) { lines.push(`- ${label}: 바꾸지 않음 (${r.reason})`); continue; }
     lines.push(`- ${label}: ${r.changed ? '교체' : '순위 같음 · 가격만 기록'} · 유지 ${r.kept}개` +
-      (r.added.length ? ` · 새로 ${r.added.length}개(${r.added.join(' / ')})` : '') + (r.retired.length ? ` · 내림 ${r.retired.length}개(${r.retired.join(' / ')})` : ''));
+      (r.added.length ? ` · 새로 ${r.added.length}개(${r.added.join(' / ')})` : '') + (r.retired.length ? ` · 내림 ${r.retired.length}개(${r.retired.join(' / ')})` : '') +
+      (r.relinked && r.relinked.length ? ` · 사진 고침 ${r.relinked.length}개(${r.relinked.join(' / ')})` : ''));
     if (r.skipped && r.skipped.length) lines.push(`  - 건너뜀: ${r.skipped.map(s => `${s.title.slice(0, 30)}(${s.reason})`).join(' / ')}`);
   }
   const watchCount = Object.values(out.watch || {}).reduce((n, l) => n + l.length, 0);

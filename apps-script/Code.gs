@@ -2486,7 +2486,16 @@ function odRotatePlan(picks, item, entries, now) {
     if (mine.some(p => p.hidden && odSameTitle_(p.title, title))) { out.skipped.push({ title, reason: '대표가 숨긴 상품' }); return; }
     // 같은 상품명의 카드가 있으면(지금 보이는 것 먼저, 다음으로 순위에서 빠졌던 것) 그 카드를 다시 쓴다
     const prev = live.filter(p => !used[p.id] && odSameTitle_(p.title, title))[0] || mine.filter(p => !used[p.id] && !p.hidden && odSameTitle_(p.title, title)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
-    if (prev) { used[prev.id] = true; seenTitle.push(title); out.keep.push({ pick: prev, rank: ++rank, price }); return; }
+    if (prev) {
+      used[prev.id] = true; seenTitle.push(title);
+      const k = { pick: prev, rank: ++rank, price };
+      // 11/24 대표 요청(사진은 항상 보이게): 사진이 안 뜨는 카드에 매일 아침 작업이 새 링크 HTML을 보내면 그 카드의 링크·사진만 바꾼다
+      if (e.url && e.imageUrl) {
+        const re = odPickInput({ title, url: e.url, imageUrl: e.imageUrl, item, price }, now, null);
+        if (!re.errors.length && re.pick.imageUrl && (re.pick.imageUrl !== prev.imageUrl || re.pick.url !== prev.url)) k.relink = { url: re.pick.url, imageUrl: re.pick.imageUrl };
+      }
+      out.keep.push(k); return;
+    }
     const input = { title, url: e.url, imageUrl: e.imageUrl || '', item, price, memo: '인기순 ' + odKstDay_(now) };
     const check = odPickInput(input, now, null);
     if (check.errors.length) { out.skipped.push({ title, reason: check.errors.join(' ') }); return; }
@@ -2833,6 +2842,7 @@ function odItemRotateIngest_(b) {
     plan.keep.forEach(function (k) {
       const p = k.pick;
       p.rank = k.rank; p.price = k.price; p.priceCheckedAt = at; p.updatedAt = at;
+      if (k.relink) { p.url = k.relink.url; p.imageUrl = k.relink.imageUrl; }
       p.endsAt = new Date(Math.max(Date.parse(p.endsAt) > now ? Date.parse(p.endsAt) : 0, now + OD_PICK_ITEM_DAYS * OD_DAY)).toISOString();
       if (String(p.memo || '').indexOf(OD_ROTATE_MARK) === 0) p.memo = '인기순 ' + odKstDay_(now);
       fresh.push(p);
@@ -2845,7 +2855,8 @@ function odItemRotateIngest_(b) {
     });
     plan.retire.forEach(function (p) { p.endsAt = at; p.rank = 0; p.updatedAt = at; p.memo = OD_ROTATE_MARK + odKstDay_(now); });
     report[item] = { applied: true, changed: plan.changed, kept: plan.keep.length, added: plan.add.map(function (a) { return a.input.title; }),
-      retired: plan.retire.map(function (p) { return p.title; }), skipped: plan.skipped };
+      retired: plan.retire.map(function (p) { return p.title; }),
+      relinked: plan.keep.filter(function (k) { return k.relink; }).map(function (k) { return k.pick.title; }), skipped: plan.skipped };
   });
   const gold = b.deals ? odGoldboxApply_(picks, b.deals, now) : null;
   if (gold) gold.fresh.forEach(function (p) { fresh.push(p); });

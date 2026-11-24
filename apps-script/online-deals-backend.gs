@@ -242,6 +242,7 @@ function odItemRotateIngest_(b) {
     plan.keep.forEach(function (k) {
       const p = k.pick;
       p.rank = k.rank; p.price = k.price; p.priceCheckedAt = at; p.updatedAt = at;
+      if (k.relink) { p.url = k.relink.url; p.imageUrl = k.relink.imageUrl; }
       p.endsAt = new Date(Math.max(Date.parse(p.endsAt) > now ? Date.parse(p.endsAt) : 0, now + OD_PICK_ITEM_DAYS * OD_DAY)).toISOString();
       if (String(p.memo || '').indexOf(OD_ROTATE_MARK) === 0) p.memo = '인기순 ' + odKstDay_(now);
       fresh.push(p);
@@ -254,7 +255,8 @@ function odItemRotateIngest_(b) {
     });
     plan.retire.forEach(function (p) { p.endsAt = at; p.rank = 0; p.updatedAt = at; p.memo = OD_ROTATE_MARK + odKstDay_(now); });
     report[item] = { applied: true, changed: plan.changed, kept: plan.keep.length, added: plan.add.map(function (a) { return a.input.title; }),
-      retired: plan.retire.map(function (p) { return p.title; }), skipped: plan.skipped };
+      retired: plan.retire.map(function (p) { return p.title; }),
+      relinked: plan.keep.filter(function (k) { return k.relink; }).map(function (k) { return k.pick.title; }), skipped: plan.skipped };
   });
   const gold = b.deals ? odGoldboxApply_(picks, b.deals, now) : null;
   if (gold) gold.fresh.forEach(function (p) { fresh.push(p); });

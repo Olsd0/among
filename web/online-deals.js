@@ -368,10 +368,24 @@ export function createOnlineDealsUI(root, options = {}) {
     const it = event.target.closest('[data-od-item]');
     if (it) { item = it.dataset.odItem; render(); root.querySelector(`[data-od-item="${item}"]`)?.focus(); }
   }
-  // 사진을 못 불러오면 사진만 빼고 글자 칸(쿠팡 · 항목)으로 바꾼다
+  // 사진을 못 불러오면 쿠팡 사진 서버를 바꿔 두 번 더 불러 본다 (같은 사진이 image1~12·img1a~5c 어느 서버에도 있다, 11/24).
+  // 그래도 안 되면 사진만 빼고 글자 칸(쿠팡 · 항목)으로 바꾼다
+  const OD_PH_HOSTS = ['image7.coupangcdn.com', 'img1a.coupangcdn.com'];
   function onImageError(event) {
     const img = event.target;
     if (!img.matches?.('.od-ph')) return;
+    const tries = Number(img.dataset.odTry || 0);
+    if (tries < OD_PH_HOSTS.length) {
+      try {
+        const u = new URL(img.src);
+        if (/^[a-z0-9-]+\.coupangcdn\.com$/.test(u.hostname) && u.pathname.startsWith('/image/affiliate/')) {
+          img.dataset.odTry = String(tries + 1);
+          u.hostname = OD_PH_HOSTS[tries] === u.hostname ? OD_PH_HOSTS[(tries + 1) % OD_PH_HOSTS.length] : OD_PH_HOSTS[tries];
+          img.src = u.href;
+          return;
+        }
+      } catch { /* 주소가 이상하면 아래처럼 글자 칸으로 */ }
+    }
     const stub = img.closest('.stub');
     img.remove();
     if (stub) { stub.classList.remove('od-photo'); stub.classList.add('plain'); }

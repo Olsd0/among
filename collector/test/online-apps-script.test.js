@@ -470,6 +470,13 @@ test('항목별 인기순 교체: 수집기 토큰으로만, 순위 순서로 �
   assert.deepEqual(picks.map(p => p.title), [P[1], P[0], P[2], P[3], P[4], P[6]], '순서만 오늘 순위대로');
   assert.deepEqual(picks.map(p => p.id).sort(), [...firstIds].sort(), '같은 카드(같은 링크)');
   assert.equal(picks[0].price, 9001, '가격 기록');
+  // 11/24 사진은 항상 보이게: 이미 있는 카드에 새 링크 HTML을 보내면 같은 카드의 링크·사진만 바뀐다 (순위·기록은 그대로)
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [{ title: P[1], price: 9001, html: html(91, P[1]) }, ...[0, 2, 3, 4, 6].map(i => entry(i, 9000 + i, false))] }) });
+  assert.deepEqual([out.result.protein.changed, out.result.protein.added.length, out.result.protein.relinked], [false, 0, [P[1]]]);
+  const relinked = pub_(b).picks.find(p => p.title === P[1]);
+  assert.deepEqual([relinked.id, relinked.url, relinked.imageUrl], [firstIds[1], 'https://link.coupang.com/a/rot91', 'https://img5c.coupangcdn.com/image/affiliate/banner/rot91@2x.jpg']);
+  out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [{ title: P[1], price: 9001, html: html(91, P[1]) }, ...[0, 2, 3, 4, 6].map(i => entry(i, 9000 + i, false))] }) });
+  assert.deepEqual(out.result.protein.relinked, [], '같은 링크·사진이면 고칠 것 없음');
 
   later(b, DAY);
   out = await runRotation({ api: b.api, text: JSON.stringify({ protein: [entry(5), entry(0, 9000, false), entry(1, 9001, false), entry(2, 9002, false)] }) });

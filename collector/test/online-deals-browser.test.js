@@ -663,7 +663,10 @@ test('카드 사진: 파트너스 HTML을 붙이면 링크·사진·상품명이
   await page.setViewportSize({ width: 390, height: 844 });
   if (process.env.AMONG_QA_DIR) await page.screenshot({ path: `${process.env.AMONG_QA_DIR}/online-pick-photo-390-dark.png`, fullPage: true });
   // 기존 글꼴(cdn.jsdelivr.net) 외에 새로 생긴 외부 요청은 쿠팡 파트너스 사진뿐 (광고·추적 스크립트 없음)
-  assert.ok(outside.filter(u => !u.startsWith('https://cdn.jsdelivr.net/')).every(u => /^https:\/\/img5c\.coupangcdn\.com\/image\/affiliate\//.test(u)), `쿠팡 파트너스 사진 외 외부 요청 없음: ${outside.join(', ')}`);
+  assert.ok(outside.filter(u => !u.startsWith('https://cdn.jsdelivr.net/')).every(u => /^https:\/\/[a-z0-9-]+\.coupangcdn\.com\/image\/affiliate\//.test(u)), `쿠팡 파트너스 사진 외 외부 요청 없음: ${outside.join(', ')}`);
+  // 11/24 사진은 항상 보이게: 못 불러온 사진은 다른 쿠팡 사진 서버 두 곳에서 다시 불러 본 뒤에만 글자 칸으로 바꾼다
+  const broken = outside.filter(u => /broken/.test(u)).map(u => new URL(u).hostname);
+  assert.deepEqual([...new Set(broken)].sort(), ['image7.coupangcdn.com', 'img1a.coupangcdn.com', 'img5c.coupangcdn.com'], broken.join(', '));
   assert.deepEqual(errors, []);
 });
 
