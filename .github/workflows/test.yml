@@ -5,6 +5,8 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 23,0,3,4,9,10 * * *' # KST 08, 09, 12, 13, 18, 19시 (하루 6회)
 
 permissions:
   contents: read
@@ -23,6 +25,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+          cache: 'npm'
+          cache-dependency-path: collector/package-lock.json
       - run: npm ci --no-fund
       - run: npx playwright install --with-deps chromium || (sleep 20 && sudo apt-get update && npx playwright install --with-deps chromium)
       - run: npm test
