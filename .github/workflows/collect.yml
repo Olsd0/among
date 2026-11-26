@@ -1,10 +1,10 @@
 name: collect
 
-# 매일 00:00 KST(= 15:00 UTC) 자동 수집 + 수동/버튼 실행
+# 하루 4회 KST 00:12, 06:12, 12:12, 18:12 자동 수집 + 수동/버튼 실행
 # GitHub 예약 실행은 부하에 따라 수 분~수십 분 늦어질 수 있다.
 on:
   schedule:
-    - cron: '0 15 * * *'
+    - cron: '12 3,9,15,21 * * *' # UTC 기준
   workflow_dispatch:
     inputs:
       trigger:
@@ -24,7 +24,7 @@ on:
 
 # 동시에 두 번 돌지 않게 (버튼 연타·예약 실행 겹침)
 concurrency:
-  group: collect
+  group: collect-main
   cancel-in-progress: false
 
 # 보안: 이 워크플로의 GITHUB_TOKEN은 읽기만 (저장소에 쓰거나 배포할 수 없음). 비밀값은 필요한 단계에만 넘긴다.
@@ -32,7 +32,7 @@ concurrency:
 permissions:
   contents: read
 
-# 실제 시트 반영 승인 스위치: AI 추출 정확도를 확인하기 전까지 00시 예약 실행은 시트에 쓰지 않는다(dry).
+# 실제 시트 반영 승인 스위치: AI 추출 정확도를 확인하기 전까지 예약 실행은 시트에 쓰지 않는다(dry).
 # 수동 실행(mode=collect)은 항상 반영. 확인이 끝나면 'true'로 바꿔 커밋.
 env:
   PUBLISH_APPROVED: 'true'
