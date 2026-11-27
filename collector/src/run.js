@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { normalizeAndValidate, dedupe, mergeSimilar, groupFreeItems, summarize, normPrograms, todayKST, stabilizeIds, normalizeNews, linkNews, mergeNews, postLinkFor, noticeCardFor, couponCardFor, usableThumb, pageUrlKey, pickImage, pickNoticeImage, dropSharedNoticeImages, noticeImageFor } from './engine.js';
 import { couponId, contentHash, newsId, newsHash, runId as makeRunId } from './ids.js';
 import { extractCoupons, pickProvider } from './extract.js';
-import { openBrowser, collectSource, captureNoticeDetail, renderPage } from './fetch.js';
+import { openBrowser, collectSource, captureNoticeDetail, renderPage, peekList } from './fetch.js';
 import { checkPeriods, needsPeriod } from './period-check.js';
 import { officialReader } from './official-period.js';
 import { pressFromEnv } from './press-search.js';
@@ -104,6 +104,7 @@ export async function runCollector(o = {}) {
     let previousNews = [];
     // 출처별 목록 칸(글 링크·썸네일)과 글 목록 — 쿠폰 행사 썸네일을 정할 때 다시 쓴다
     const cardsBySource = new Map();
+    const listKeys = new Map();  // 출처 id → 이번에 끝까지 수집한 목록 지문 (시트 반영이 끝난 뒤 기억)
     let imageReads = 0;  // 이미지만 찾으려고 연 상세 페이지 수 (실행 전체 최대 IMAGE_READS)
 
     // 출처 여러 개를 동시에 (기본 4) — 출처 수가 늘어도 작업 제한 시간(25분) 안에 끝나게. 같은 사이트 안에서는 여전히 1.5초 간격
@@ -112,6 +113,30 @@ export async function runCollector(o = {}) {
     const deadline = started + (+(env.RUN_BUDGET_S || 2100)) * 1000;
     let stopReason = '';
     pageCache = o.pageCache || (env.PAGE_CACHE_FILE && llm.provider !== 'mock' ? new PageCache(env.PAGE_CACHE_FILE) : null);
+    /**
+     * 11/27 대표 결정 "버튼 수행에서는 1,2번만"의 1번 — 바로 확인(버튼)은 출처 목록 페이지만 먼저 빠르게 열어(상세·AI 없음)
+     * 지난 성공 수집과 목록이 같은 출처는 이번 실행에서 뺀다(only와 같은 경로: 시트의 그 출처 쿠폰·소식은 그대로).
+     * 목록이 바뀌었거나, 처음 보거나, 지난 수집이 실패했거나, 열지 못한 출처만 평소처럼 끝까지 수집한다.
+     * 오늘(KST) 아직 수집이 없으면 전체를 수집한다: 예약 실행은 '오늘 이미 수집함'이면 건너뛰므로 그날 첫 수집은 항상 전체여야 한다.
+     */
+    if (trigger === 'button' && !only && pageCache && env.QUICK_CHECK !== '0' && sources.length) {
+      const done = statusReader ? await collectedToday(statusReader, now).catch(() => '') : '';
+      if (!done) log('  바로 확인: 오늘 수집 전이라 전체를 수집');
+      else {
+        const t0 = Date.now();
+        const same = new Set();
+        await pool(sources, +(env.QUICK_CONCURRENCY || 4), async (s) => {
+          try {
+            const p = await (o.peekList || ((x) => peekList(ctx, x)))(s);
+            if (pageCache.listUnchanged(s.id, p.listKey, now)) same.add(s.id);
+          } catch { /* 열지 못한 목록은 평소처럼 수집해 본다 */ }
+        });
+        report.unchanged_sources = sources.filter((s) => same.has(s.id)).map((s) => s.id);
+        sources = sources.filter((s) => !same.has(s.id));
+        report.quick_check_s = Math.round((Date.now() - t0) / 1000);
+        log(`  바로 확인: 목록이 그대로라 건너뜀 ${same.size}곳 · 다시 수집 ${sources.length}곳${sources.length ? ` (${sources.map((s) => s.id).join(', ')})` : ''} · 목록 확인 ${report.quick_check_s}초`);
+      }
+    }
     /**
      * 11/19 대표 요청 "핫딜 공지에는 어지간하면 이미지를 받아줘. 브랜드 로고로 대치말고":
      * 대체텍스트 대조로 이미지를 못 고른 공지 → ① 목록에서 그 글 칸의 썸네일 → ② 그 글의 상세 페이지를 열어(AI 없이) 포스터.
@@ -244,6 +269,7 @@ export async function runCollector(o = {}) {
         }
         await fillNoticeImages(source, pages, srcNews);
         sr.ok = true;
+        if (head.listKey) listKeys.set(source.id, head.listKey);
       } catch (e) {
         if (e.code === 'AI_QUOTA') stopReason = 'AI 하루 한도 소진';
         // robots.txt가 (AI) 수집을 거부하면 이 출처의 쿠폰은 더 확인할 수 없으므로 내린다 (성공한 출처로 보고 → 시트에서 사라짐 처리)
@@ -389,6 +415,8 @@ export async function runCollector(o = {}) {
         sources_ok: report.sources.filter((s) => s.ok).map((s) => s.id),
       })).result;
     }
+    // 시트에 반영까지 끝난 출처만 목록 지문을 기억한다 → 다음 바로 확인에서 목록이 같으면 건너뜀 (시간 초과·실패·robots 차단은 기억하지 않음)
+    if (sheet && pageCache) for (const x of report.sources) if (x.ok && !x.robots_blocked && listKeys.has(x.id)) pageCache.rememberList(x.id, listKeys.get(x.id), now);
     const okCount = report.sources.filter((s) => s.ok).length;
     report.state = sources.length && okCount === 0 ? 'failed' : okCount < sources.length ? 'partial' : 'success';
   } catch (e) {

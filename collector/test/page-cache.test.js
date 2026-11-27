@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PageCache, pageKey } from '../src/page-cache.js';
+import { PageCache, pageKey, listKey } from '../src/page-cache.js';
 
 const page = { text: '와퍼 3,900원 11/30까지', images: [{ src: 'https://a.test/1.jpg' }] };
 const ext = { coupons: [{ menu: '와퍼' }], news: [], page_kind: 'list', notes: '', usage: { input_tokens: 900, output_tokens: 80 }, truncated: false };
@@ -45,4 +45,33 @@ test('잘린 응답은 기록하지 않고, 깨진 파일은 빈 기록으로 �
   c.set('u', 'k', { ...ext, truncated: true }, day(0));
   assert.equal(c.get('u', 'k', day(0)), null);
   assert.deepEqual(new PageCache(join(tmpdir(), 'no-such-file-xyz.json')).entries, {});
+});
+
+test('목록 지문 (11/27 바로 확인): 회전 배너 순서는 같게, 글자·새 글·출처 설정이 바뀌면 다르게', () => {
+  const src = { id: 'bk', url: 'https://a.test/list', brand: '버거킹', selector: 'main' };
+  const list = { text: '이벤트 목록\n와퍼 3,900원', images: [{ src: 'https://a.test/1.jpg' }, { src: 'https://a.test/2.jpg' }], links: ['https://a.test/e/1'], posts: [{ href: 'https://a.test/e/1' }] };
+  const k = listKey(list, src);
+  assert.equal(k, listKey({ ...list, images: [...list.images].reverse() }, src), '사진 순서만 바뀐 회전 배너는 같다');
+  assert.notEqual(k, listKey({ ...list, text: list.text + '\n치즈와퍼 1+1' }, src));
+  assert.notEqual(k, listKey({ ...list, links: [...list.links, 'https://a.test/e/2'] }, src));
+  assert.notEqual(k, listKey({ ...list, posts: [{ href: 'https://a.test/e/2' }] }, src));
+  assert.notEqual(k, listKey(list, { ...src, selector: '#event' }), '출처 설정을 고치면 다시 수집');
+  assert.ok(!('screenshots' in list));
+});
+
+test('목록 지문 기억: 24시간 안의 성공 수집과 같을 때만 건너뛰고, 파일로 이어진다', () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'pc-')), 'pages.json');
+  const a = new PageCache(file);
+  const h = (n) => new Date(Date.UTC(2026, 10, 27, n));
+  assert.equal(a.listUnchanged('bk', 'k1', h(1)), false, '기억이 없으면 수집');
+  a.rememberList('bk', 'k1', h(0));
+  a.save(h(0));
+  const b = new PageCache(file);
+  assert.equal(b.listUnchanged('bk', 'k1', h(5)), true);
+  assert.equal(b.listUnchanged('bk', 'k2', h(5)), false, '목록이 바뀌면 수집');
+  assert.equal(b.listUnchanged('bk', '', h(5)), false);
+  assert.equal(b.listUnchanged('bk', 'k1', new Date(h(0) - 3600000)), false, '시각이 거꾸로면 수집');
+  assert.equal(b.listUnchanged('bk', 'k1', h(25)), false, '하루가 지나면 수집');
+  b.save(new Date(Date.UTC(2026, 10, 30, 1)));
+  assert.deepEqual(new PageCache(file).lists, {}, '3일 지난 기억은 지운다');
 });

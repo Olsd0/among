@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { robotsAllows, BOT_NAME } from './robots.js';
+import { listKey } from './page-cache.js';
 
 export const VIEWPORT = { width: 430, height: 932 };
 const SHOT_HEIGHT = 1600;
@@ -247,8 +248,8 @@ async function takeShots(page, root, selector, maxShots) {
  * 출처 1개 수집: 목록 페이지 + (follow 설정 시) 상세 페이지 최대 max_follow개.
  * @returns {Promise<Array<page>>}
  */
-export async function collectSource(ctx, source, { outDir, delayMs = 1500, knownPosts = [] } = {}) {
-  const opts = {
+function listOptions(source, outDir) {
+  return {
     selector: source.selector || undefined,
     exclude: splitList(source.exclude),
     follow: source.follow || '',
@@ -257,8 +258,23 @@ export async function collectSource(ctx, source, { outDir, delayMs = 1500, known
     waitMs: +source.wait_ms || 0,
     outDir, name: source.id,
   };
+}
+
+/**
+ * 출처의 목록 페이지만 연다 (글 상세·버튼 클릭·화면 사진 없음) — 바로 확인 실행이 지난 수집과 목록이 같은지 볼 때 (11/27).
+ * collectSource 첫 페이지와 같은 설정으로 열어 지문(listKey)이 같은 방식으로 나온다.
+ */
+export async function peekList(ctx, source) {
+  const rule = postRuleFor(source.url);
+  const page = await renderPage(ctx, source.url, { ...listOptions(source), maxShots: 0, post: rule && !rule.click ? rule : null });
+  return { ...page, listKey: listKey(page, source) };
+}
+
+export async function collectSource(ctx, source, { outDir, delayMs = 1500, knownPosts = [] } = {}) {
+  const opts = listOptions(source, outDir);
   const rule = postRuleFor(source.url);
   const first = await renderPage(ctx, source.url, { ...opts, post: rule && !rule.click ? rule : null });
+  first.listKey = listKey(first, source);  // 버튼 클릭으로 연 글·기억한 글을 붙이기 전 (peekList와 같은 상태)
   if (rule && rule.click) {
     try { first.posts = await clickPosts(ctx, first.finalUrl || source.url, rule, opts); } catch (e) { first.posts = []; first.postError = e.message; }
     first.postsMissed = first.posts.missed || 0;

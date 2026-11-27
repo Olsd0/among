@@ -239,6 +239,50 @@ test('바로 확인(버튼) 실행 (11/27): 기간을 새로 찾지 않고 저�
   assert.equal(second.period.reused, 1);
 });
 
+test('바로 확인(버튼) 실행 (11/27): 목록이 지난 수집과 같은 출처는 건너뛰고, 바뀐 출처만 끝까지 수집', { timeout: 120000 }, async () => {
+  const { PageCache } = await import('../src/page-cache.js');
+  clearRobotsCache();
+  const outDir = mkdtempSync(join(tmpdir(), 'among-e2e-'));
+  const pageCache = new PageCache('');
+  let lastChecked = '';
+  const sheetRead = { async get(action) { return action === 'status' ? { ok: true, last_checked_at: lastChecked } : { ok: true, coupons: [], news: [] }; } };
+  const sources = [
+    { id: 'test-promo', brand: '테스트버거', category: '햄버거', url: `${site.base}/promo/list.html`, selector: 'main', exclude: '.gnb', follow: 'a.event-link', max_follow: 5, active: true },
+    { id: 'ok', brand: 'A', category: '햄버거', url: `${site.base}/promo/1.html`, max_follow: 0 },
+  ];
+  const run = async (trigger) => {
+    const sheet = recordingSheet();
+    const report = await runCollector({ env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: trigger, PERIOD_CHECK: '0', ARTWORK_LOOKUP: '0' }, now: NOW, sources, sheet, sheetRead, pageCache, quiet: true });
+    return { report, ingest: sheet.calls.find((c) => c.action === 'ingest').payload };
+  };
+  // ① 오늘 아직 수집이 없으면 버튼이어도 전체 수집 → 성공한 출처의 목록 지문을 기억
+  let { report, ingest } = await run('button');
+  assert.equal(report.state, 'success');
+  assert.equal(report.unchanged_sources, undefined);
+  assert.deepEqual(ingest.sources_ok.sort(), ['ok', 'test-promo']);
+  assert.deepEqual(Object.keys(pageCache.lists).sort(), ['ok', 'test-promo']);
+  // ② 오늘 수집이 있고 목록이 그대로면 두 곳 다 건너뜀: 시트에는 아무 출처도 성공으로 보내지 않아 기존 쿠폰·소식이 그대로
+  lastChecked = new Date(NOW - 3600000).toISOString();
+  ({ report, ingest } = await run('button'));
+  assert.equal(report.state, 'success');
+  assert.deepEqual(report.unchanged_sources.sort(), ['ok', 'test-promo']);
+  assert.equal(report.sources.length, 0);
+  assert.equal(report.pages, 0, '상세·AI 없음');
+  assert.deepEqual([ingest.coupons.length, ingest.sources_ok.length], [0, 0]);
+  // ③ 한 곳의 목록이 바뀌면 그 출처만 끝까지 수집
+  pageCache.lists['test-promo'].key = 'old';
+  ({ report, ingest } = await run('button'));
+  assert.deepEqual(report.unchanged_sources, ['ok']);
+  assert.deepEqual(report.sources.map((x) => x.id), ['test-promo']);
+  assert.deepEqual(ingest.sources_ok, ['test-promo']);
+  assert.equal(ingest.coupons.length, 3);
+  assert.notEqual(pageCache.lists['test-promo'].key, 'old', '다시 수집한 목록을 기억');
+  // ④ 예약 실행은 목록이 같아도 항상 전체
+  ({ report } = await run('test'));
+  assert.equal(report.unchanged_sources, undefined);
+  assert.equal(report.sources.length, 2);
+});
+
 test('공지 배너 눌러 상세 열기 (11/10 버거킹 실제 구조): 이미지가 아니라 카드의 detail 버튼 → 상세 글자에서 공식 기간 · 이미지 없는 공지는 제목 낱말로', { timeout: 60000 }, async () => {
   clearRobotsCache();
   const { openBrowser, captureNoticeDetail } = await import('../src/fetch.js');
