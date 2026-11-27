@@ -205,6 +205,40 @@ test('기간 팩트체크 연결 (11/10): 끝나는 날 없는 공식 소식만 
   assert.equal(sent.image_url, artworkUrl, 'the complete provenance URL reaches existing ingest');
 });
 
+test('바로 확인(버튼) 실행 (11/27): 기간을 새로 찾지 않고 저장된 기간만 반영', { timeout: 60000 }, async () => {
+  clearRobotsCache();
+  const outDir = mkdtempSync(join(tmpdir(), 'among-e2e-'));
+  const calls = [];
+  const stored = { start_date: '2026-11-09', end_date: '2026-11-13', period_source: '공식 공지 이미지', period_refs: '', period_checked_at: '2026-11-09T15:00:00Z' };
+  let wid = '';
+  const sheet = {
+    async post(action, payload) {
+      calls.push({ action, payload });
+      if (action === 'news_periods') return { ok: true, periods: wid ? [{ id: wid, ...stored }] : [] };
+      if (action === 'ingest') return { ok: true, result: { inserted: 0, updated: 0, unchanged: 0, gone: 0, expired: 0 } };
+      return { ok: true };
+    },
+  };
+  const asked = [];
+  const official = async (n) => { asked.push(n.title); return { start: '2026-11-09', end: '2026-11-13', source: '공식 공지 이미지' }; };
+  const sources = [{ id: 'bk-event', brand: '버거킹', category: '햄버거', url: `${site.base}/period/list.html`, selector: 'main', max_follow: 0, active: true }];
+  const opts = { now: new Date('2026-11-10T03:00:00Z'), sources, sheet, official, artwork: async (news) => ({ news, summary: {} }), press: { connected: false, name: '연결 안 됨 (시험)' }, quiet: true };
+  // 처음 한 번은 저장된 기간이 없다 → 버튼 실행이라 새로 찾지 않아 끝나는 날이 비어 있다
+  const first = await runCollector({ ...opts, env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'button' } });
+  assert.equal(first.state, 'success');
+  assert.deepEqual(asked, [], '공식 상세·기사 확인을 부르지 않음');
+  const w1 = calls.find((c) => c.action === 'ingest').payload.news.find((n) => /와퍼/.test(n.title));
+  assert.equal(w1.end_date || '', '');
+  // 저장된 기간이 있으면 그대로 반영
+  wid = w1.id;
+  calls.length = 0;
+  const second = await runCollector({ ...opts, env: { MOCK_CLAUDE: '1', OUT_DIR: outDir, TRIGGER: 'button' } });
+  assert.deepEqual(asked, []);
+  const w2 = calls.find((c) => c.action === 'ingest').payload.news.find((n) => /와퍼/.test(n.title));
+  assert.deepEqual([w2.start_date, w2.end_date, w2.period_source], ['2026-11-09', '2026-11-13', '공식 공지 이미지']);
+  assert.equal(second.period.reused, 1);
+});
+
 test('공지 배너 눌러 상세 열기 (11/10 버거킹 실제 구조): 이미지가 아니라 카드의 detail 버튼 → 상세 글자에서 공식 기간 · 이미지 없는 공지는 제목 낱말로', { timeout: 60000 }, async () => {
   clearRobotsCache();
   const { openBrowser, captureNoticeDetail } = await import('../src/fetch.js');

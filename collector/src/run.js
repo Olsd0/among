@@ -322,6 +322,8 @@ export async function runCollector(o = {}) {
     // 소식 id는 이미 공식 원문 날짜로 정해졌으므로 바꾸지 않는다. 시간 예산이 남았을 때만, 한 번에 최대 10개.
     const srcById = new Map(sources.map((x) => [x.id, x]));
     const fixedSource = (id) => !!(srcById.get(id) && srcById.get(id).brand);
+    // 바로 확인(버튼) 실행은 기간을 새로 찾지 않는다(공식 상세·기사 확인에 1~2분). 저장된 기간은 그대로 반영 — 11/27 대표 결정
+    const quickPeriods = trigger === 'button' && env.QUICK_PERIODS !== '0';
     if (env.PERIOD_CHECK !== '0' && Date.now() < deadline - 60000 && news.some((n) => needsPeriod(n, { fixedSource }))) {
       const known = new Map();
       if (sheet) {
@@ -337,7 +339,8 @@ export async function runCollector(o = {}) {
         sources: srcMap, llm, now, log,
       }));
       const pc = await checkPeriods(news, {
-        now, known, official, press, log,
+        now, known, official: quickPeriods ? null : official, press: quickPeriods ? null : press, log,
+        ...(quickPeriods ? { maxItems: 0 } : {}),
         fixedSource,
         officialHosts: (n) => [hostOf(srcMap.get(n.source_id)?.url), hostOf(n.source_url), hostOf(n.official_link)].filter(Boolean),
       });
@@ -349,7 +352,8 @@ export async function runCollector(o = {}) {
         return twin !== n.id && ids.has(twin) ? { ...n, status: 'rejected', issues: [...(n.issues || []), '같은 행사가 기간과 함께 이미 있음'] } : n;
       });
       report.period = pc.summary;
-      log(`  기간 확인: 새로 확인 ${pc.summary.checked} · 채움 ${pc.summary.filled.length} · 못 채움 ${pc.summary.failed.length} · 저장된 기간 반영 ${pc.summary.reused} · 기사 확인 ${pc.summary.press}`);
+      if (quickPeriods) log(`  기간 확인: 바로 확인이라 새로 찾지 않음 · 저장된 기간 반영 ${pc.summary.reused}`);
+      else log(`  기간 확인: 새로 확인 ${pc.summary.checked} · 채움 ${pc.summary.filled.length} · 못 채움 ${pc.summary.failed.length} · 저장된 기간 반영 ${pc.summary.reused} · 기사 확인 ${pc.summary.press}`);
     }
     // 이번 실행에서 실제 수집·검증된 쿠폰만 공지로 연결한다.
     // 수동 확인 행사는 브라우저에서 원래 확인 시각으로 합치며 자동 ingest로 시각을 갱신하지 않는다.

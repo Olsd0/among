@@ -149,6 +149,19 @@ test('저장된 기간은 다시 찾지 않고 반영, 기사 근거는 공식 �
   assert.ok(!order.includes('n0'), '처음 보는 10개가 먼저, 오늘 못 찾은 것은 다음 차례');
 });
 
+test('바로 확인(maxItems 0): 저장된 기간만 반영하고 공식 상세·기사는 새로 찾지 않는다', async () => {
+  let calls = 0;
+  const official = async () => { calls++; return { start: '2026-11-09', end: '2026-11-14', source: PERIOD_SOURCE.image }; };
+  const known = new Map([[WHOPPER.id, { id: WHOPPER.id, start_date: '2026-11-09', end_date: '2026-11-13', period_source: '언론 보도', period_refs: '', period_checked_at: '2026-11-09T01:00:00Z' }]]);
+  const fresh = { ...WHOPPER, id: 'fresh-one' };
+  const r = await checkPeriods([WHOPPER, fresh], { now: NOW, known, official, maxItems: 0 });
+  assert.equal(calls, 0, '공식 단계도 부르지 않음');
+  assert.equal(r.summary.checked, 0);
+  assert.equal(r.summary.reused, 1);
+  assert.equal(r.news[0].end_date, '2026-11-13', '저장된 기간은 그대로');
+  assert.equal(r.news[1].end_date || '', '', '처음 보는 것은 다음 전체 수집에서');
+});
+
 test('공식 단계: 상세 화면 글자에 기간 → 공식 원문 / 글자에 없으면 AI가 옮긴 이미지 글자 → 공식 공지 이미지 / 날짜를 못 읽으면 없음', async () => {
   const sources = new Map([['bk-event', { id: 'bk-event', brand: '버거킹', url: 'https://www.burgerking.co.kr/event/ongoing' }]]);
   const llm = { provider: 'gemini', model: 'm', apiKey: 'k' };

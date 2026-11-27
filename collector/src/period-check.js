@@ -239,7 +239,8 @@ export async function checkPeriods(news, deps = {}) {
   const { now = new Date(), known = new Map(), fixedSource = () => true, official = null, press = null, log = () => {}, officialHosts = () => [] } = deps;
   const summary = { checked: 0, filled: [], failed: [], reused: 0, press: press ? press.name || (press.connected ? '연결됨' : '연결 안 됨') : '연결 안 됨' };
   const hoursSince = (iso) => (iso && Number.isFinite(Date.parse(iso)) ? (now - Date.parse(iso)) / 36e5 : Infinity);
-  let budget = PERIOD_LIMITS.items;
+  // maxItems 0: 저장된 기간만 반영하고 새로 찾지 않는다 (바로 확인 버튼 실행, 11/27)
+  let budget = Number.isFinite(deps.maxItems) ? deps.maxItems : PERIOD_LIMITS.items;
   // 못 찾았던 것은 다음 수집에서 다시 찾되(새 기사·상세가 생길 수 있음), 처음 보는 것 → 오래전에 못 찾은 것 순으로 한 번에 10개까지
   const fresh = news.filter((n) => needsPeriod(n, { fixedSource }) && !(known.get(n.id) && known.get(n.id).period_source));
   const lastTry = (n) => (known.get(n.id) && known.get(n.id).period_checked_at) || '';
